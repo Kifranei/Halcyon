@@ -39,6 +39,7 @@ internal fun Song.metadataCategoryNames(type: String): List<String> {
         "composer" -> splitArtistNames(composer)
         "arranger" -> splitArtistNames(arranger)
         "lyricist" -> splitArtistNames(lyricist)
+        "producer" -> splitArtistNames(producer)
         "folder" -> listOfNotNull(parentFolderPath())
         else -> customCategoryValues(type)
     }

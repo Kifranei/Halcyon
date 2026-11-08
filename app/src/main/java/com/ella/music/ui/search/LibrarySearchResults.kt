@@ -10,13 +10,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import kotlinx.coroutines.delay
 import com.ella.music.ui.folder.songsForFolderPlaylist
 import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.navigation.LocalAppNavigator
@@ -90,6 +99,25 @@ internal fun LibrarySearchResultsPane(
         return
     }
     val dragListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // A still-focused search field re-opens the IME on the first list drag (#742).
+    // Drop focus the moment the user starts scrolling so scrolling stays a pure gesture.
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(dragListState) {
+        snapshotFlow { dragListState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling) {
+                // A plain hide/clearFocus can lose the race when a popup steals focus or
+                // the IME re-shows mid-gesture; keep re-asserting until the scroll ends.
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                while (dragListState.isScrollInProgress) {
+                    delay(120)
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                }
+            }
+        }
+    }
     val dragRows = remember(songResultGroups, collapsedSongSections.toMap()) {
         songResultGroups.filter { collapsedSongSections[it.first] != true }.flatMap { (label, entries) -> entries.map { label to it } }
     }
@@ -270,7 +298,7 @@ internal fun LibrarySearchResultsPane(
                 )
             }
         }
-        listOf("folder", "folder_playlist", "composer", "arranger", "lyricist", "genre", "year").forEach { categoryType ->
+        listOf("folder", "folder_playlist", "composer", "arranger", "lyricist", "producer", "genre", "year").forEach { categoryType ->
             if (categoryType == "folder_playlist") {
                 if (folderPlaylistResults.isNotEmpty()) {
                     item { SearchSectionHeader(stringResource(R.string.folder_playlist_title) + " (${folderPlaylistResults.size})") }
@@ -339,6 +367,17 @@ internal fun LibrarySearchResultsPane(
                         else stringResource(R.string.library_search_no_results)
                     )
                 }
+            }
+        }
+        if (!contentFilterPending) {
+            item {
+                top.yukonga.miuix.kmp.basic.Text(
+                    text = stringResource(R.string.library_search_all_loaded),
+                    fontSize = 12.sp,
+                    color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                )
             }
         }
     }

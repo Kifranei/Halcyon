@@ -121,12 +121,14 @@ fun ArtistScreen(
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val showArtistIntroduction by mainViewModel.settingsManager.showArtistIntroduction.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
+    val artistWordmarkFolderUri by mainViewModel.settingsManager.artistWordmarkFolderUri.collectAsState(initial = "")
+    val artistWordmarkUri = rememberArtistCoverUri(artistName, artistWordmarkFolderUri, mainViewModel)
     val dynamicCoverEnabled by mainViewModel.settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val dynamicCoverCustomFolders by mainViewModel.settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
     val musicVideoCustomFolders by mainViewModel.settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val sortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
     val sortMode = ArtistDetailSongSortMode.entries.getOrElse(sortIndex) { ArtistDetailSongSortMode.Title }
     val albumSortIndex by mainViewModel.settingsManager.artistDetailAlbumSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailAlbumSortIndex)
@@ -140,6 +142,7 @@ fun ArtistScreen(
     var playlistPickerSong by remember { mutableStateOf<Song?>(null) }
     var createPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
@@ -297,6 +300,9 @@ fun ArtistScreen(
     val hasLyricistCategory = remember(songs, artistName) {
         mainViewModel.hasMetadataCategory("lyricist", artistName)
     }
+    val hasProducerCategory = remember(songs, artistName) {
+        mainViewModel.hasMetadataCategory("producer", artistName)
+    }
     val neteaseArtistUrl by produceState<String?>(initialValue = null, artistName, songs) {
         value = mainViewModel.getNeteaseArtistUrlForArtist(artistName)
     }
@@ -316,13 +322,13 @@ fun ArtistScreen(
         }
     }
     val selectedArtistTab = selectedTabTarget.takeIf { it in tabs } ?: ArtistTab.Songs
-    val listState = rememberLazyListState()
+    val listState = com.ella.music.ui.components.rememberDetailListState(artistName)
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
         listState = listState
     )
-    val hasArtistJumpActions = hasComposerCategory || hasArrangerCategory || hasLyricistCategory || !neteaseArtistUrl.isNullOrBlank()
+    val hasArtistJumpActions = hasComposerCategory || hasArrangerCategory || hasLyricistCategory || hasProducerCategory || !neteaseArtistUrl.isNullOrBlank()
     val artistDetailListBodyStartIndex = 3 + if (hasArtistJumpActions) 1 else 0
     val activeArtistListSize = when (selectedArtistTab) {
         ArtistTab.Songs -> sortedArtistSongs.size
@@ -614,6 +620,7 @@ fun ArtistScreen(
             item {
                 ArtistHeader(
                     artistName = artistName,
+                    wordmarkModel = artistWordmarkUri,
                     fallbackCoverModel = artistHeaderCoverModel,
                     customCoverAssets = customArtistCoverAssets,
                     dynamicCoverEnabled = dynamicCoverEnabled,
@@ -655,10 +662,12 @@ fun ArtistScreen(
                         hasComposerCategory = hasComposerCategory,
                         hasArrangerCategory = hasArrangerCategory,
                         hasLyricistCategory = hasLyricistCategory,
+                        hasProducerCategory = hasProducerCategory,
                         hasNeteaseArtist = !neteaseArtistUrl.isNullOrBlank(),
                         onComposerClick = { onMetadataCategoryClick("composer", artistName) },
                         onArrangerClick = { onMetadataCategoryClick("arranger", artistName) },
                         onLyricistClick = { onMetadataCategoryClick("lyricist", artistName) },
+                        onProducerClick = { onMetadataCategoryClick("producer", artistName) },
                         onNeteaseClick = { neteaseArtistUrl?.let { com.ella.music.data.netease.NeteaseLinks.openWebUrl(context, it) } },
                         // 艺人百科 follows 网易云歌手页, using the same artist id.
                         onNeteaseWikiClick = neteaseArtistUrl
@@ -987,6 +996,7 @@ fun ArtistScreen(
         EllaSmallTopAppBar(
             title = "",
             color = Color.Transparent,
+            titleEndPadding = if (selection.selectionMode) 192.dp else 128.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
@@ -1029,6 +1039,13 @@ fun ArtistScreen(
                         }
                     }
                     if (selectedArtistTab != ArtistTab.MusicVideos) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(
+                            onClick = {
+                                val selected = selectedActionSongs()
+                                if (selected.isNotEmpty()) batchEditSongs = selected
+                            },
+                            tint = Color.White,
+                        )
                         IconButton(
                             onClick = {
                                 val selected = selectedActionSongs()
@@ -1262,6 +1279,7 @@ fun ArtistScreen(
                 .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
         )
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         ArtistScreenSurfaces(
             context = context,
             mainViewModel = mainViewModel,
@@ -1391,6 +1409,7 @@ fun ArtistScreen(
                     title = artistPreviewTitle,
                     saveName = artistName,
                     imageKind = com.ella.music.data.ExportImageKind.Artist,
+                    onSearchImage = { com.ella.music.ArtistImageSearchActivity.open(context, artistName) },
                     onDismiss = { artistCoverPreviewVisible = false }
                 )
             }

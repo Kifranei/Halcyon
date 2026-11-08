@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -118,13 +119,13 @@ fun PlaylistDetailScreen(
     val songs = remember(playlist, librarySongs, fiveStarSongs, isFiveStarPlaylist) {
         if (isFiveStarPlaylist) fiveStarSongs else playlist?.let(mainViewModel::playlistSongs).orEmpty()
     }
-    val listState = rememberLazyListState()
+    val listState = com.ella.music.ui.components.rememberDetailListState(playlistId)
     val scope = rememberCoroutineScope()
     var actionSong by remember { mutableStateOf<com.ella.music.data.model.Song?>(null) }
     val sortIndex by mainViewModel.settingsManager.playlistDetailSongSortIndex.collectAsState(initial = 2)
     val sortMode = PlaylistSongSortMode.entries.getOrElse(sortIndex) { PlaylistSongSortMode.AddedAt }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
 
     RestoreListScrollAfterSearch(
@@ -135,6 +136,7 @@ fun PlaylistDetailScreen(
     var removeFromPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var removeSelectedPlaylistSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var manualOrder by remember(playlist?.id) { mutableStateOf(songs) }
     val selection = rememberLibrarySelectionState<String>()
@@ -366,6 +368,14 @@ fun PlaylistDetailScreen(
             },
             onNavigationClick = {
                 if (selection.selectionMode) finishSelectionMode() else onBack()
+            },
+            onBatchEditSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    batchEditSongs = selected
+                }
             },
             onPlayNextSelectedClick = {
                 val selected = selectedDisplayedSongs()
@@ -788,6 +798,7 @@ fun PlaylistDetailScreen(
                 )
             }
 
+            com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
             playlistPickerSongs?.let { songsToAdd ->
                 EllaMiuixBottomSheet(
                     show = true,

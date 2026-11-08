@@ -20,7 +20,6 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Pin
 
 @Composable internal fun <T> AdaptiveFolderRow(items: List<T>, columns: Int, itemKey: (T) -> Any, content: @Composable (T) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = if (columns > 1) 12.dp else 0.dp, vertical = 4.dp)) {
@@ -42,12 +41,11 @@ import top.yukonga.miuix.kmp.icon.extended.Pin
             BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val edge = minOf(maxWidth, (80 * scale).dp)
                 FolderHierarchyCover(folder, Modifier.size(edge).clip(RoundedCornerShape(12.dp)))
-                if (isPinned) Icon(MiuixIcons.Regular.Pin, null, tint = MiuixTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).size(16.dp))
             }
             Spacer(Modifier.height(8.dp))
-            Text(folder.name, fontSize = (16 * scale).sp, lineHeight = (20 * scale).sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            TextWithEndPin(folder.name, pinned = isPinned, fontSize = (16 * scale).sp, lineHeight = (20 * scale).sp,
+                fontWeight = FontWeight.SemiBold, color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             Text(stringResource(R.string.song_count, folder.songCount), fontSize = (12 * scale).sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
         }

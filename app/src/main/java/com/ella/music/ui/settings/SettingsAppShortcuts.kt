@@ -106,6 +106,11 @@ internal fun SettingsAppShortcutsPreference(
             stringResource(R.string.settings_library_tile_lyricist_summary)
         ),
         AppShortcutPreferenceItem(
+            SettingsManager.APP_SHORTCUT_PRODUCERS,
+            stringResource(R.string.category_producer),
+            stringResource(R.string.settings_library_tile_producer_summary)
+        ),
+        AppShortcutPreferenceItem(
             SettingsManager.APP_SHORTCUT_ANALYTICS,
             stringResource(R.string.settings_library_tile_analytics),
             stringResource(R.string.settings_library_tile_analytics_summary)

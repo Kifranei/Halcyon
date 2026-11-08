@@ -56,7 +56,7 @@ import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -360,7 +360,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                 SettingsSearchAnchor(R.string.settings_home_search_target) {
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_home_search_target) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_home_search_target),
                         summary = stringResource(R.string.settings_home_search_target_summary),
                         items = listOf(

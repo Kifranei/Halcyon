@@ -226,13 +226,15 @@ fun ArtistListScreen(
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     val selection = rememberLibrarySelectionState<String>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var artistMenuTarget by remember { mutableStateOf<Artist?>(null) }
+    var batchArtistTarget by remember { mutableStateOf<Artist?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val sortIndex by mainViewModel.settingsManager.artistListSortIndex.collectAsState(initial = LibrarySortUiState.artistListSortIndex)
     val detailSongSortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
@@ -423,7 +425,7 @@ fun ArtistListScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
+                titleEndPadding = if (selection.selectionMode) 328.dp else 128.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     if (selection.selectionMode) {
@@ -441,6 +443,10 @@ fun ArtistListScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedArtistSongs()
+                            if (selectedSongs.isNotEmpty()) batchEditSongs = selectedSongs
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) {
@@ -743,6 +749,7 @@ fun ArtistListScreen(
         }
     }
 
+    com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songsToAdd ->
         EllaMiuixBottomSheet(
             show = true,
@@ -830,11 +837,31 @@ fun ArtistListScreen(
                     ).show()
                     artistMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityActions.searchImage {
+                    com.ella.music.ArtistImageSearchActivity.open(context, artist.name)
+                    artistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchArtistTarget = artist; artistMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForArtist(artist.name)
                     artistMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchArtistTarget?.let { batchArtist ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "artist",
+            category = batchArtist.name,
+            songs = remember(batchArtist.name) { mainViewModel.getSongsForArtist(batchArtist.name) },
+            specs = com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchArtistTarget = null }
         )
     }
 

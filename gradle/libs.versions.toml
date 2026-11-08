@@ -6,7 +6,7 @@ activity-compose = "1.13.0"
 navigation-compose = "2.10.2"
 lifecycle = "2.11.0"
 media3 = "1.11.1"
-miuix = "0.9.4"
+miuix = "0.9.4-9d4b9c85-SNAPSHOT"
 coil = "3.6.3"
 okhttp = "5.5.0"
 documentfile = "1.1.0"
@@ -76,6 +76,7 @@ compose-material-icons-extended = { module = "org.jetbrains.compose.material:mat
 miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
+miuix-material = { module = "top.yukonga.miuix.kmp:miuix-material-android", version.ref = "miuix" }
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", version.ref = "miuix" }
 mcp-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
 ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }

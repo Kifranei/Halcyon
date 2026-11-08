@@ -103,7 +103,7 @@ internal fun SmbScreen(mainViewModel: MainViewModel, playerViewModel: PlayerView
                     WebDavTextField(label = stringResource(R.string.webdav_username), value = username, onValueChange = { username = it })
                     WebDavTextField(label = stringResource(R.string.webdav_password), value = password, onValueChange = { password = it }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                     WebDavTextField(label = stringResource(R.string.smb_domain), value = domain, onValueChange = { domain = it })
-                    top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
+                    com.ella.music.ui.components.EllaSpinnerPreference(
                         title = stringResource(R.string.smb_protocol),
                         items = listOf(DropdownItem(stringResource(R.string.smb_protocol_auto)), DropdownItem("SMB 2"), DropdownItem("SMB 3")),
                         selectedIndex = protocol.ordinal,

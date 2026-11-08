@@ -38,7 +38,7 @@ import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.frostedCardColor
 import com.ella.music.ui.components.frostedCardModifier
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.icon.extended.Pin
+import com.ella.music.ui.components.TextWithEndPin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -82,28 +82,15 @@ internal fun FolderListRow(
         ) {
             FolderHierarchyCover(folder, Modifier.size((42 * scale).dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = folder.name,
-                        fontSize = (17 * scale).sp,
-                        lineHeight = (22 * scale).sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isPinned) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Pin,
-                            contentDescription = stringResource(R.string.common_pin_to_top),
-                            tint = MiuixTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .padding(start = 6.dp)
-                                .size(16.dp)
-                        )
-                    }
-                }
+                TextWithEndPin(
+                    text = folder.name,
+                    pinned = isPinned,
+                    fontSize = (17 * scale).sp,
+                    lineHeight = (22 * scale).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    maxLines = 2
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${folder.summaryFor(context, sortMode)} · ${folder.path}",

@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -215,7 +215,7 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
             SettingsFocusAnchor(active = highlightKey == "artist_image_download") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_artist_image_download) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_download),
                     summary = stringResource(R.string.settings_artist_image_download_summary),
                     items = downloadOptions.map { DropdownItem(title = it.second) },
@@ -232,7 +232,7 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
             SettingsFocusAnchor(active = highlightKey == "artist_image_region") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_artist_image_region) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_artist_image_region),
                     summary = stringResource(R.string.settings_artist_image_region_summary),
                     items = com.ella.music.data.lastfm.ARTIST_IMAGE_LASTFM_REGIONS.map {
@@ -250,7 +250,7 @@ internal fun SettingsArtistImageSection(highlightKey: String? = null) {
             }
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_artist_spotify_region) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_artist_spotify_region),
                     summary = stringResource(R.string.settings_artist_spotify_region_summary),
                     items = com.ella.music.data.lastfm.SPOTIFY_ARTIST_REGIONS.map { DropdownItem(title = stringResource(it.countryNameRes)) },
@@ -330,6 +330,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
     val settingsManager = remember { SettingsManager.getInstance(context) }
     var confirmRemoveFolder by remember { mutableStateOf(false) }
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectCachedAsState("artistCoverFolderUri", "")
+    val artistWordmarkFolderUri by settingsManager.artistWordmarkFolderUri.collectCachedAsState("artistWordmarkFolderUri", "")
     val artistCoverDownloadFolderUri by settingsManager.artistCoverDownloadFolderUri.collectCachedAsState("artistCoverDownloadFolderUri", "")
     val artistCoverCarousel by settingsManager.artistCoverCarousel.collectCachedAsState("artistCoverCarousel", true)
     val artistCoverFolderPicker = rememberLauncherForActivityResult(
@@ -352,6 +353,19 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
         }
         scope.launch { settingsManager.setArtistCoverFolderUri(uri.toString()) }
         Toast.makeText(context, context.getString(R.string.settings_artist_cover_folder_saved), Toast.LENGTH_SHORT).show()
+    }
+    val artistWordmarkFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        scope.launch { settingsManager.setArtistWordmarkFolderUri(uri.toString()) }
+        Toast.makeText(context, context.getString(R.string.settings_artist_wordmark_folder_saved), Toast.LENGTH_SHORT).show()
     }
     val artistCoverDownloadFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -413,7 +427,7 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
             }
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_artist_cover_download_folder) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_artist_cover_download_folder),
                 items = listOf(
                     DropdownItem(stringResource(R.string.settings_artist_cover_folder)),
@@ -435,6 +449,32 @@ internal fun SettingsArtistCoverSection(highlightKey: String? = null) {
             )
             } // search-anchor:end
 
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_artist_wordmark_folder) {
+            ArrowPreference(
+                title = stringResource(R.string.settings_artist_wordmark_folder),
+                summary = if (artistWordmarkFolderUri.isBlank()) {
+                    stringResource(R.string.settings_artist_wordmark_folder_summary)
+                } else {
+                    stringResource(R.string.settings_artist_wordmark_folder_selected)
+                },
+                onClick = { artistWordmarkFolderPicker.launch(null) }
+            )
+            } // search-anchor:end
+
+            if (artistWordmarkFolderUri.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_artist_wordmark_folder_remove)) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_artist_wordmark_folder_remove) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_artist_wordmark_folder_remove),
+                    summary = stringResource(R.string.settings_artist_wordmark_folder_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setArtistWordmarkFolderUri("") }
+                    }
+                )
+                } // search-anchor:end
+
+            }
 
         }
     }
@@ -468,6 +508,7 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
         "dynamicCoverCustomFolders",
         ""
     )
+    val albumCaseEffect by settingsManager.albumCaseEffect.collectCachedAsState("albumCaseEffect", true)
     val dynamicCoverPermissionLauncher = rememberDynamicCoverPermissionLauncher(settingsManager)
     val dynamicCoverFolderPicker = rememberDynamicCoverFolderPicker(
         currentFolders = dynamicCoverCustomFolders,
@@ -504,6 +545,16 @@ internal fun SettingsDynamicCoverSection(highlightKey: String? = null) {
                     )
                 },
                 onClick = { dynamicCoverFolderPicker.launch(null) }
+            )
+            } // search-anchor:end
+
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_album_case_effect) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_album_case_effect),
+                summary = stringResource(R.string.settings_album_case_effect_summary),
+                checked = albumCaseEffect,
+                onCheckedChange = { scope.launch { settingsManager.setAlbumCaseEffect(it) } }
             )
             } // search-anchor:end
 
@@ -669,7 +720,7 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_music_video_orientation) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_music_video_orientation),
                 summary = stringResource(R.string.settings_music_video_orientation_summary),
                 items = musicVideoOrientationEntries,
@@ -780,7 +831,7 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.netease_link_mv_open_mode) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.netease_link_mv_open_mode),
                 summary = stringResource(R.string.netease_link_mv_open_mode_summary),
                 items = listOf(
@@ -796,7 +847,7 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.netease_comments_default_tab) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.netease_comments_default_tab),
                 summary = stringResource(R.string.netease_comments_default_tab_summary),
                 items = listOf(
@@ -815,7 +866,7 @@ internal fun SettingsMusicVideoSection(highlightKey: String? = null) {
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.netease_link_target) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.netease_link_target),
                 summary = stringResource(R.string.netease_link_target_summary),
                 items = com.ella.music.data.netease.NeteaseLinkTarget.entries.map { DropdownItem(title = stringResource(it.titleRes)) },

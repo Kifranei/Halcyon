@@ -14,7 +14,7 @@ internal fun selectMetadataCategoryCoverSong(
 ): Song? {
     val target = name.tagIdentityKey()
     val matched = songs.filter { song -> song.matchesMetadataCategory(type, target) }
-    val albumArtistMatched = if (type in setOf("composer", "arranger", "lyricist")) {
+    val albumArtistMatched = if (type in setOf("composer", "arranger", "lyricist", "producer")) {
         songs.filter { song -> splitArtistNames(song.albumArtist).any { it.tagIdentityKey() == target } }
     } else {
         emptyList()
@@ -23,7 +23,7 @@ internal fun selectMetadataCategoryCoverSong(
 
     fun hasUsableCover(song: Song): Boolean = song.coverUrl.isNotBlank() || song.albumId > 0L
     val candidates = when (type) {
-        "composer", "arranger", "lyricist" -> {
+        "composer", "arranger", "lyricist", "producer" -> {
             val roleMatched = matched
             val uniqueAlbumArtist = albumArtistMatched.filter { song ->
                 splitArtistNames(song.albumArtist).singleOrNull()?.tagIdentityKey() == target
@@ -60,6 +60,7 @@ private fun Song.metadataCategoryNamesForCover(type: String): List<String> = whe
     "composer" -> splitArtistNames(composer)
     "arranger" -> splitArtistNames(arranger)
     "lyricist" -> splitArtistNames(lyricist)
+    "producer" -> splitArtistNames(producer)
     "genre" -> splitGenreNames(genre)
     "year" -> Regex("""\d{4}""").find(year)?.value?.let(::listOf).orEmpty()
     else -> customCategoryValues(type)

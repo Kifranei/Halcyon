@@ -226,6 +226,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            settingsManager.customMetadataCategories.distinctUntilChanged().collect { categories ->
+                metadataCategoryItemsCache.clear()
+                com.ella.music.data.CustomCategoryConfigStore.update(categories)
+            }
+        }
+        viewModelScope.launch {
             combine(settingsManager.customMetadataCategories, songs) { categories, library ->
                 categories.isNotEmpty() && library.any { !it.customTagsLoaded &&
                     (it.path.startsWith("/") || it.path.startsWith("content://") || it.path.startsWith("file://")) }
@@ -698,6 +704,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun writeSongCustomTag(song: Song, key: String, value: String): Result<Song?> =
         repository.writeSongCustomTag(song, key, value)
+
+    suspend fun keepSongModifiedTime(song: Song) = repository.keepSongModifiedTime(song)
 
     suspend fun writeSongMetadata(song: Song, tags: AudioTagInfo): Result<Song?> {
         val result = repository.writeSongMetadata(song, tags)

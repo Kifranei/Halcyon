@@ -24,7 +24,8 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerEntriesPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 internal const val APPEARANCE_PAGE_HUB = "hub"
 internal const val APPEARANCE_PAGE_THEME = "theme"
@@ -66,7 +67,7 @@ internal fun appearanceSubpageForHighlight(highlight: String?): String {
 
         "player_action_menu", "player_vertical_actions" -> APPEARANCE_PAGE_PLAYER_ACTION_MENU
         "player_show_total_duration", "player_show_song_annotation", "player_tap_seek",
-        "transport_button_outlines", "player_immersive", "player_page",
+        "transport_button_outlines", "player_quality_chip_outline", "player_immersive", "player_page",
         "player_apple_music_immersive_cover", "apple_music_use_apple_favorite",
         "player_title_position", "player_landscape", "player_cover_content_color",
         "player_favorite_heart_pink", "player_cover_swipe", "hi_res_logo" -> APPEARANCE_PAGE_PLAYER
@@ -191,6 +192,7 @@ internal fun SettingsAppearanceSection(
 
     val themeMode by settingsManager.themeMode.collectCachedAsState("themeMode", 0)
     val progressiveTopBarBlur by settingsManager.progressiveTopBarBlur.collectCachedAsState("progressiveTopBarBlur", true)
+    val topBarLiquidGlass by settingsManager.topBarLiquidGlass.collectCachedAsState("topBarLiquidGlass", false)
     val appLanguage by settingsManager.appLanguage.collectCachedAsState("appLanguage", SettingsManager.APP_LANGUAGE_SYSTEM)
     val appFontScalePercent by settingsManager.appFontScalePercent.collectCachedAsState(
         "appFontScalePercent",
@@ -313,6 +315,10 @@ internal fun SettingsAppearanceSection(
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectCachedAsState(
         "transportButtonOutlines",
         SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
+    )
+    val playerQualityChipOutline by settingsManager.playerQualityChipOutline.collectCachedAsState(
+        "playerQualityChipOutline",
+        SettingsManager.DEFAULT_PLAYER_QUALITY_CHIP_OUTLINE
     )
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectCachedAsState("playerTapSeekEnabled", true)
     val playerProgressInfoPriority by settingsManager.playerProgressInfoPriority.collectCachedAsState(
@@ -455,7 +461,17 @@ internal fun SettingsAppearanceSection(
         SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC to
             stringResource(R.string.settings_player_page_style_apple_music),
         SettingsManager.PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS to
-            stringResource(R.string.settings_player_page_style_immersive_lyrics)
+            stringResource(R.string.settings_player_page_style_immersive_lyrics),
+        SettingsManager.PLAYER_PAGE_STYLE_VINYL_TURNTABLE to
+            stringResource(R.string.settings_player_page_style_vinyl_turntable),
+        SettingsManager.PLAYER_PAGE_STYLE_FAN_CARDS to
+            stringResource(R.string.settings_player_page_style_fan_cards),
+        SettingsManager.PLAYER_PAGE_STYLE_CINEMASCOPE to
+            stringResource(R.string.settings_player_page_style_cinemascope),
+        SettingsManager.PLAYER_PAGE_STYLE_SIGNAL to
+            stringResource(R.string.settings_player_page_style_signal),
+        SettingsManager.PLAYER_PAGE_STYLE_EDITORIAL to
+            stringResource(R.string.settings_player_page_style_editorial)
     )
     val selectedPlayerPageStyle = playerPageStyleOptions
         .indexOfFirst { (style, _) -> style == playerPageStyle }
@@ -476,9 +492,10 @@ internal fun SettingsAppearanceSection(
         SettingsManager.PLAYER_LANDSCAPE_STYLE_COVER_CLOCK to
             stringResource(R.string.settings_player_landscape_style_cover_clock)
     )
-    val bgEffectOptions = remember {
+    val bgEffectOsOffLabel = stringResource(R.string.bg_effect_os_off)
+    val bgEffectOptions = remember(bgEffectOsOffLabel) {
         listOf(
-            SettingsManager.BG_EFFECT_OS1 to "OS1",
+            SettingsManager.BG_EFFECT_OS1 to bgEffectOsOffLabel,
             SettingsManager.BG_EFFECT_OS2 to "OS2",
             SettingsManager.BG_EFFECT_OS3 to "OS3",
         )
@@ -661,11 +678,12 @@ internal fun SettingsAppearanceSection(
         SettingsManager.APP_LANGUAGE_AR -> stringResource(R.string.settings_language_summary_arabic)
         else -> stringResource(R.string.settings_language_summary_system)
     }
+    // The classic note icon is the default again; the legacy "traditional" entry rendered
+    // the same artwork, so it is folded into the default instead of offering a duplicate.
     val appIconOptions = listOf(
         SettingsManager.APP_ICON_STYLE_DEFAULT to stringResource(R.string.settings_app_icon_default),
         SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime),
-        SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli),
-        SettingsManager.APP_ICON_STYLE_TRADITIONAL to stringResource(R.string.settings_app_icon_traditional)
+        SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli)
     )
     val selectedAppIconIndex = appIconOptions.indexOfFirst { it.first == appIconStyle }
         .takeIf { it >= 0 }
@@ -678,20 +696,28 @@ internal fun SettingsAppearanceSection(
     )
 
     val bottomBarStyles = remember {
-        listOf(BottomBarStyle.Normal, BottomBarStyle.Floating, BottomBarStyle.LiquidGlass)
+        listOf(
+            BottomBarStyle.Normal,
+            BottomBarStyle.Floating,
+            BottomBarStyle.LiquidGlass,
+            BottomBarStyle.FloatingPill
+        )
     }
     val bottomBarNormalLabel = stringResource(R.string.bottom_bar_style_normal)
     val bottomBarFloatingLabel = stringResource(R.string.bottom_bar_style_floating)
     val bottomBarLiquidLabel = stringResource(R.string.bottom_bar_style_liquid)
+    val bottomBarFloatingPillLabel = stringResource(R.string.bottom_bar_style_floating_pill)
     val bottomBarStyleEntries = remember(
         bottomBarNormalLabel,
         bottomBarFloatingLabel,
-        bottomBarLiquidLabel
+        bottomBarLiquidLabel,
+        bottomBarFloatingPillLabel
     ) {
         listOf(
             DropdownItem(title = bottomBarNormalLabel),
             DropdownItem(title = bottomBarFloatingLabel),
-            DropdownItem(title = bottomBarLiquidLabel)
+            DropdownItem(title = bottomBarLiquidLabel),
+            DropdownItem(title = bottomBarFloatingPillLabel)
         )
     }
     val selectedBottomBarStyleIndex =
@@ -700,6 +726,7 @@ internal fun SettingsAppearanceSection(
         BottomBarStyle.Normal -> stringResource(R.string.settings_bottom_bar_style_summary_normal)
         BottomBarStyle.Floating -> stringResource(R.string.settings_bottom_bar_style_summary_floating)
         BottomBarStyle.LiquidGlass -> stringResource(R.string.settings_bottom_bar_style_summary_liquid)
+        BottomBarStyle.FloatingPill -> stringResource(R.string.settings_bottom_bar_style_summary_floating_pill)
     }
 
     val isTabletDevice = context.resources.configuration.smallestScreenWidthDp >= 600
@@ -867,11 +894,22 @@ internal fun SettingsAppearanceSection(
             )
             } // search-anchor:end
 
+            SettingsFocusAnchor(active = highlightKey == "top_bar_liquid_glass") {
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.settings_top_bar_liquid_glass) {
+            SwitchPreference(
+                title = stringResource(R.string.settings_top_bar_liquid_glass),
+                summary = stringResource(R.string.settings_top_bar_liquid_glass_summary),
+                checked = topBarLiquidGlass,
+                onCheckedChange = { enabled -> scope.launch { settingsManager.setTopBarLiquidGlass(enabled) } }
+            )
+            } // search-anchor:end
+            }
             }
             SettingsFocusAnchor(active = highlightKey == "theme_mode") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_theme_mode) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_theme_mode),
                     summary = stringResource(R.string.settings_theme_mode_summary),
                     items = themeEntries,
@@ -886,7 +924,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "monet_color") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_monet_color) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_monet_color),
                     summary = stringResource(R.string.settings_monet_color_summary),
                     items = monetEntries,
@@ -901,7 +939,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "player_bg_theme") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_bg_theme) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_bg_theme),
                     summary = stringResource(R.string.settings_player_bg_theme_summary),
                     items = themeEntries,
@@ -915,7 +953,7 @@ internal fun SettingsAppearanceSection(
             }
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_language) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_language),
                 summary = languageSummary,
                 items = languageEntries,
@@ -974,7 +1012,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "app_icon") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_app_icon) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_app_icon),
                     summary = stringResource(
                         R.string.settings_app_icon_summary,
@@ -1030,7 +1068,7 @@ internal fun SettingsAppearanceSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_bottom_bar_style) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_bottom_bar_style),
                 summary = bottomBarStyleSummary,
                 items = bottomBarStyleEntries,
@@ -1055,7 +1093,7 @@ internal fun SettingsAppearanceSection(
             ) {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_system_bars_mode) {
-                WindowSpinnerPreference(
+                EllaSpinnerEntriesPreference(
                     title = stringResource(R.string.settings_system_bars_mode),
                     summary = stringResource(R.string.settings_system_bars_mode_hint),
                     entries = immersiveModeEntries,
@@ -1198,7 +1236,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "bg_effect_version") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_bg_effect_version) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_bg_effect_version),
                     summary = stringResource(R.string.settings_bg_effect_version_summary),
                     items = bgEffectEntries,
@@ -1352,7 +1390,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "beautiful_lyrics") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_beautiful_lyrics_background) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_beautiful_lyrics_background),
                     summary = stringResource(R.string.settings_beautiful_lyrics_background_summary),
                     items = beautifulLyricsBackgroundEntries,
@@ -1445,7 +1483,7 @@ internal fun SettingsAppearanceSection(
         Column {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_sort_menu_style) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_sort_menu_style),
                 summary = if (sortMenuStyle == SettingsManager.SORT_MENU_STYLE_BOTTOM_SHEET) stringResource(R.string.settings_sort_menu_style_bottom_sheet) else stringResource(R.string.settings_sort_menu_style_dropdown),
                 items = sortMenuStyleEntries,
@@ -1458,7 +1496,7 @@ internal fun SettingsAppearanceSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_category_grid_columns) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_category_grid_columns),
                 summary = stringResource(
                     R.string.settings_category_grid_columns_summary,
@@ -1474,7 +1512,7 @@ internal fun SettingsAppearanceSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_library_song_grid_columns_phone) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_library_song_grid_columns_phone),
                 summary = stringResource(
                     R.string.settings_library_song_grid_columns_summary,
@@ -1493,7 +1531,7 @@ internal fun SettingsAppearanceSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_library_song_grid_columns_tablet) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_library_song_grid_columns_tablet),
                 summary = stringResource(
                     R.string.settings_library_song_grid_columns_summary,
@@ -1536,7 +1574,7 @@ internal fun SettingsAppearanceSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_list_quality_display) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_list_quality_display),
                 summary = listQualityDisplayLabels[
                     listQualityDisplayMode.coerceIn(listQualityDisplayLabels.indices)
@@ -1615,7 +1653,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "search_click_playback_mode") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_search_click_playback_mode) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_search_click_playback_mode),
                     summary = stringResource(R.string.settings_search_click_playback_mode_summary),
                     items = searchClickPlaybackEntries,
@@ -1644,7 +1682,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "search_reopen_behavior") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_search_reopen_behavior) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_search_reopen_behavior),
                     summary = stringResource(R.string.settings_search_reopen_behavior_summary),
                     items = searchReopenBehaviorEntries,
@@ -1805,7 +1843,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "player_favorite_heart_pink") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_favorite_heart_color) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_favorite_heart_color),
                     summary = if (playerFavoriteHeartPink) {
                         stringResource(R.string.settings_player_favorite_heart_color_pink)
@@ -1824,7 +1862,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "player_title_position") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_title_position) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_title_position),
                     summary = stringResource(R.string.settings_player_title_position_summary),
                     items = playerTitlePositionEntries,
@@ -1839,7 +1877,7 @@ internal fun SettingsAppearanceSection(
             SettingsFocusAnchor(active = highlightKey == "player_page") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_page_style) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_page_style),
                     summary = stringResource(R.string.settings_player_page_style_summary),
                     items = playerPageStyleEntries,
@@ -1894,10 +1932,58 @@ internal fun SettingsAppearanceSection(
                 )
                 } // search-anchor:end
             }
+            val playerShowFavoriteButton by settingsManager.playerShowFavoriteButton.collectAsState(initial = true)
+            val playerTitleMarquee by settingsManager.playerTitleMarquee.collectAsState(initial = true)
+            val playerSubtitleMarquee by settingsManager.playerSubtitleMarquee.collectAsState(initial = true)
+            val playerTitleOpensAlbum by settingsManager.playerTitleOpensAlbum.collectAsState(initial = false)
+            SettingsSearchAnchor(R.string.settings_player_show_favorite_button) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_show_favorite_button) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_show_favorite_button),
+                    summary = stringResource(R.string.settings_player_show_favorite_button_summary),
+                    checked = playerShowFavoriteButton,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerShowFavoriteButton(it) } }
+                )
+                } // search-anchor:end
+            }
+            SettingsSearchAnchor(R.string.settings_player_title_marquee) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_title_marquee) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_title_marquee),
+                    summary = stringResource(R.string.settings_player_title_marquee_summary),
+                    checked = playerTitleMarquee,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerTitleMarquee(it) } }
+                )
+                } // search-anchor:end
+            }
+            SettingsSearchAnchor(R.string.settings_player_subtitle_marquee) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_subtitle_marquee) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_subtitle_marquee),
+                    summary = stringResource(R.string.settings_player_subtitle_marquee_summary),
+                    checked = playerSubtitleMarquee,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerSubtitleMarquee(it) } }
+                )
+                } // search-anchor:end
+            }
+            SettingsSearchAnchor(R.string.settings_player_title_opens_album) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_title_opens_album) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_title_opens_album),
+                    summary = stringResource(R.string.settings_player_title_opens_album_summary),
+                    checked = playerTitleOpensAlbum,
+                    onCheckedChange = { scope.launch { settingsManager.setPlayerTitleOpensAlbum(it) } }
+                )
+                } // search-anchor:end
+            }
             SettingsFocusAnchor(active = highlightKey == "player_landscape") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_landscape_style) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_landscape_style),
                     summary = stringResource(
                         R.string.settings_player_landscape_style_summary,
@@ -1922,7 +2008,7 @@ internal fun SettingsAppearanceSection(
                 )
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_player_clock_color) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_player_clock_color),
                     summary = clockColorEntries[playerClockColor].text,
                     items = clockColorEntries,
@@ -1940,6 +2026,20 @@ internal fun SettingsAppearanceSection(
                     checked = transportButtonOutlines,
                     onCheckedChange = {
                         scope.launch { settingsManager.setTransportButtonOutlines(it) }
+                    }
+                )
+                } // search-anchor:end
+
+            }
+            SettingsFocusAnchor(active = highlightKey == "player_quality_chip_outline") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_player_quality_chip_outline) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_player_quality_chip_outline),
+                    summary = stringResource(R.string.settings_player_quality_chip_outline_summary),
+                    checked = playerQualityChipOutline,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setPlayerQualityChipOutline(it) }
                     }
                 )
                 } // search-anchor:end

@@ -105,6 +105,60 @@ internal class CatClawNeteaseClient(context: Context) {
         return reconcileNeteaseTracks(ids, byId)
     }
 
+    /** Daily recommended songs ("每日推荐"); one request, ready-to-play list. */
+    suspend fun dailyRecommendSongs(cookie: String): List<Song> = withContext(Dispatchers.IO) {
+        val root = request("/eapi/v1/discovery/recommend/songs", JSONObject(), cookie)
+        val data = root.optJSONObject("data") ?: root
+        val rows = data.optJSONArray("dailySongs")
+            ?: data.optJSONArray("recommend")
+            ?: JSONArray()
+        List(rows.length()) { rows.optJSONObject(it) }.mapNotNull(::parseNeteaseSong)
+    }
+
+    /** Daily recommended playlists; each is resolved with its full track list like user playlists. */
+    suspend fun dailyRecommendedPlaylists(account: NeteaseAccount): List<UserPlaylist> = withContext(Dispatchers.IO) {
+        val root = request("/eapi/v1/discovery/recommend/resource", JSONObject(), account.cookie)
+        val rows = root.optJSONArray("recommend") ?: JSONArray()
+        val result = mutableListOf<UserPlaylist>()
+        for (i in 0 until minOf(rows.length(), DAILY_PLAYLIST_LIMIT)) {
+            currentCoroutineContext().ensureActive()
+            val row = rows.optJSONObject(i) ?: continue
+            val id = row.optLong("id", 0).takeIf { it > 0 } ?: continue
+            val songs = runCatching { playlistSongs(id, account.cookie) }.getOrDefault(emptyList())
+            result += UserPlaylist(
+                id = "remote:netease:${account.userId}:daily:$id",
+                name = row.optString("name"),
+                songs = songs.map { it.toPlaylistSong() },
+                createdAt = row.optLong("createTime", System.currentTimeMillis()),
+                updatedAt = row.optLong("updateTime", System.currentTimeMillis()),
+                remoteSource = NETEASE_SOURCE,
+                remoteServerId = account.userId.toString(),
+                remotePlaylistId = "daily:$id",
+                remoteWritable = false
+            )
+        }
+        result
+    }
+
+    /** Heartbeat mode ("心动模式"): intelligent recommendations seeded by one song. */
+    suspend fun heartbeatFm(cookie: String, seedSongId: String, count: Int = 20): List<Song> = withContext(Dispatchers.IO) {
+        val params = JSONObject()
+            .put("id", seedSongId)
+            .put("count", count.coerceIn(1, 50))
+            .put("startTime", 0)
+            .put("type", "fromPlayOne")
+        val root = request("/eapi/playmode/intelligence/list", params, cookie)
+        val data = root.optJSONArray("data") ?: JSONArray()
+        List(data.length()) { i ->
+            val row = data.optJSONObject(i) ?: return@List null
+            parseNeteaseSong(row.optJSONObject("songInfo") ?: row)
+        }.filterNotNull()
+    }
+
+    private companion object {
+        const val DAILY_PLAYLIST_LIMIT = 20
+    }
+
     suspend fun songDetail(songId: String): JSONObject = withContext(Dispatchers.IO) {
         require((songId.toLongOrNull() ?: 0) > 0)
         request("/eapi/v3/song/detail", JSONObject().put("c", JSONArray()

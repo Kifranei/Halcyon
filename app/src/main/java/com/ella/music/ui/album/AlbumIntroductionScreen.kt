@@ -89,8 +89,11 @@ internal fun AlbumIntroductionScreen(
     var saving by remember(contentKey) { mutableStateOf(false) }
     var fetching by remember(contentKey) { mutableStateOf(false) }
     var showFetchSources by remember(contentKey) { mutableStateOf(false) }
+    var coverPreviewVisible by remember(coverModel) { mutableStateOf(false) }
+    val settingsManager = remember(context) { com.ella.music.data.SettingsManager.getInstance(context) }
+    val albumCaseEnabled by settingsManager.albumCaseEffect.collectAsState(initial = true)
 
-    val librarySource by com.ella.music.data.SettingsManager.getInstance(context).librarySource.collectAsState(initial = "")
+    val librarySource by settingsManager.librarySource.collectAsState(initial = "")
     LaunchedEffect(contentKey, librarySource) {
         record = withContext(Dispatchers.IO) { store.load(album, songs) }
         draft = record?.text.orEmpty()
@@ -320,7 +323,14 @@ internal fun AlbumIntroductionScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 item {
-                    Box(
+                    if (albumCaseEnabled) {
+                        AlbumCaseCover(
+                            coverModel = coverModel,
+                            onPreview = { coverPreviewVisible = true },
+                            cornerRadius = 16.dp,
+                            modifier = Modifier.size(220.dp)
+                        )
+                    } else Box(
                         modifier = Modifier
                             .size(220.dp)
                             .clip(RoundedCornerShape(16.dp))
@@ -399,6 +409,17 @@ internal fun AlbumIntroductionScreen(
                 }
             }
         }
+    }
+
+    if (coverPreviewVisible && coverModel != null) {
+        com.ella.music.ui.components.CoverPreviewDialog(
+            model = coverModel,
+            imageKind = com.ella.music.data.ExportImageKind.Album,
+            title = album?.name
+                ?.takeUnless(LibraryNormalizer::isGeneratedUnknownAlbumPlaceholder)
+                ?: stringResource(R.string.player_unknown_album),
+            onDismiss = { coverPreviewVisible = false }
+        )
     }
 }
 

@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.drawBackdrop
 import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.ella.music.data.BottomBarStyle

@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
@@ -210,7 +210,7 @@ fun EqualizerScreen(
                         val selectedPresetIndex = if (eqPreset in caps.presetBandLevelsMb.indices) eqPreset + 1 else 0
                         // search-anchor:start
                         SettingsSearchAnchor(R.string.equalizer_preset) {
-                        WindowSpinnerPreference(
+                        EllaSpinnerPreference(
                             title = stringResource(R.string.equalizer_preset),
                             items = presetItems,
                             selectedIndex = selectedPresetIndex,
@@ -503,7 +503,7 @@ fun EqualizerScreen(
                         if (moogLadderEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.equalizer_moog_ladder_mode, R.string.equalizer_moog_ladder_cutoff, R.string.equalizer_moog_ladder_resonance, R.string.equalizer_moog_ladder_drive, R.string.equalizer_moog_ladder_mix)) {
                             // search-anchor:start
                             SettingsSearchAnchor(R.string.equalizer_moog_ladder_mode) {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.equalizer_moog_ladder_mode),
                                 items = moogLadderModeEntries(),
                                 selectedIndex = moogLadderMode,
@@ -896,7 +896,7 @@ fun EqualizerScreen(
                         if (speakerOutputEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.equalizer_speaker_mode, R.string.equalizer_speaker_strength)) {
                             // search-anchor:start
                             SettingsSearchAnchor(R.string.equalizer_speaker_mode) {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.equalizer_speaker_mode),
                                 items = speakerOutputModeEntries(),
                                 selectedIndex = speakerOutputMode,
@@ -934,7 +934,7 @@ fun EqualizerScreen(
                         .coerceAtLeast(0)
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.equalizer_reverb) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.equalizer_reverb),
                         items = reverbEntries.map { DropdownItem(title = it.second) },
                         selectedIndex = selectedReverbIndex,

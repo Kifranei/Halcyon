@@ -11,6 +11,15 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Android publications of the local compose-miuix-ui checkout (main 9d4b9c85).
+        // Each module publishes into its own build/repository/local.
+        maven { url = uri("../miuix/miuix-core/build/repository/local") }
+        maven { url = uri("../miuix/miuix-material/build/repository/local") }
+        maven { url = uri("../miuix/miuix-squircle/build/repository/local") }
+        maven { url = uri("../miuix/miuix-blur/build/repository/local") }
+        maven { url = uri("../miuix/miuix-ui/build/repository/local") }
+        maven { url = uri("../miuix/miuix-icons/build/repository/local") }
+        maven { url = uri("../miuix/miuix-preference/build/repository/local") }
         // FFmpegKit's archived Android artifacts are mirrored here after their original
         // distribution repository was retired.
         maven { url = uri("https://maven.aliyun.com/repository/public") }

@@ -7,6 +7,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 
 import android.net.Uri
 import android.widget.Toast
+import top.yukonga.miuix.kmp.icon.extended.Back
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,7 +31,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -88,6 +92,8 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import androidx.compose.ui.graphics.luminance
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.glass.GlassNavigationBar
+import top.yukonga.miuix.kmp.glass.GlassNavigationItem
 import top.yukonga.miuix.kmp.basic.NavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationBarItem
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -130,6 +136,7 @@ internal fun FloatingBottomControls(
     currentTabRoute: String?,
     currentRoute: String?,
     searchReturnRoute: String? = null,
+    searchReturnsBack: Boolean = false,
     bottomDockMode: BottomDockMode,
     canCompact: Boolean,
     backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
@@ -207,6 +214,8 @@ internal fun FloatingBottomControls(
     }
     val dockBackdrop = if (useGlass) backdrop else null
     val dockLiquidGlass = useGlass && floatingBottomBar
+    // The expanded dock lifts floating bars by the navigation inset itself; individual styles
+    // must not pad a second time.
     CompositionLocalProvider(
         LocalMiniPlayerGestureOwnedByDock provides true,
         LocalBottomBarCornerRadiusDp provides bottomBarCornerRadiusDp.toFloat(),
@@ -302,9 +311,11 @@ internal fun FloatingBottomControls(
                 onSkipNext = { playerViewModel.skipToNext() },
                 onSkipPrevious = { playerViewModel.skipToPrevious() },
                 onShowQueue = { queueSheetExpanded = true },
+                os4Style = bottomBarStyle == BottomBarStyle.FloatingPill,
                 onLongClick = if (miniPlayerLongPressSource) onNavigatePlaybackSource else null,
                 onExitSearch = onExitSearch,
-                returnTab = searchReturnTab
+                returnTab = searchReturnTab,
+                returnsBack = searchReturnsBack
             )
         } else if (mode == "compact" && currentSong != null) {
             CompactBottomDock(
@@ -397,6 +408,59 @@ internal fun FloatingBottomControls(
                                 onNavigateSearch = onNavigateSearch,
                                 mergeSearch = mergeSearch
                             )
+                        } else if (bottomBarStyle == BottomBarStyle.FloatingPill) {
+                            // Miuix glass capsule: icon+label items behind a sliding glass
+                            // indicator; search stays a separate glass circle to the right.
+                            if (tabs.size >= 2) {
+                                val selectedPillIndex = tabs.indexOfFirst {
+                                    if (it.route.isSearchRoute()) {
+                                        currentRoute.isSearchRoute()
+                                    } else {
+                                        !currentRoute.isSearchRoute() && currentTabRoute == it.route
+                                    }
+                                }.takeIf { it >= 0 } ?: 0
+                                GlassNavigationBar(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    items = tabs.map {
+                                        GlassNavigationItem(
+                                            icon = it.icon,
+                                            label = it.label,
+                                            contentDescription = it.label,
+                                        )
+                                    },
+                                    selectedIndex = selectedPillIndex,
+                                    onSelect = { index ->
+                                        tabs.getOrNull(index)?.let { tab ->
+                                            if (tab.route.isSearchRoute()) {
+                                                if (!currentRoute.isSearchRoute()) onNavigateSearch()
+                                            } else {
+                                                if (currentTabRoute != tab.route || currentRoute.isSearchRoute()) {
+                                                    onNavigate(tab.route)
+                                                }
+                                            }
+                                        }
+                                    },
+                                    backdrop = dockBackdrop,
+                                    defaultWindowInsetsPadding = false,
+                                    trailingAction = if (!mergeSearch) {
+                                        {
+                                            BottomDockActionPill(
+                                                icon = MiuixIcons.Basic.Search,
+                                                label = stringResource(R.string.common_search),
+                                                selected = currentRoute.isSearchRoute(),
+                                                onClick = onNavigateSearch,
+                                                backdrop = backdrop,
+                                                glassEffect = glassEffect,
+                                                disableRefraction = stabilizeOverWallpaper,
+                                                controlSize = 54.dp,
+                                                modifier = Modifier
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                )
+                            }
                         } else if (useGlass) {
                             Row(
                                 modifier = Modifier
@@ -671,8 +735,14 @@ private fun SearchBottomDock(
     onShowQueue: () -> Unit,
     onLongClick: (() -> Unit)?,
     onExitSearch: () -> Unit,
-    returnTab: BottomDockTab?
+    returnTab: BottomDockTab?,
+    returnsBack: Boolean = false,
+    os4Style: Boolean = false
 ) {
+    // The HyperOS-4 capsule bar is 54.dp tall; keep the search dock on the same metrics so
+    // entering search does not visibly resize the dock row.
+    val dockHeight = if (os4Style) 54.dp else 64.dp
+    val dockSpacing = if (os4Style) 12.dp else 10.dp
     Column(modifier = Modifier.fillMaxWidth()) {
         AnimatedVisibility(
             visible = showMiniPlayer && currentSong != null,
@@ -716,25 +786,27 @@ private fun SearchBottomDock(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp)
-                .height(64.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .height(dockHeight),
+            horizontalArrangement = Arrangement.spacedBy(dockSpacing),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BottomDockActionPill(
-                icon = returnTab?.icon ?: MiuixIcons.Regular.Home,
-                label = returnTab?.label ?: stringResource(R.string.bottom_dock_tabs),
+                icon = if (returnsBack) MiuixIcons.Regular.Back else returnTab?.icon ?: MiuixIcons.Regular.Home,
+                label = if (returnsBack) stringResource(R.string.common_back)
+                    else returnTab?.label ?: stringResource(R.string.bottom_dock_tabs),
                 selected = false,
                 onClick = onExitSearch,
                 backdrop = backdrop,
                 glassEffect = glassEffect,
                 disableRefraction = disableRefraction,
-                modifier = Modifier.size(64.dp)
+                controlSize = dockHeight,
+                modifier = Modifier.size(dockHeight)
             )
             GlassPill(
                 backdrop = backdrop,
                 modifier = Modifier
                     .weight(1f)
-                    .height(64.dp),
+                    .height(dockHeight),
                 glassEffect = glassEffect,
                 disableRefraction = disableRefraction
             ) {
@@ -743,7 +815,7 @@ private fun SearchBottomDock(
                     onQueryChange = { value -> searchDock?.query = value },
                     onSearch = { searchDock?.onSearch?.invoke() },
                     placeholder = stringResource(R.string.library_search_dock_placeholder),
-                    autoFocus = searchDock?.autoFocus == true,
+                    autoFocus = searchDock?.autoFocus,
                     active = active,
                     autoSelectAll = searchDock?.selectAll == true,
                     selectionRequestKey = searchDock?.selectionRequestKey ?: 0,

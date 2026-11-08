@@ -7,8 +7,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +20,17 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsTopHeight
@@ -34,11 +41,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -51,38 +61,65 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.jvm.JvmSerializableLambda
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.CoverPreviewDialog
+import com.ella.music.ui.components.DefaultAlbumCover
+import com.ella.music.ui.components.PlayerQueueListIcon
+import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.data.ActionMenuIds
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
@@ -95,6 +132,7 @@ import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.AbRepeatState
 import com.ella.music.viewmodel.PlayerViewModel
+import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Icon
@@ -285,8 +323,11 @@ internal fun CoverPlayerPage(
     // describes the request/intent to play and remains true while buffering or after a stale
     // controller snapshot, which can make the icon disagree with the sound.
     val visualIsPlaying = isPlaying
+    // While the new track's model is still resolving, keep serving the previous track's
+    // resolved model so cover surfaces never drop to the default placeholder mid-switch.
+    var lastResolvedCoverModel by remember { mutableStateOf<Any?>(null) }
     val staticCoverPreviewModel by produceState<Any?>(
-        initialValue = resolveCoverPreviewModel(song, null),
+        initialValue = resolveCoverPreviewModel(song, null) ?: lastResolvedCoverModel,
         song?.let {
             listOf(it.playlistIdentityKey(), it.dateModified, it.fileSize, it.coverUrl).joinToString("|")
         }
@@ -297,6 +338,9 @@ internal fun CoverPlayerPage(
                 decodedFallback = resolveCoverPreviewModel(song, null)
             )
         }
+    }
+    LaunchedEffect(staticCoverPreviewModel) {
+        if (staticCoverPreviewModel != null) lastResolvedCoverModel = staticCoverPreviewModel
     }
     // A decoded player bitmap is only a display fallback. Preview and the cover surface must
     // keep the original file/embedded bytes, otherwise Coil's ORIGINAL request still shows the
@@ -314,7 +358,16 @@ internal fun CoverPlayerPage(
             .size(2048)
             .build()
     }
-    val stableArtworkPainter = rememberAsyncImagePainter(model = stableArtworkRequest)
+    val rawArtworkPainter = rememberAsyncImagePainter(model = stableArtworkRequest)
+    // Sticky painter: keeps drawing the previous track's decoded artwork while the next
+    // request is in flight, so switching songs never flashes the empty/default frame.
+    val stableArtworkPainter = remember { RetainedArtworkPainter() }
+    val artworkPainterState by rawArtworkPainter.state.collectAsState()
+    if (artworkPainterState is AsyncImagePainter.State.Success) {
+        stableArtworkPainter.inner = artworkPainterState.painter
+    } else if (stableArtworkRequest.data == null) {
+        stableArtworkPainter.inner = null
+    }
     // Keep an opened preview as a snapshot.  Changing tracks must update the player behind the
     // dialog, not dismiss or replace the artwork the user is currently inspecting.
     var previewCover by remember { mutableStateOf<PlayerCoverPreview?>(null) }
@@ -553,8 +606,18 @@ internal fun CoverPlayerPage(
         }
     }
 
+    val canvasFill = !musicVideoVisible && displayedDynamicCover?.fillsPlayer() == true
+    val canvasChrome = rememberSpotifyCanvasChrome(
+        active = canvasFill,
+        paused = menuExpanded || localActionMenuPage != null || queueExpanded ||
+            appleMusicShowLyrics || appleMusicShowQueue
+    )
     // Keep this large captured closure out of invokedynamic lowering: its debug
     // DEX fails Android 16 verification when the cover page is first opened.
+    CompositionLocalProvider(
+        LocalSpotifyCanvasChrome provides canvasChrome,
+        com.ella.music.ui.components.LocalRetainCoverArtwork provides true
+    ) {
     BoxWithConstraints(modifier = modifier, content = @JvmSerializableLambda {
         val rootPlayerWidth = maxWidth
         val rootPlayerHeight = maxHeight
@@ -611,6 +674,29 @@ internal fun CoverPlayerPage(
                 modifier = Modifier.fillMaxSize()
             )
         }
+        if (canvasFill) {
+            val source = displayedDynamicCover
+            DynamicCoverVideo(
+                source = source,
+                isPlaying = isPlaying && videoPlaybackActive,
+                onPlaybackError = { onDynamicCoverFailed(source.failureKey) },
+                modifier = Modifier.fillMaxSize(),
+                cornerRadiusDp = 0f,
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .spotifyCanvasChromeFade()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.55f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.46f)
+                        )
+                    )
+            )
+        }
 
         @Composable
         fun StyledPlayerArtwork(
@@ -662,6 +748,7 @@ internal fun CoverPlayerPage(
             ) {
                 val musicVideoSource = displayedMusicVideo
                 val dynamicCoverSource = displayedDynamicCover
+                val canvasFillsPlayer = !musicVideoVisible && dynamicCoverSource?.fillsPlayer() == true
                 val hasDynamicSource = (musicVideoVisible && musicVideoSource != null) || (!musicVideoVisible && dynamicCoverSource != null)
                 val hideArtworkBehindDynamic = hasDynamicSource
                 if (!hideArtworkBehindDynamic) {
@@ -694,7 +781,7 @@ internal fun CoverPlayerPage(
                             resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                         )
                     }
-                    !musicVideoVisible && dynamicCoverSource != null -> {
+                    !musicVideoVisible && dynamicCoverSource != null && !canvasFillsPlayer -> {
                         DynamicCoverVideo(
                             source = dynamicCoverSource,
                             isPlaying = isPlaying && videoPlaybackActive,
@@ -1572,11 +1659,1578 @@ internal fun CoverPlayerPage(
             }
         }
 
+        // Shared MV slot for the themed pages: renders the silent video surface over the
+        // artwork area plus the fullscreen + MV-toggle badges, matching the stock cover.
+        @Composable
+        fun MusicVideoArtworkOverlay(
+            modifier: Modifier = Modifier,
+            cornerRadiusDp: Float = 0f,
+            fullscreenPadding: PaddingValues = PaddingValues(top = 10.dp, end = 60.dp),
+            togglePadding: PaddingValues = PaddingValues(10.dp)
+        ) {
+            val musicVideoSource = displayedMusicVideo ?: return
+            Box(modifier = modifier) {
+                if (musicVideoVisible) {
+                    DynamicCoverVideo(
+                        source = musicVideoSource,
+                        isPlaying = isPlaying && videoPlaybackActive,
+                        syncPositionMs = currentPosition,
+                        syncDurationMs = duration,
+                        onPlaybackError = { onDynamicCoverFailed(musicVideoSource.failureKey) },
+                        modifier = Modifier.fillMaxSize(),
+                        cornerRadiusDp = cornerRadiusDp,
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    )
+                }
+                if (musicVideoVisible && musicVideoFullscreenButtonEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(fullscreenPadding)
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(pagePalette.middle.copy(alpha = 0.62f))
+                            .clickable(onClick = onOpenMusicVideoLandscape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_fullscreen),
+                            contentDescription = stringResource(R.string.player_music_video_landscape),
+                            tint = pagePalette.onBackground.copy(alpha = 0.94f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(togglePadding)
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(pagePalette.middle.copy(alpha = 0.62f))
+                        .clickable(onClick = onToggleMusicVideo),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.player_detail_music_video),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = fontFamily,
+                        color = pagePalette.onBackground.copy(alpha = 0.94f)
+                    )
+                }
+            }
+        }
+
+        @Composable
+        fun VinylTurntablePlayerPage() {
+            // Continuous turntable spin. Pausing keeps the record where it stopped; resuming
+            // continues from the stored angle instead of snapping back to zero.
+            val vinylRotation = remember { Animatable(0f) }
+            LaunchedEffect(visualIsPlaying) {
+                if (visualIsPlaying) {
+                    while (true) {
+                        vinylRotation.animateTo(
+                            targetValue = vinylRotation.value + 360f,
+                            animationSpec = tween(durationMillis = 28_000, easing = LinearEasing)
+                        )
+                    }
+                }
+            }
+            val sceneHeight = minOf(
+                maxHeight * if (compactWindow) 0.40f else 0.46f,
+                maxWidth * 1.18f
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (shouldReserveStatusBar) {
+                            Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(sceneHeight)
+                        .graphicsLayer {
+                            compositingStrategy = CompositingStrategy.Offscreen
+                        }
+                        .drawWithContent {
+                            drawContent()
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.00f to Color.White,
+                                        0.84f to Color.White,
+                                        1.00f to Color.Transparent
+                                    )
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
+                ) {
+                    val deckHeight = maxHeight * 0.34f
+                    val discSize = minOf(maxWidth * 0.66f, maxHeight * 0.58f)
+                    val sleeveSize = minOf(maxWidth * 0.44f, maxHeight * 0.56f)
+                    val sleeveTop = maxHeight * 0.05f
+                    // Dark listening-room backdrop.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    0f to Color(0xFF1B171E),
+                                    0.72f to Color(0xFF100D12),
+                                    1f to Color(0xFF0A080C)
+                                )
+                            )
+                    )
+                    // Frame around the record sleeve standing behind the deck.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = sleeveTop)
+                            .size(sleeveSize + 16.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF262129))
+                    )
+                    StyledPlayerArtwork(
+                        cornerRadius = 5.dp,
+                        showOverlayBadges = false,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = sleeveTop + 8.dp)
+                            .size(sleeveSize)
+                    )
+                    // Soft shadow the deck casts on the desk surface.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(0.94f)
+                            .height(deckHeight * 0.30f)
+                            .clip(RoundedCornerShape(percent = 50))
+                            .background(Color(0x73000000))
+                    )
+                    // Turntable plinth.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(0.90f)
+                            .height(deckHeight)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    0f to Color(0xFF3B2D24),
+                                    1f to Color(0xFF1A130C)
+                                )
+                            )
+                    )
+                    // Spinning record, vertically centered on the plinth.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = -(deckHeight - discSize) / 2f)
+                            .size(discSize)
+                            .graphicsLayer { rotationZ = vinylRotation.value }
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val discRadius = size.minDimension / 2f
+                            drawCircle(color = Color(0xFF141214))
+                            drawCircle(color = Color(0xFF080708), radius = discRadius * 0.985f)
+                            var groove = 0.60f
+                            while (groove < 0.97f) {
+                                drawCircle(
+                                    color = Color(0xFF2A262B),
+                                    radius = discRadius * groove,
+                                    style = Stroke(width = 1.6f)
+                                )
+                                groove += 0.045f
+                            }
+                            // Soft sweeping sheen across the grooves.
+                            drawCircle(
+                                brush = Brush.sweepGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color(0x1CFFFFFF),
+                                        Color.Transparent,
+                                        Color(0x0EFFFFFF),
+                                        Color.Transparent
+                                    ),
+                                    center = center
+                                )
+                            )
+                        }
+                        SafeCoverImage(
+                            model = resolvedStaticCoverPreviewModel,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(discSize * 0.36f)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                            sizePx = 384
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size((discSize.value * 0.030f).coerceAtLeast(6f).dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFD8D0C6))
+                        )
+                    }
+                    // Tonearm resting on the record's outer grooves.
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val deckTop = size.height - deckHeight.toPx()
+                        val discCenter = Offset(size.width * 0.5f, size.height - deckHeight.toPx() / 2f)
+                        val pivot = Offset(size.width * 0.90f, deckTop + deckHeight.toPx() * 0.10f)
+                        val armVector = pivot - discCenter
+                        val armLength = armVector.getDistance().takeIf { it > 0f } ?: 1f
+                        val tip = discCenter + armVector / armLength * (discSize.toPx() * 0.36f)
+                        drawCircle(color = Color(0xFF2E2A30), radius = 13.dp.toPx(), center = pivot)
+                        drawCircle(color = Color(0xFF4C464D), radius = 6.dp.toPx(), center = pivot)
+                        drawLine(
+                            color = Color(0xFFB5ADA2),
+                            start = pivot,
+                            end = tip,
+                            strokeWidth = 4.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                        drawCircle(color = Color(0xFFD8D0C6), radius = 5.dp.toPx(), center = tip)
+                    }
+                    MusicVideoArtworkOverlay(
+                        modifier = Modifier.fillMaxSize(),
+                        cornerRadiusDp = 14f
+                    )
+                }
+                CompositionLocalProvider(LocalPlayerContentColor provides pagePalette.onBackground) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (centerTitle) Spacer(Modifier.width(78.dp))
+                        PlayerSongMetaText(
+                            song = song,
+                            annotation = annotation,
+                            textAlign = if (centerTitle) TextAlign.Center else TextAlign.Start,
+                            titleFontSize = 22.sp,
+                            artistFontSize = 15.sp,
+                            artistAlpha = 0.72f,
+                            showArtistWithAnnotation = true,
+                            contentColor = pagePalette.onBackground,
+                            fontFamily = fontFamily,
+                            onArtistClick = onArtist,
+                            onTitleLongClick = onSongInfo,
+                            titleMarqueeEnabled = true,
+                            artistMarqueeEnabled = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(min = 0.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .playerNoIndicationClick(onCyclePlaybackMode, LocalPlayerQuickGestures.current.playbackMode),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            PlaybackModeIcon(
+                                shuffleEnabled = shuffleEnabled,
+                                repeatMode = repeatMode,
+                                color = pagePalette.onBackground.copy(alpha = 0.80f),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .playerNoIndicationClick(onToggleQueue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            PlayerQueueListIcon(
+                                color = pagePalette.onBackground.copy(alpha = 0.82f)
+                            )
+                        }
+                        if (!centerTitle) PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.Favorite,
+                            selected = isFavorite,
+                            onClick = onToggleFavorite
+                        )
+                        if (!centerTitle) PlayerCommentHeaderAction(song = song)
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.More,
+                            onClick = onToggleMenu
+                        )
+                    }
+                }
+                // Neighbouring lines join the active row inside the leftover band so the
+                // singing line stays centred between the header and the progress block.
+                fun vinylLyricAt(offset: Int) = lyrics.getOrNull(currentLyricIndex + offset)
+                    ?.text
+                    ?.takeIf { it.isNotBlank() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val neighborSlots = listOf(
+                            Triple(vinylLyricAt(-1), 0.45f, 13.sp),
+                            Triple(vinylLyricAt(1), 0.5f, 13.sp),
+                            Triple(vinylLyricAt(2), 0.3f, 13.sp),
+                        )
+                        val previous = neighborSlots[0]
+                        if (previous.first != null) {
+                            Text(
+                                text = previous.first!!,
+                                color = pagePalette.onBackground.copy(alpha = previous.second),
+                                fontSize = previous.third,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                        vinylLyricAt(0)?.let {
+                            Text(
+                                text = it,
+                                color = pagePalette.onBackground.copy(alpha = 0.9f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        neighborSlots.drop(1).forEach { (text, alpha, size) ->
+                            if (text != null) {
+                                Text(
+                                    text = text,
+                                    color = pagePalette.onBackground.copy(alpha = alpha),
+                                    fontSize = size,
+                                    fontFamily = fontFamily,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = pagePalette.copy(accent = pagePalette.onBackground),
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                PlayerTransportControls(
+                    isPlaying = visualIsPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = pagePalette,
+                    queueExpanded = queueExpanded,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = loadSongRating,
+                    ratingRevision = ratingRevision,
+                    currentSongKey = song?.playlistIdentityKey(),
+                    queueLocked = queueLocked,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onToggleQueueLock = playerViewModel::toggleQueueLock,
+                    onPrevious = onPrevious,
+                    onPlayPause = syncMusicVideoPlayPause,
+                    onNext = onNext,
+                    onToggleQueue = onToggleQueue,
+                    onDismissQueue = onDismissQueue,
+                    onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
+                    onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                    onAddQueueToPlaylist = onAddQueueToPlaylist,
+                    onClearQueue = onClearQueue,
+                    modifier = Modifier.requiredHeight(76.dp)
+                )
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
+        @Composable
+        fun FanSideCard(
+            slot: Int,
+            queueIndex: Int,
+            cardSize: androidx.compose.ui.unit.Dp,
+            offsetX: androidx.compose.ui.unit.Dp,
+            offsetY: androidx.compose.ui.unit.Dp,
+            rotation: Float,
+            alpha: Float,
+            z: Float
+        ) {
+            val targetIndex = queueIndex + slot
+            val neighbor = playlist.getOrNull(targetIndex)
+            val artworkState = rememberSongArtworkState(
+                song = neighbor,
+                albumArtUri = null,
+                loadCoverArt = null,
+                usage = ArtworkUsage.LibraryGrid,
+                loadOriginalCoverArt = { neighborSong ->
+                    playerViewModel.getOriginalCoverModel(neighborSong)
+                }
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = offsetX, y = offsetY)
+                    .size(cardSize)
+                    .zIndex(z)
+                    .graphicsLayer {
+                        rotationZ = rotation
+                        this.alpha = alpha
+                    }
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF161316))
+                    .then(
+                        if (targetIndex in playlist.indices) {
+                            Modifier.playerNoIndicationClick { onQueueSongClick(targetIndex) }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                val neighborModel = artworkState.model
+                if (neighborModel != null) {
+                    SafeCoverImage(
+                        model = neighborModel,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        sizePx = 384
+                    )
+                } else {
+                    DefaultAlbumCover(modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+
+        @Composable
+        fun FanCardsPlayerPage() {
+            val fanHeight = minOf(
+                maxHeight * if (compactWindow) 0.38f else 0.44f,
+                maxWidth * 1.10f
+            )
+            val queueIndex = currentQueueIndexHint.takeIf { it in playlist.indices }
+                ?: playlist.indexOfFirst { candidate ->
+                    song?.let { candidate.id == it.id && candidate.path == it.path } == true
+                }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (shouldReserveStatusBar) {
+                            Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(fanHeight)) {
+                    val cardSize = minOf(maxWidth * 0.46f, maxHeight * 0.94f)
+                    val innerCardSize = cardSize * 0.80f
+                    val outerCardSize = cardSize * 0.62f
+                    // Side cards are composed back-to-front so the current cover stays on top.
+                    FanSideCard(
+                        slot = -2,
+                        queueIndex = queueIndex,
+                        cardSize = outerCardSize,
+                        offsetX = -cardSize * 0.62f,
+                        offsetY = maxHeight * 0.04f + 14.dp,
+                        rotation = -16f,
+                        alpha = 0.40f,
+                        z = 1f
+                    )
+                    FanSideCard(
+                        slot = 2,
+                        queueIndex = queueIndex,
+                        cardSize = outerCardSize,
+                        offsetX = cardSize * 0.62f,
+                        offsetY = maxHeight * 0.04f + 14.dp,
+                        rotation = 16f,
+                        alpha = 0.40f,
+                        z = 1f
+                    )
+                    FanSideCard(
+                        slot = -1,
+                        queueIndex = queueIndex,
+                        cardSize = innerCardSize,
+                        offsetX = -cardSize * 0.36f,
+                        offsetY = maxHeight * 0.02f + 6.dp,
+                        rotation = -8f,
+                        alpha = 0.62f,
+                        z = 2f
+                    )
+                    FanSideCard(
+                        slot = 1,
+                        queueIndex = queueIndex,
+                        cardSize = innerCardSize,
+                        offsetX = cardSize * 0.36f,
+                        offsetY = maxHeight * 0.02f + 6.dp,
+                        rotation = 8f,
+                        alpha = 0.62f,
+                        z = 2f
+                    )
+                    StyledPlayerArtwork(
+                        cornerRadius = 16.dp,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .zIndex(3f)
+                            .size(cardSize)
+                    )
+                    MusicVideoArtworkOverlay(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .zIndex(4f)
+                            .size(cardSize),
+                        cornerRadiusDp = 16f
+                    )
+                }
+                CompositionLocalProvider(LocalPlayerContentColor provides pagePalette.onBackground) {
+                    PlayerSongMetaText(
+                        song = song,
+                        annotation = annotation,
+                        textAlign = TextAlign.Center,
+                        titleFontSize = 22.sp,
+                        artistFontSize = 15.sp,
+                        artistAlpha = 0.72f,
+                        showArtistWithAnnotation = true,
+                        contentColor = pagePalette.onBackground,
+                        fontFamily = fontFamily,
+                        onArtistClick = onArtist,
+                        onTitleLongClick = onSongInfo,
+                        titleMarqueeEnabled = true,
+                        artistMarqueeEnabled = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp)
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 12.dp, top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .playerNoIndicationClick(onCyclePlaybackMode, LocalPlayerQuickGestures.current.playbackMode),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            PlaybackModeIcon(
+                                shuffleEnabled = shuffleEnabled,
+                                repeatMode = repeatMode,
+                                color = pagePalette.onBackground.copy(alpha = 0.80f),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .playerNoIndicationClick(onToggleQueue),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            PlayerQueueListIcon(
+                                color = pagePalette.onBackground.copy(alpha = 0.80f),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.Favorite,
+                            selected = isFavorite,
+                            onClick = onToggleFavorite
+                        )
+                        PlayerCommentHeaderAction(song = song)
+                        PlayerHeaderAction(
+                            kind = PlayerHeaderActionKind.More,
+                            onClick = onToggleMenu
+                        )
+                    }
+                    val currentLyricText = lyrics.getOrNull(currentLyricIndex)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    val nextLyricText = lyrics.getOrNull(currentLyricIndex + 1)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 30.dp)
+                            .padding(horizontal = 36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (currentLyricText != null) {
+                            Text(
+                                text = currentLyricText,
+                                color = pagePalette.onBackground.copy(alpha = 0.88f),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 18.dp)
+                            .padding(horizontal = 36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (nextLyricText != null) {
+                            Text(
+                                text = nextLyricText,
+                                color = pagePalette.onBackground.copy(alpha = 0.45f),
+                                fontSize = 12.sp,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = pagePalette.copy(accent = pagePalette.onBackground),
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                PlayerTransportControls(
+                    isPlaying = visualIsPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = pagePalette,
+                    queueExpanded = queueExpanded,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = loadSongRating,
+                    ratingRevision = ratingRevision,
+                    currentSongKey = song?.playlistIdentityKey(),
+                    queueLocked = queueLocked,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onToggleQueueLock = playerViewModel::toggleQueueLock,
+                    onPrevious = onPrevious,
+                    onPlayPause = syncMusicVideoPlayPause,
+                    onNext = onNext,
+                    onToggleQueue = onToggleQueue,
+                    onDismissQueue = onDismissQueue,
+                    onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
+                    onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                    onAddQueueToPlaylist = onAddQueueToPlaylist,
+                    onClearQueue = onClearQueue,
+                    modifier = Modifier.requiredHeight(76.dp)
+                )
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
+        @Composable
+        fun CinemascopeFrameCard(
+            slot: Int,
+            queueIndex: Int,
+            frameSize: androidx.compose.ui.unit.Dp
+        ) {
+            val targetIndex = queueIndex + slot
+            val neighbor = playlist.getOrNull(targetIndex)
+            val artworkState = rememberSongArtworkState(
+                song = neighbor,
+                albumArtUri = null,
+                loadCoverArt = null,
+                usage = ArtworkUsage.LibraryGrid,
+                loadOriginalCoverArt = { neighborSong ->
+                    playerViewModel.getOriginalCoverModel(neighborSong)
+                }
+            )
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 6.dp)
+                    .size(frameSize)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF14120F))
+                    .border(1.dp, Color(0xFF3A3223), RoundedCornerShape(6.dp))
+                    .then(
+                        if (targetIndex in playlist.indices) {
+                            Modifier.playerNoIndicationClick { onQueueSongClick(targetIndex) }
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                val neighborModel = artworkState.model
+                if (neighborModel != null) {
+                    SafeCoverImage(
+                        model = neighborModel,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        sizePx = 384
+                    )
+                } else {
+                    DefaultAlbumCover(modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+
+        @Composable
+        fun CinemascopePlayerPage() {
+            val filmInk = Color(0xFFEDE7DB)
+            val filmGold = Color(0xFFCDA85C)
+            val filmPalette = remember(pagePalette) {
+                pagePalette.copy(
+                    top = Color(0xFF0C0B09),
+                    middle = Color(0xFF0C0B09),
+                    bottom = Color(0xFF0C0B09),
+                    accent = filmGold,
+                    onBackground = filmInk
+                )
+            }
+            val queueIndex = currentQueueIndexHint.takeIf { it in playlist.indices }
+                ?: playlist.indexOfFirst { candidate ->
+                    song?.let { candidate.id == it.id && candidate.path == it.path } == true
+                }
+            val stripHeight = minOf(
+                maxHeight * if (compactWindow) 0.36f else 0.42f,
+                maxWidth * 1.02f
+            )
+            fun filmTimecode(ms: Long): String {
+                val totalSeconds = ms / 1000
+                val frames = (ms % 1000) * 24 / 1000
+                return "%02d:%02d:%02d:%02d".format(
+                    totalSeconds / 3600, (totalSeconds / 60) % 60, totalSeconds % 60, frames
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF07060A))
+                    .then(
+                        if (shouldReserveStatusBar) {
+                            Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.player_page_film_now_showing),
+                        color = filmGold.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 2.6.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "TC ${filmTimecode(currentPosition)}",
+                        color = filmInk.copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                }
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(stripHeight)
+                ) {
+                    val currentFrameSize = minOf(maxWidth * 0.46f, maxHeight * 0.80f)
+                    val innerFrameSize = currentFrameSize * 0.74f
+                    val outerFrameSize = currentFrameSize * 0.55f
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val holeWidth = 10.dp.toPx()
+                        val holeHeight = 6.dp.toPx()
+                        val holeGap = 16.dp.toPx()
+                        val holeRadius = 3.dp.toPx()
+                        val holeColor = Color(0xFF2E2920)
+                        var x = holeGap
+                        while (x < size.width - holeWidth) {
+                            drawRoundRect(
+                                color = holeColor,
+                                topLeft = Offset(x, 6.dp.toPx()),
+                                size = Size(holeWidth, holeHeight),
+                                cornerRadius = CornerRadius(holeRadius)
+                            )
+                            drawRoundRect(
+                                color = holeColor,
+                                topLeft = Offset(x, size.height - 6.dp.toPx() - holeHeight),
+                                size = Size(holeWidth, holeHeight),
+                                cornerRadius = CornerRadius(holeRadius)
+                            )
+                            x += holeWidth + holeGap
+                        }
+                        drawRect(
+                            color = Color(0xFF241F16),
+                            topLeft = Offset(0f, 16.dp.toPx()),
+                            size = Size(size.width, 1.dp.toPx())
+                        )
+                        drawRect(
+                            color = Color(0xFF241F16),
+                            topLeft = Offset(0f, size.height - 16.dp.toPx()),
+                            size = Size(size.width, 1.dp.toPx())
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(vertical = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CinemascopeFrameCard(
+                            slot = -2,
+                            queueIndex = queueIndex,
+                            frameSize = outerFrameSize
+                        )
+                        CinemascopeFrameCard(
+                            slot = -1,
+                            queueIndex = queueIndex,
+                            frameSize = innerFrameSize
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 6.dp)
+                                .size(currentFrameSize)
+                                .border(1.5.dp, filmGold.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                        ) {
+                            StyledPlayerArtwork(
+                                cornerRadius = 8.dp,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                showOverlayBadges = false
+                            )
+                            MusicVideoArtworkOverlay(
+                                modifier = Modifier.fillMaxSize(),
+                                cornerRadiusDp = 8f,
+                                fullscreenPadding = PaddingValues(top = 8.dp, end = 50.dp),
+                                togglePadding = PaddingValues(8.dp)
+                            )
+                        }
+                        CinemascopeFrameCard(
+                            slot = 1,
+                            queueIndex = queueIndex,
+                            frameSize = innerFrameSize
+                        )
+                        CinemascopeFrameCard(
+                            slot = 2,
+                            queueIndex = queueIndex,
+                            frameSize = outerFrameSize
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val currentLyricText = lyrics.getOrNull(currentLyricIndex)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    val nextLyricText = lyrics.getOrNull(currentLyricIndex + 1)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 36.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (currentLyricText != null) {
+                            Text(
+                                text = currentLyricText,
+                                color = filmInk.copy(alpha = 0.94f),
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 20.dp)
+                            .padding(horizontal = 44.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (nextLyricText != null) {
+                            Text(
+                                text = nextLyricText,
+                                color = filmGold.copy(alpha = 0.55f),
+                                fontSize = 12.5.sp,
+                                fontFamily = fontFamily,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = filmPalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                PlayerTransportControls(
+                    isPlaying = visualIsPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = filmPalette,
+                    queueExpanded = queueExpanded,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = loadSongRating,
+                    ratingRevision = ratingRevision,
+                    currentSongKey = song?.playlistIdentityKey(),
+                    queueLocked = queueLocked,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onToggleQueueLock = playerViewModel::toggleQueueLock,
+                    onPrevious = onPrevious,
+                    onPlayPause = syncMusicVideoPlayPause,
+                    onNext = onNext,
+                    onToggleQueue = onToggleQueue,
+                    onDismissQueue = onDismissQueue,
+                    onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
+                    onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                    onAddQueueToPlaylist = onAddQueueToPlaylist,
+                    onClearQueue = onClearQueue,
+                    modifier = Modifier.requiredHeight(76.dp)
+                )
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
+        @Composable
+        fun SignalPlayerPage() {
+            val signalInk = Color(0xFFB7F3FF)
+            val signalCyan = Color(0xFF3DE3FF)
+            val signalPalette = remember(pagePalette) {
+                pagePalette.copy(
+                    top = Color(0xFF04090E),
+                    middle = Color(0xFF04090E),
+                    bottom = Color(0xFF04090E),
+                    accent = signalCyan,
+                    onBackground = signalInk
+                )
+            }
+            // Synthetic oscilloscope phase; freezes exactly where playback pauses.
+            val wavePhase = remember { Animatable(0f) }
+            LaunchedEffect(visualIsPlaying) {
+                if (visualIsPlaying) {
+                    while (true) {
+                        wavePhase.animateTo(
+                            targetValue = wavePhase.value + (2f * PI).toFloat(),
+                            animationSpec = tween(durationMillis = 2400, easing = LinearEasing)
+                        )
+                    }
+                }
+            }
+            val queueIndex = currentQueueIndexHint.takeIf { it in playlist.indices }
+                ?: playlist.indexOfFirst { candidate ->
+                    song?.let { candidate.id == it.id && candidate.path == it.path } == true
+                }
+            val discAreaHeight = minOf(
+                maxHeight * if (compactWindow) 0.34f else 0.40f,
+                maxWidth * 0.92f
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF04090E))
+                    .then(
+                        if (shouldReserveStatusBar) {
+                            Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CH-%02d".format((queueIndex + 1).coerceAtLeast(1)),
+                        color = signalCyan.copy(alpha = 0.9f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 2.4.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "%s / %s".format(
+                            formatTime(currentPosition),
+                            formatTime(duration)
+                        ),
+                        color = signalInk.copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                }
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(discAreaHeight)
+                ) {
+                    val discSize = minOf(maxWidth * 0.62f, maxHeight * 0.86f)
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(discSize)
+                    ) {
+                        val radius = size.minDimension / 2f
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        var ringRadius = radius
+                        while (ringRadius > radius * 0.32f) {
+                            drawCircle(
+                                color = Color(0xFF16303C),
+                                radius = ringRadius,
+                                center = center,
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                            ringRadius -= radius * 0.09f
+                        }
+                        val tickCount = 48
+                        for (i in 0 until tickCount) {
+                            val angle = i * 2f * PI / tickCount
+                            val inner = radius * 0.97f
+                            val outer = radius * if (i % 4 == 0) 1.0f else 0.985f
+                            drawLine(
+                                color = signalInk.copy(alpha = 0.30f),
+                                start = Offset(
+                                    center.x + inner * kotlin.math.cos(angle).toFloat(),
+                                    center.y + inner * kotlin.math.sin(angle).toFloat()
+                                ),
+                                end = Offset(
+                                    center.x + outer * kotlin.math.cos(angle).toFloat(),
+                                    center.y + outer * kotlin.math.sin(angle).toFloat()
+                                ),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                        val progress = if (duration > 0) {
+                            (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+                        drawArc(
+                            color = signalCyan,
+                            startAngle = -90f,
+                            sweepAngle = 360f * progress,
+                            useCenter = false,
+                            topLeft = Offset(center.x - radius, center.y - radius),
+                            size = Size(radius * 2f, radius * 2f),
+                            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                    StyledPlayerArtwork(
+                        cornerRadius = 1000.dp,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(discSize * 0.56f),
+                        contentScale = ContentScale.Crop,
+                        showOverlayBadges = false
+                    )
+                    MusicVideoArtworkOverlay(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(discSize * 0.56f),
+                        cornerRadiusDp = 1000f,
+                        fullscreenPadding = PaddingValues(top = 14.dp, end = 62.dp),
+                        togglePadding = PaddingValues(top = 14.dp, end = 14.dp)
+                    )
+                }
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(54.dp)
+                ) {
+                    val barCount = 44
+                    val slot = size.width / barCount
+                    val barWidth = slot * 0.48f
+                    val centerY = size.height / 2f
+                    for (i in 0 until barCount) {
+                        val wave = abs(
+                            sin(i * 0.55 + wavePhase.value) * 0.62 +
+                                sin(i * 1.37 + wavePhase.value * 1.6) * 0.38
+                        ).toFloat()
+                        val barHeight = size.height * (0.16f + 0.74f * wave)
+                        drawRoundRect(
+                            color = signalCyan.copy(alpha = 0.30f + 0.62f * wave),
+                            topLeft = Offset(i * slot + (slot - barWidth) / 2f, centerY - barHeight / 2f),
+                            size = Size(barWidth, barHeight),
+                            cornerRadius = CornerRadius(barWidth / 2f)
+                        )
+                    }
+                    drawLine(
+                        color = signalInk.copy(alpha = 0.28f),
+                        start = Offset(0f, centerY),
+                        end = Offset(size.width, centerY),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val currentLyricText = lyrics.getOrNull(currentLyricIndex)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    val nextLyricText = lyrics.getOrNull(currentLyricIndex + 1)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp)
+                            .padding(horizontal = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (currentLyricText != null) {
+                            Text(
+                                text = "▸ $currentLyricText",
+                                color = signalInk,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.6.sp,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(
+                                    shadow = Shadow(
+                                        color = signalCyan.copy(alpha = 0.55f),
+                                        offset = Offset(0f, 0f),
+                                        blurRadius = 18f
+                                    )
+                                )
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 20.dp)
+                            .padding(horizontal = 44.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (nextLyricText != null) {
+                            Text(
+                                text = nextLyricText,
+                                color = signalInk.copy(alpha = 0.42f),
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = signalPalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                PlayerTransportControls(
+                    isPlaying = visualIsPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = signalPalette,
+                    queueExpanded = queueExpanded,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = loadSongRating,
+                    ratingRevision = ratingRevision,
+                    currentSongKey = song?.playlistIdentityKey(),
+                    queueLocked = queueLocked,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onToggleQueueLock = playerViewModel::toggleQueueLock,
+                    onPrevious = onPrevious,
+                    onPlayPause = syncMusicVideoPlayPause,
+                    onNext = onNext,
+                    onToggleQueue = onToggleQueue,
+                    onDismissQueue = onDismissQueue,
+                    onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
+                    onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                    onAddQueueToPlaylist = onAddQueueToPlaylist,
+                    onClearQueue = onClearQueue,
+                    modifier = Modifier.requiredHeight(76.dp)
+                )
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
+        @Composable
+        fun EditorialPlayerPage() {
+            val editorialPaper = Color(0xFFF3EFE6)
+            val editorialInk = Color(0xFF23211B)
+            val editorialRust = Color(0xFFB4452C)
+            val editorialPalette = remember(pagePalette) {
+                pagePalette.copy(
+                    top = editorialPaper,
+                    middle = editorialPaper,
+                    bottom = editorialPaper,
+                    accent = editorialRust,
+                    onBackground = editorialInk,
+                    isLight = true
+                )
+            }
+            val queueIndex = currentQueueIndexHint.takeIf { it in playlist.indices }
+                ?: playlist.indexOfFirst { candidate ->
+                    song?.let { candidate.id == it.id && candidate.path == it.path } == true
+                }
+            val coverSize = minOf(maxWidth * 0.40f, 190.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(editorialPaper)
+                    .then(
+                        if (shouldReserveStatusBar) {
+                            Modifier.windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = 24.dp)
+            ) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "NO. %02d".format((queueIndex + 1).coerceAtLeast(1)),
+                        color = editorialRust,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.8.sp,
+                        fontFamily = FontFamily.Serif,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(editorialInk.copy(alpha = 0.35f))
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = formatTime(duration),
+                        color = editorialInk.copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        letterSpacing = 2.sp,
+                        fontFamily = FontFamily.Serif,
+                        maxLines = 1
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    Column {
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = 8.dp, y = 8.dp)
+                                    .size(coverSize)
+                                    .background(editorialInk)
+                            )
+                            StyledPlayerArtwork(
+                                cornerRadius = 2.dp,
+                                modifier = Modifier.size(coverSize),
+                                contentScale = ContentScale.Crop,
+                                showOverlayBadges = false
+                            )
+                            MusicVideoArtworkOverlay(
+                                modifier = Modifier.size(coverSize),
+                                cornerRadiusDp = 2f,
+                                fullscreenPadding = PaddingValues(top = 8.dp, end = 50.dp),
+                                togglePadding = PaddingValues(8.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "FIG. %02d — %s".format(
+                                (queueIndex + 1).coerceAtLeast(1),
+                                song?.artist?.takeIf { it.isNotBlank() } ?: annotation
+                            ),
+                            color = editorialInk.copy(alpha = 0.55f),
+                            fontSize = 10.sp,
+                            letterSpacing = 1.2.sp,
+                            fontFamily = FontFamily.Serif,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.width(coverSize)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(20.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = song?.title?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.player_not_playing),
+                            color = editorialInk,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = (song?.artist ?: "").uppercase(),
+                            color = editorialRust,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 2.6.sp,
+                            fontFamily = FontFamily.Serif,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable(
+                                enabled = !song?.artist.isNullOrBlank(),
+                                onClick = onArtist
+                            )
+                        )
+                        if (annotation.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = annotation,
+                                color = editorialInk.copy(alpha = 0.55f),
+                                fontSize = 11.sp,
+                                letterSpacing = 1.4.sp,
+                                fontFamily = FontFamily.Serif,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(editorialInk.copy(alpha = 0.35f))
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp)
+                ) {
+                    val currentLyricText = lyrics.getOrNull(currentLyricIndex)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    val nextLyricText = lyrics.getOrNull(currentLyricIndex + 1)
+                        ?.text
+                        ?.takeIf { it.isNotBlank() }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 34.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (currentLyricText != null) {
+                            Text(
+                                text = currentLyricText,
+                                color = editorialInk,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Serif,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 18.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (nextLyricText != null) {
+                            Text(
+                                text = nextLyricText,
+                                color = editorialInk.copy(alpha = 0.45f),
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Serif,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "PAGE %03d".format(currentPosition / 1000L),
+                        color = editorialRust,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.2.sp,
+                        fontFamily = FontFamily.Serif,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = formatTime(currentPosition),
+                        color = editorialInk.copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        letterSpacing = 1.6.sp,
+                        fontFamily = FontFamily.Serif,
+                        maxLines = 1
+                    )
+                }
+                Box(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    PlayerProgressBlock(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        song = song,
+                        audioInfo = audioInfo,
+                        bluetoothDeviceName = bluetoothDeviceName,
+                        playbackModeLabel = if (musicVideoVisible) "MV" else null,
+                        palette = editorialPalette,
+                        allowTapSeek = playerTapSeekEnabled,
+                        showTotalDuration = playerShowTotalDuration,
+                        onSeek = onSeek,
+                        fontFamily = fontFamily,
+                        onInfoLongPress = onMusicVideoInfoLongPress
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                PlayerTransportControls(
+                    isPlaying = visualIsPlaying,
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    palette = editorialPalette,
+                    queueExpanded = queueExpanded,
+                    playlist = playlist,
+                    currentQueueIndexHint = currentQueueIndexHint,
+                    favoriteSongKeys = favoriteSongKeys,
+                    loadSongRating = loadSongRating,
+                    ratingRevision = ratingRevision,
+                    currentSongKey = song?.playlistIdentityKey(),
+                    queueLocked = queueLocked,
+                    onCyclePlaybackMode = onCyclePlaybackMode,
+                    onToggleQueueLock = playerViewModel::toggleQueueLock,
+                    onPrevious = onPrevious,
+                    onPlayPause = syncMusicVideoPlayPause,
+                    onNext = onNext,
+                    onToggleQueue = onToggleQueue,
+                    onDismissQueue = onDismissQueue,
+                    onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
+                    onMoveQueueSong = onMoveQueueSong,
+                    onRandomizeQueue = playerViewModel::randomizePlaylistOrder,
+                    onAddQueueToPlaylist = onAddQueueToPlaylist,
+                    onClearQueue = onClearQueue,
+                    modifier = Modifier.requiredHeight(76.dp)
+                )
+                PlayerBottomClearance(reserveNavigation = shouldReserveNavigationBar)
+            }
+        }
+
+
         if (useWidePlayer && selectedPlayerPageStyle ==
             com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (drawBackground) {
+            Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                if (drawBackground && !canvasFill) {
                     LandscapeCoverModeBackground(
                         palette = pagePalette,
                         dynamicCoverSource = displayedDynamicCover,
@@ -2005,23 +3659,62 @@ internal fun CoverPlayerPage(
                  onArtist = onArtist,
                  onSongInfo = onSongInfo,
                  drawBackground = drawBackground,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()
             )
         } else {
             when (selectedPlayerPageStyle) {
                 com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_APPLE_MUSIC -> {
-                    AppleMusicPlayerPage()
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        AppleMusicPlayerPage()
+                    }
                 }
                 com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_IMMERSIVE_LYRICS -> {
-                    ImmersiveLyricsPlayerPage()
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        ImmersiveLyricsPlayerPage()
+                    }
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_VINYL_TURNTABLE -> {
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        VinylTurntablePlayerPage()
+                    }
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_FAN_CARDS -> {
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        FanCardsPlayerPage()
+                    }
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_CINEMASCOPE -> {
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        CinemascopePlayerPage()
+                    }
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_SIGNAL -> {
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        SignalPlayerPage()
+                    }
+                }
+                com.ella.music.data.SettingsManager.PLAYER_PAGE_STYLE_EDITORIAL -> {
+                    Box(modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade()) {
+                        EditorialPlayerPage()
+                    }
                 }
                 else -> {
             // A static immersive cover is always a screen-width square. Metadata annotations
             // belong to the section below and must never squeeze the artwork into a shorter Fit
             // container, which exposes the black backing at both sides of a square cover.
             val immersiveCoverHeight = maxWidth
+            // When the status bar is hidden but its space is still reserved, the foreground
+            // pager is pushed down. Lift the immersive cover back over the reserved band so
+            // the artwork reaches the window edge while the controls below keep the inset.
+            val immersiveStatusBarLift = with(LocalDensity.current) {
+                if (systemBarsReserveSpace && effectivePlayerSystemBarsMode in setOf(
+                        SettingsManager.SYSTEM_BARS_MODE_HIDE_STATUS,
+                        SettingsManager.SYSTEM_BARS_MODE_HIDE_BOTH
+                    )
+                ) WindowInsets.statusBarsIgnoringVisibility.getTop(this).toDp() else 0.dp
+            }
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().spotifyCanvasChromeFade(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (immersiveAlbumCover) {
@@ -2030,7 +3723,8 @@ internal fun CoverPlayerPage(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(immersiveCoverHeight)
+                            .offset(y = -immersiveStatusBarLift)
+                            .height(immersiveCoverHeight + immersiveStatusBarLift)
                             .playerMorphArtwork()
                             .graphicsLayer {
                                 shape = immersiveCoverShape
@@ -2101,7 +3795,7 @@ internal fun CoverPlayerPage(
                                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                             )
                         }
-                        if (!musicVideoVisible && displayedDynamicCover != null) {
+                        if (!musicVideoVisible && displayedDynamicCover != null && !displayedDynamicCover.fillsPlayer()) {
                             DynamicCoverVideo(
                                 source = displayedDynamicCover,
                                 isPlaying = isPlaying && videoPlaybackActive,
@@ -2158,7 +3852,14 @@ internal fun CoverPlayerPage(
                                  onTitleLongClick = onSongInfo,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .then(if (centerTitle) Modifier else Modifier.widthIn(max = 230.dp))
+                                    .then(
+                                        // 收藏隐藏时文字右端要与封面右端对齐，不再受标题宽度上限 (#759)
+                                        if (centerTitle || !LocalPlayerQuickGestures.current.showFavorite) {
+                                            Modifier
+                                        } else {
+                                            Modifier.widthIn(max = 230.dp)
+                                        }
+                                    )
                             )
                             Spacer(modifier = Modifier.width(20.dp))
                             if (!centerTitle) PlayerHeaderAction(
@@ -2387,7 +4088,7 @@ internal fun CoverPlayerPage(
                                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                                 )
                             }
-                            if (!musicVideoVisible && displayedDynamicCover != null) {
+                            if (!musicVideoVisible && displayedDynamicCover != null && !displayedDynamicCover.fillsPlayer()) {
                                 DynamicCoverVideo(
                                     source = displayedDynamicCover,
                                     isPlaying = isPlaying && videoPlaybackActive,
@@ -2396,6 +4097,15 @@ internal fun CoverPlayerPage(
                                     cornerRadiusDp = albumCoverCornerRadius.value,
                                     resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                                 )
+                                if (showHiResLogo) {
+                                    HiResLogoBadge(
+                                        logoUri = hiResLogoUri,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .padding(10.dp)
+                                    )
+                                }
+                            } else if (!musicVideoVisible && displayedDynamicCover?.fillsPlayer() == true) {
                                 if (showHiResLogo) {
                                     HiResLogoBadge(
                                         logoUri = hiResLogoUri,
@@ -2728,7 +4438,9 @@ internal fun CoverPlayerPage(
                 onDismiss = { previewCover = null }
             )
         }
+        SpotifyCanvasChromeOverlay()
     })
+    }
 }
 
 internal fun shouldInterceptAppleMusicLyricsBack(
@@ -2776,11 +4488,15 @@ internal fun PlayerCoverTitleRow(
     onSongInfo: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    // Trailing actions may all be absent (favorite hidden, no menu slot): the text then
+    // reaches the row's right edge so it stays aligned with the cover edge (#759).
+    val gestures = LocalPlayerQuickGestures.current
+    val hasTrailingActions = onToggleMenu != null || (!centerTitle && gestures.showFavorite)
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (centerTitle) Spacer(Modifier.width(if (onToggleMenu != null) 60.dp else 18.dp))
+        if (centerTitle && hasTrailingActions) Spacer(Modifier.width(if (onToggleMenu != null) 60.dp else 18.dp))
         PlayerSongMetaText(
             textAlign = if (centerTitle) TextAlign.Center else TextAlign.Start,
             song = song,
@@ -2795,7 +4511,7 @@ internal fun PlayerCoverTitleRow(
             onTitleLongClick = onSongInfo,
             modifier = Modifier.weight(1f)
         )
-        Spacer(modifier = Modifier.width(18.dp))
+        if (hasTrailingActions) Spacer(modifier = Modifier.width(18.dp))
         if (!centerTitle) PlayerHeaderAction(
             kind = PlayerHeaderActionKind.Favorite,
             selected = isFavorite,
@@ -2831,4 +4547,103 @@ private fun rememberCoverSwipeModifier(
         previousSongTitle = previousSongTitle,
         nextSongTitle = nextSongTitle
     )
+}
+
+internal class SpotifyCanvasChrome(
+    val active: Boolean,
+    val autoHide: Boolean,
+    val hidden: Boolean,
+    val showToggle: Boolean,
+    val reveal: () -> Unit,
+    val toggleAutoHide: () -> Unit
+)
+
+internal val LocalSpotifyCanvasChrome = staticCompositionLocalOf<SpotifyCanvasChrome?> { null }
+
+@Composable
+internal fun rememberSpotifyCanvasChrome(active: Boolean, paused: Boolean): SpotifyCanvasChrome {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = remember(context) { SettingsManager.getInstance(context) }
+    val autoHide by settings.spotifyCanvasAutoHideControls.collectAsState(initial = false)
+    val scope = rememberCoroutineScope()
+    var visible by remember { mutableStateOf(true) }
+    var generation by remember { mutableIntStateOf(0) }
+    LaunchedEffect(active) {
+        visible = true
+        generation++
+    }
+    LaunchedEffect(active, autoHide, visible, generation, paused) {
+        if (!active || !autoHide || !visible || paused) return@LaunchedEffect
+        delay(3_000)
+        visible = false
+    }
+    val hidden = active && autoHide && !visible && !paused
+    return SpotifyCanvasChrome(
+        active = active,
+        autoHide = autoHide,
+        hidden = hidden,
+        showToggle = active && !hidden && !paused,
+        reveal = {
+            visible = true
+            generation++
+        },
+        toggleAutoHide = {
+            scope.launch { settings.setSpotifyCanvasAutoHideControls(!autoHide) }
+        }
+    )
+}
+
+internal fun Modifier.spotifyCanvasChromeFade(): Modifier = composed {
+    if (LocalSpotifyCanvasChrome.current?.hidden == true) graphicsLayer { alpha = 0f } else this
+}
+
+@Composable
+internal fun SpotifyCanvasChromeOverlay() {
+    val chrome = LocalSpotifyCanvasChrome.current ?: return
+    if (chrome.hidden) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { chrome.reveal() }
+                }
+        )
+    } else if (chrome.showToggle) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = stringResource(R.string.player_canvas_auto_hide),
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 8.dp, end = 12.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black.copy(alpha = if (chrome.autoHide) 0.72f else 0.42f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = chrome.toggleAutoHide
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Forwards to the most recently successful [AsyncImagePainter] frame. Track switches build a
+ * fresh request painter that starts empty; drawing this wrapper instead keeps the previous
+ * track's artwork visible until the replacement decodes.
+ */
+@Stable
+private class RetainedArtworkPainter : Painter() {
+    var inner by mutableStateOf<Painter?>(null)
+
+    override val intrinsicSize: androidx.compose.ui.geometry.Size
+        get() = inner?.intrinsicSize ?: androidx.compose.ui.geometry.Size.Unspecified
+
+    override fun DrawScope.onDraw() {
+        inner?.let { painter -> with(painter) { draw(size) } }
+    }
 }

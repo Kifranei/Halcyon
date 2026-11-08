@@ -173,8 +173,7 @@ fun LinkToFolderPlaylistSheet(
                                 ),
                                 selectedMode = sortMode,
                                 onSelect = { sortMode = it }
-                            ),
-                            alignment = PopupPositionProvider.Align.Start
+                            )
                         ) {
                             LinkFolderPlaylistChip(
                                 text = stringResource(R.string.common_sort) + ": " + stringResource(sortMode.labelRes),

@@ -146,8 +146,7 @@ fun AddToPlaylistSheet(
                         ),
                         selectedMode = sortMode,
                         onSelect = { sortMode = it }
-                    ),
-                    alignment = PopupPositionProvider.Align.Start
+                    )
                 ) {
                     Box(
                         modifier = Modifier
@@ -392,7 +391,7 @@ fun CreatePlaylistAndAddSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    EllaMiuixBottomSheet(
+    EllaMiuixDialog(
         show = true,
         title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -411,7 +410,7 @@ fun CreatePlaylistAndAddSheet(
                 modifier = Modifier
                     .fillMaxWidth()
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = stringResource(R.string.common_create),
                 onCancel = onDismiss,

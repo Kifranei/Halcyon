@@ -14,6 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +25,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -103,7 +107,7 @@ internal fun AppleCoverFlowBackground(
     // Use the process-wide frame clock instead of an elapsed timer local to this Composable.
     // Browsing pages and every player/lyrics surface therefore render the same flow coordinates
     // when one replaces another, rather than restarting the animation at a different phase.
-    val sharedClockMs = rememberThrottledFlowTimeMs(sourceBitmap, animate)
+    val sharedClockMs = rememberThrottledFlowTimeMs(animate)
     val scaledTimeMs = scaledAppleFlowTimeMs(sharedClockMs, speed)
     val frameTimeMs = (scaledTimeMs / FRAME_INTERVAL_MS) * FRAME_INTERVAL_MS
 
@@ -123,6 +127,8 @@ internal fun AppleCoverFlowBackground(
     // Retaining frameBitmap across song changes prevents briefly falling back to the
     // single-layer blurred cover (issue #621), keeping the 3-layer fluid flow seamless.
     var frameBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var previousFrameBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val frameSwap = remember { Animatable(1f) }
     LaunchedEffect(
         sourceBitmap,
         viewportSize,
@@ -142,10 +148,17 @@ internal fun AppleCoverFlowBackground(
         val next = withContext(Dispatchers.Default) {
             createAppleFlowFrameBitmap(cover, w, h, frameTimeMs, densityDpi, normalizedBlur, washPrimary, washSecondary)
         }
+        val old = frameBitmap
         frameBitmap = next
+        if (old != null && old !== next) {
+            previousFrameBitmap = old
+            frameSwap.snapTo(0f)
+            frameSwap.animateTo(1f, tween(220)) { previousFrameBitmap = if (value > 0.995f) null else previousFrameBitmap }
+        }
     }
 
-    Box(modifier = modifier.background(backgroundColor)) {
+    val animatedBackground by animateColorAsState(backgroundColor, tween(400), label = "apple-flow-bg")
+    Box(modifier = modifier.background(animatedBackground)) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -153,14 +166,27 @@ internal fun AppleCoverFlowBackground(
                 .onSizeChanged { viewportSize = it }
         ) {
             val ready = frameBitmap
+            val previous = previousFrameBitmap
             val source = sourceBitmap
             when {
-                ready != null -> Image(
-                    bitmap = ready.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.FillBounds
-                )
+                ready != null -> {
+                    if (previous != null && frameSwap.value < 1f) {
+                        Image(
+                            bitmap = previous.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                    }
+                    Image(
+                        bitmap = ready.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            alpha = if (previous != null) frameSwap.value else 1f
+                        },
+                        contentScale = ContentScale.FillBounds
+                    )
+                }
                 source != null -> Image(
                     bitmap = source.asImageBitmap(),
                     contentDescription = null,
@@ -199,10 +225,12 @@ internal fun scaledAppleFlowTimeMs(elapsedMs: Long, speedTenths: Int): Long =
  * (returns the last value) when [animate] is false or the player surface is hidden.
  */
 @Composable
-private fun rememberThrottledFlowTimeMs(key: Any?, animate: Boolean): Long {
+private fun rememberThrottledFlowTimeMs(animate: Boolean): Long {
     val active = animate && LocalPlayerSurfaceActive.current
-    var sharedClockMs by remember(key) { mutableLongStateOf(0L) }
-    LaunchedEffect(key, active) {
+    // Truly process-wide: do NOT key this on the cover — a song change must not restart
+    // the flow phase (that reset was the track-switch flicker).
+    var sharedClockMs by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         var lastPublishedNanos = 0L
         while (true) {

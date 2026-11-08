@@ -297,6 +297,18 @@ fun ScanSettingsScreen(
                         mainViewModel.scanMusic()
                     }
                     showBlockedDialog = false
+                },
+                onAdd = { path ->
+                    val normalizedPath = path.normalizeFolderPath()
+                    scope.launch {
+                        mainViewModel.settingsManager.updateScanExcludeFolders { current ->
+                            (current.toFolderSettingList() + normalizedPath)
+                                .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
+                                .joinToString("；")
+                        }
+                        mainViewModel.scanMusic()
+                    }
+                    Toast.makeText(context, R.string.scan_folder_unselected, Toast.LENGTH_SHORT).show()
                 }
             )
         }

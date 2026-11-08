@@ -1,19 +1,13 @@
 package com.ella.music.ui.search
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
@@ -22,7 +16,9 @@ import com.ella.music.ui.components.ActionMenuCommonIcons
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.LibraryEntityAction
+import com.ella.music.ui.components.LibraryEntityActionSheet
+import com.ella.music.ui.components.LibraryEntityActions
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.requestPinnedEllaShortcut
@@ -69,89 +65,98 @@ internal fun LibrarySearchAuxiliarySurfaces(
     var folderToBlock by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val folderPlaylists by settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     var associateFolderPath by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var batchEditTarget by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<SearchActionTarget?>(null) }
 
     actionTarget?.let { target ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
+        val imageSearchName = when (target) {
+            is SearchActionTarget.ArtistTarget -> target.artist.name
+            is SearchActionTarget.CategoryTarget ->
+                target.item.name.takeIf { target.type in com.ella.music.ui.category.ARTIST_IMAGE_CATEGORY_TYPES }
+            else -> null
+        }
+        val batchSpecs = when (target) {
+            is SearchActionTarget.AlbumTarget -> com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS
+            is SearchActionTarget.ArtistTarget -> com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS
+            is SearchActionTarget.CategoryTarget -> com.ella.music.ui.category.batchFieldSpecs(target.type, target.item.name)
+            else -> emptyList()
+        }
+        val isFolder = target is SearchActionTarget.CategoryTarget && target.type == "folder"
+        LibraryEntityActionSheet(
             title = target.title,
-            onDismissRequest = { onActionTargetChange(null) }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_share),
-                    onClick = {
-                        shareLocalSongs(context, songsForActionTarget(target))
+            onDismissRequest = { onActionTargetChange(null) },
+            actions = listOfNotNull(
+                LibraryEntityActions.share {
+                    shareLocalSongs(context, songsForActionTarget(target))
+                    onActionTargetChange(null)
+                },
+                if (isFolder) {
+                    LibraryEntityActions.associate {
+                        associateFolderPath = target.item.name.normalizeFolderPath()
                         onActionTargetChange(null)
                     }
-                )
-                if (target is SearchActionTarget.CategoryTarget && target.type == "folder") {
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.folder_playlist_associate),
+                } else {
+                    null
+                },
+                LibraryEntityActions.addToPlaylist {
+                    onPlaylistPickerSongsChange(songsForActionTarget(target))
+                    onActionTargetChange(null)
+                },
+                LibraryEntityActions.addToQueue {
+                    playerViewModel.addToPlaylist(songsForActionTarget(target))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    onActionTargetChange(null)
+                },
+                LibraryEntityActions.playNext {
+                    playerViewModel.playNext(songsForActionTarget(target))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    onActionTargetChange(null)
+                },
+                LibraryEntityActions.desktopShortcut {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = shortcutIdForActionTarget(target),
+                        label = target.title,
+                        route = shortcutRouteForActionTarget(target)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, target.title) else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    onActionTargetChange(null)
+                },
+                if (isFolder) {
+                    LibraryEntityActions.block {
+                        folderToBlock = target.item.name.normalizeFolderPath()
+                        onActionTargetChange(null)
+                    }
+                } else {
+                    null
+                },
+                imageSearchName?.let { name ->
+                    LibraryEntityActions.searchImage {
+                        com.ella.music.ArtistImageSearchActivity.open(context, name)
+                        onActionTargetChange(null)
+                    }
+                },
+                if (batchSpecs.isNotEmpty()) {
+                    LibraryEntityAction(
+                        title = stringResource(R.string.category_batch_edit),
+                        icon = ActionMenuCommonIcons.edit,
                         onClick = {
-                            associateFolderPath = target.item.name.normalizeFolderPath()
+                            batchEditTarget = target
                             onActionTargetChange(null)
                         }
                     )
-                }
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_add_to_playlist),
-                    onClick = {
-                        onPlaylistPickerSongsChange(songsForActionTarget(target))
-                        onActionTargetChange(null)
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_to_queue),
-                    onClick = {
-                        playerViewModel.addToPlaylist(songsForActionTarget(target))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                        onActionTargetChange(null)
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.song_more_play_next),
-                    onClick = {
-                        playerViewModel.playNext(songsForActionTarget(target))
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                        onActionTargetChange(null)
-                    }
-                )
-                EllaMiuixMenuItem(
-                    text = stringResource(R.string.common_add_desktop_shortcut),
-                    onClick = {
-                        val ok = requestPinnedEllaShortcut(
-                            context = context,
-                            id = shortcutIdForActionTarget(target),
-                            label = target.title,
-                            route = shortcutRouteForActionTarget(target)
-                        )
-                        Toast.makeText(
-                            context,
-                            if (ok) context.getString(R.string.playlist_shortcut_requested, target.title) else context.getString(R.string.playlist_shortcut_unsupported),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        onActionTargetChange(null)
-                    }
-                )
-                if (target is SearchActionTarget.CategoryTarget && target.type == "folder") {
-                    EllaMiuixMenuItem(
-                        text = stringResource(R.string.folder_block_folder),
-                        onClick = {
-                            folderToBlock = target.item.name.normalizeFolderPath()
-                            onActionTargetChange(null)
-                        },
-                        danger = true,
-                        icon = ActionMenuCommonIcons.block
-                    )
-                }
-            }
-        }
+                } else {
+                    null
+                },
+                LibraryEntityActions.deletePermanently {
+                    onPendingDeleteSongsChange(songsForActionTarget(target))
+                    onActionTargetChange(null)
+                },
+            )
+        )
     }
 
     associateFolderPath?.let { folderPath ->
@@ -205,6 +210,31 @@ internal fun LibrarySearchAuxiliarySurfaces(
                 folderToBlock = null
             }
         )
+    }
+
+    batchEditTarget?.let { batchTarget ->
+        val specs = when (batchTarget) {
+            is SearchActionTarget.AlbumTarget -> com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS
+            is SearchActionTarget.ArtistTarget -> com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS
+            is SearchActionTarget.CategoryTarget -> com.ella.music.ui.category.batchFieldSpecs(batchTarget.type, batchTarget.item.name)
+            else -> emptyList()
+        }
+        val batchType = when (batchTarget) {
+            is SearchActionTarget.AlbumTarget -> "album"
+            is SearchActionTarget.ArtistTarget -> "artist"
+            is SearchActionTarget.CategoryTarget -> batchTarget.type
+            else -> "search"
+        }
+        if (specs.isNotEmpty()) {
+            com.ella.music.ui.category.BatchTagEditSheet(
+                type = batchType,
+                category = batchTarget.title,
+                songs = songsForActionTarget(batchTarget),
+                specs = specs,
+                mainViewModel = mainViewModel,
+                onDismiss = { batchEditTarget = null }
+            )
+        }
     }
 
     playlistPickerSongs?.let { songsToAdd ->

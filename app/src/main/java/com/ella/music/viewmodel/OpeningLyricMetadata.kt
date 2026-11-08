@@ -14,6 +14,7 @@ private val openingLyricTokens = linkedMapOf(
     "<Folder>" to { song: Song -> File(song.path).parentFile?.name.orEmpty() },
     "<Composer>" to { song: Song -> song.composer },
     "<Lyricist>" to { song: Song -> song.lyricist },
+    "<Producer>" to { song: Song -> song.producer },
     "<Arranger>" to { song: Song -> song.arranger },
     "<歌曲名>" to { song: Song -> song.title },
     "<艺术家>" to { song: Song -> song.artist },
@@ -23,6 +24,7 @@ private val openingLyricTokens = linkedMapOf(
     "<文件夹>" to { song: Song -> File(song.path).parentFile?.name.orEmpty() },
     "<作曲家>" to { song: Song -> song.composer },
     "<作词家>" to { song: Song -> song.lyricist },
+    "<制作人>" to { song: Song -> song.producer },
     "<编曲家>" to { song: Song -> song.arranger },
     "<藝術家>" to { song: Song -> song.artist },
     "<專輯>" to { song: Song -> song.album },
@@ -31,6 +33,7 @@ private val openingLyricTokens = linkedMapOf(
     "<文件夾>" to { song: Song -> File(song.path).parentFile?.name.orEmpty() },
     "<作曲家>" to { song: Song -> song.composer },
     "<作詞家>" to { song: Song -> song.lyricist },
+    "<製作人>" to { song: Song -> song.producer },
     "<編曲家>" to { song: Song -> song.arranger }
 )
 

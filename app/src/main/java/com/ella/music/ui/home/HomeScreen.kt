@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -117,6 +118,7 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.listmodel.SortDirection
+import com.ella.music.ui.search.duplicateTitleAlbumSongs
 import com.ella.music.ui.search.searchPlaybackSelection
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -217,8 +219,8 @@ fun LibraryScreen(
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
     val sortIndex by settingsManager.librarySongSortIndex.collectAsState(initial = LibrarySortUiState.librarySongSortIndex)
     val sortMode = HomeSortMode.entries.getOrElse(sortIndex) { HomeSortMode.Title }
@@ -229,6 +231,7 @@ fun LibraryScreen(
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var artistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
@@ -276,6 +279,7 @@ fun LibraryScreen(
 
     var audioFiltersExpanded by remember { mutableStateOf(false) }
     var audioFilter by remember { mutableStateOf(LibraryAudioFilter()) }
+    var duplicatesOnly by remember { mutableStateOf(false) }
     val filterLibrarySource by settingsManager.librarySource.collectAsState(initial = SettingsManager.LIBRARY_SOURCE_LOCAL)
     val latestFilterSongs = rememberUpdatedState(songs)
     val effectiveRatingFilter = if (libraryShowRatingFilter) ratingFilter else HomeRatingFilterSelection()
@@ -283,19 +287,25 @@ fun LibraryScreen(
     val activeRatingRevision = if (effectiveRatingFilter.hasRatingConstraint()) ratingRevision else 0
     val filterProgress by produceState(
         initialValue = LibraryAudioFilterProgress(songs, songs.size, songs.size, true),
-        filterLibrarySource, searchQuery.trim(), effectiveRatingFilter, activeFavoriteSongKeys, activeRatingRevision, audioFilter
+        filterLibrarySource, searchQuery.trim(), effectiveRatingFilter, activeFavoriteSongKeys, activeRatingRevision, audioFilter, duplicatesOnly
     ) {
         val filterSnapshot = audioFilter
         val ratingSnapshot = effectiveRatingFilter
         val query = searchQuery.trim()
+        val duplicatesSnapshot = duplicatesOnly
         filterLibrarySnapshots(snapshotFlow { latestFilterSongs.value }) { songs -> kotlinx.coroutines.flow.flow {
-            if (filterSnapshot.isEmpty && ratingSnapshot.isUnfiltered() && query.isBlank()) {
+            val source = if (duplicatesSnapshot) {
+                withContext(Dispatchers.IO) { songs.duplicateTitleAlbumSongs() }
+            } else {
+                songs
+            }
+            if (filterSnapshot.isEmpty && ratingSnapshot.isUnfiltered() && query.isBlank() && !duplicatesSnapshot) {
                 emit(LibraryAudioFilterProgress(songs, songs.size, songs.size, true))
                 return@flow
             }
-            emit(LibraryAudioFilterProgress(emptyList(), 0, songs.size, false))
+            emit(LibraryAudioFilterProgress(emptyList(), 0, source.size, false))
             val base = withContext(Dispatchers.IO) {
-                if (ratingSnapshot.isUnfiltered()) songs else songs.filter { song ->
+                if (ratingSnapshot.isUnfiltered()) source else source.filter { song ->
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     ratingSnapshot.matches(
                         rating = mainViewModel.getSongRating(song),
@@ -385,7 +395,7 @@ fun LibraryScreen(
                 titleStartPadding = if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) 108.dp else 20.dp,
                 // Selection mode adds a download action on the left of the row. The old 144dp
                 // inset left that button under the double-tap overlay, so taps never arrived (#657).
-                titleEndPadding = if (selection.selectionMode) 216.dp else 192.dp,
+                titleEndPadding = if (selection.selectionMode) 264.dp else 192.dp,
                 navigationIcon = {
                     if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) {
                         RatingFilterMenu(
@@ -399,6 +409,14 @@ fun LibraryScreen(
                 },
                 actions = {
                     if (selection.selectionMode) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                batchEditSongs = selectedSongs
+                            }
+                        })
                         IconButton(onClick = {
                             val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
                             val cacheable = selectedSongs.filter(RemoteAudioCache::isCacheableRemoteSong)
@@ -465,7 +483,7 @@ fun LibraryScreen(
                             Icon(
                                 painter = androidx.compose.ui.res.painterResource(R.drawable.ic_audio_filter),
                                 contentDescription = stringResource(R.string.library_audio_filter),
-                                tint = if (audioFiltersExpanded || !audioFilter.isEmpty) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                tint = if (audioFiltersExpanded || !audioFilter.isEmpty || duplicatesOnly) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -534,7 +552,7 @@ fun LibraryScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
-                endPadding = if (selection.selectionMode) 216.dp else 188.dp
+                endPadding = if (selection.selectionMode) 264.dp else 188.dp
             )
         }
 
@@ -557,6 +575,32 @@ fun LibraryScreen(
             onDismissRequest = { audioFiltersExpanded = false }
         ) {
             Column {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    com.ella.music.ui.components.EllaMiuixChip(
+                        text = stringResource(R.string.library_search_duplicates),
+                        selected = duplicatesOnly,
+                        onClick = { duplicatesOnly = !duplicatesOnly }
+                    )
+                    if (duplicatesOnly && filteredSongs.isNotEmpty()) {
+                        com.ella.music.ui.components.EllaMiuixChip(
+                            text = stringResource(R.string.library_dedupe_action),
+                            selected = false,
+                            onClick = {
+                                val seen = mutableSetOf<String>()
+                                val extras = mutableListOf<Song>()
+                                filteredSongs.forEach { song ->
+                                    val key = "${song.title.trim().lowercase()}|${song.album.trim().lowercase()}"
+                                    if (!seen.add(key)) extras += song
+                                }
+                                if (extras.isNotEmpty()) pendingConfirmDeleteSongs = extras
+                                audioFiltersExpanded = false
+                            }
+                        )
+                    }
+                }
                 LibraryAudioFilterPanel(audioFilter) { audioFilter = it }
                 Text(
                     text = if (filterProgress.complete) stringResource(R.string.library_audio_filter_count, filteredSongs.size)
@@ -567,7 +611,7 @@ fun LibraryScreen(
                 com.ella.music.ui.components.EllaMiuixSheetActions(
                     cancelText = stringResource(R.string.common_reset),
                     confirmText = stringResource(R.string.common_done),
-                    onCancel = { audioFilter = LibraryAudioFilter() },
+                    onCancel = { audioFilter = LibraryAudioFilter(); duplicatesOnly = false },
                     onConfirm = { audioFiltersExpanded = false }
                 )
             }
@@ -632,7 +676,12 @@ fun LibraryScreen(
             }
         } else if (filterProgress.complete && filteredSongs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.library_search_no_results), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(
+                    stringResource(
+                        if (duplicatesOnly) R.string.library_search_no_duplicates else R.string.library_search_no_results
+                    ),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
             }
         } else if (sortedResult == null) {
             Box(
@@ -915,6 +964,7 @@ fun LibraryScreen(
                                             sortMode.isDescending()
                                         ),
                                         ratingFilter.summaryLabel(context),
+                                        if (duplicatesOnly) stringResource(R.string.library_search_duplicates) else null,
                                 ).joinToString(" · ")
                                 ),
                             leadingContent = {
@@ -1211,6 +1261,7 @@ fun LibraryScreen(
             }
         }
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,

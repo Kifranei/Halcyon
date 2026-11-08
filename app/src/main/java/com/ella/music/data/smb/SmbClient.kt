@@ -52,6 +52,21 @@ internal enum class SmbProtocol(val id: String, val dialects: List<SMB2Dialect>)
     Smb3("smb3", listOf(SMB2Dialect.SMB_3_1_1, SMB2Dialect.SMB_3_0_2, SMB2Dialect.SMB_3_0));
     companion object { fun fromId(id: String) = entries.firstOrNull { it.id == id } ?: Auto }
 }
+
+/** SMBJ 0.14 aborts SMB 3.1.1 when the server adds a context it does not know
+ * (signing, transport, POSIX). Retry the same protocol without 3.1.1. TCP failures
+ * are not a dialect problem and must not open a second connection. */
+internal fun smb311FallbackDialects(protocol: SmbProtocol, error: Throwable): List<SMB2Dialect>? {
+    if (SMB2Dialect.SMB_3_1_1 !in protocol.dialects) return null
+    val chain = generateSequence(error) { it.cause }.toList()
+    val tcp = chain.any {
+        it is java.net.UnknownHostException || it is java.net.ConnectException ||
+            it is java.net.NoRouteToHostException || it is java.net.PortUnreachableException ||
+            it is java.net.SocketTimeoutException
+    }
+    if (tcp) return null
+    return protocol.dialects.filter { it != SMB2Dialect.SMB_3_1_1 }
+}
 internal data class SmbAccount(val root: SmbLocation, val username: String, val password: String, val domain: String = "", val protocol: SmbProtocol = SmbProtocol.Auto)
 internal fun SmbAccount.authentication(): AuthenticationContext {
     if (username.isBlank()) return AuthenticationContext.anonymous()
@@ -81,19 +96,26 @@ internal fun smbFailureCode(error: Throwable): String? = generateSequence(error)
 
 /** A session owns its connection and share, and never writes to the remote server. */
 internal class SmbSession(private val account: SmbAccount) : Closeable {
-    private val client = SMBClient(SmbConfig.builder()
-        .withAuthenticators(NtlmAuthenticator.Factory())
-        .withDialects(*account.protocol.dialects.toTypedArray())
-        .withDfsEnabled(true)
-        .withTimeout(15, TimeUnit.SECONDS).withSoTimeout(15_000).build())
+    private var client = newClient(account.protocol.dialects)
     private var connection: Connection? = null
     private var session: Session? = null
     private var share: DiskShare? = null
+    private fun connect(): Connection {
+        try {
+            return client.connect(account.root.host, account.root.port)
+        } catch (error: Exception) {
+            val fallback = smb311FallbackDialects(account.protocol, error) ?: throw error
+            android.util.Log.w("SMB", "SMB 3.1.1 negotiate failed; retrying without it", error)
+            runCatching { client.close() }
+            client = newClient(fallback)
+            return client.connect(account.root.host, account.root.port)
+        }
+    }
     private fun share(): DiskShare {
         share?.let { return it }
         var stage = "connect"
         try {
-            val connected = client.connect(account.root.host, account.root.port).also { connection = it }
+            val connected = connect().also { connection = it }
             android.util.Log.i("SMB", "Negotiated ${connected.negotiatedProtocol.dialect}; configured=${account.protocol.id}")
             stage = "authenticate"
             val auth = account.authentication()
@@ -127,4 +149,17 @@ internal class SmbSession(private val account: SmbAccount) : Closeable {
         runCatching { connection?.close() }; connection = null
         runCatching { client.close() }
     }
+    private fun newClient(dialects: List<SMB2Dialect>) = SMBClient(SmbConfig.builder()
+        .withAuthenticators(NtlmAuthenticator.Factory())
+        .withDialects(*dialects.toTypedArray())
+        // Windows advertises DFS even for a normal disk share. Following referrals
+        // then stalls listing on an IPC$ lookup the share never answers.
+        .withDfsEnabled(false)
+        .withEncryptData(true)
+        .withTimeout(15, TimeUnit.SECONDS)
+        // The packet reader treats a socket read timeout as fatal and exits.
+        // An idle gap after the player buffer fills, or a pause, used to leave
+        // the next read waiting on a dead session. Request deadlines stay above.
+        .withSoTimeout(0)
+        .build())
 }

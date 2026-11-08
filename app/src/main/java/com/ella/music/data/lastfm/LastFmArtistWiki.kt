@@ -589,6 +589,84 @@ internal suspend fun fetchLastFmArtistImage(
     }.getOrNull()
 }
 
+/**
+ * Every usable image size from Last.fm's artist.getinfo response, largest first (#757) —
+ * the manual search page shows each size as a separate candidate.
+ */
+internal fun parseLastFmArtistImageUrls(
+    raw: String,
+    requestedArtistName: String? = null,
+    ignoreCase: Boolean = true
+): List<Pair<String, String>> {
+    val root = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return emptyList()
+    if (root.containsKey("error")) return emptyList()
+    val artist = root["artist"]?.jsonObject ?: return emptyList()
+    val returnedName = artist["name"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
+    if (!requestedArtistName.isNullOrBlank() &&
+        !returnedName.equals(requestedArtistName.trim(), ignoreCase = ignoreCase)
+    ) return emptyList()
+    val images = runCatching { artist["image"]?.jsonArray }.getOrNull() ?: return emptyList()
+    val preferredSizes = listOf("mega", "extralarge", "large", "medium", "small")
+    val out = mutableListOf<Pair<String, String>>()
+    preferredSizes.forEach { preferredSize ->
+        for (index in images.indices) {
+            val image = runCatching { images[index].jsonObject }.getOrNull() ?: continue
+            val size = image["size"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            val url = image["#text"]?.jsonPrimitive?.contentOrNull?.trim()
+            if (size.equals(preferredSize, ignoreCase = true) && url != null &&
+                isUsableArtistImageUrl(url) && out.none { it.first == url }
+            ) out += url to size
+        }
+    }
+    return out
+}
+
+internal suspend fun fetchLastFmArtistImageCandidates(
+    artistName: String,
+    apiKey: String?,
+    regionCode: String = DEFAULT_LAST_FM_WIKI_REGION
+): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+    if (artistName.isBlank()) return@withContext emptyList()
+    val client = wikiHttpClient()
+    if (!apiKey.isNullOrBlank()) {
+        val apiUrl = LAST_FM_API_ROOT.toHttpUrl().newBuilder()
+            .addQueryParameter("method", "artist.getinfo")
+            .addQueryParameter("artist", artistName)
+            .addQueryParameter("api_key", apiKey)
+            .addQueryParameter("lang", lastFmApiLanguage(regionCode))
+            .addQueryParameter("autocorrect", "1")
+            .addQueryParameter("format", "json")
+            .build()
+            .toString()
+        val raw = runCatching { client.executeText(apiUrl) }.getOrNull()
+        if (raw != null) {
+            val urls = parseLastFmArtistImageUrls(raw, requestedArtistName = artistName, ignoreCase = false)
+                .ifEmpty { parseLastFmArtistImageUrls(raw, requestedArtistName = artistName, ignoreCase = true) }
+            if (urls.isNotEmpty()) return@withContext urls
+        }
+        // API image fields are empty stars for most artists — keep scraping (#764).
+    }
+    runCatching {
+        val html = client.newBuilder()
+            .connectTimeout(4, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+            .executeText(lastFmArtistPageUrl(artistName, regionCode))
+        lastFmArtistPageImageUrls(html)
+    }.getOrDefault(emptyList())
+}
+
+/** og:image plus every inline i/u/ picture on the public artist page, deduplicated. */
+private fun lastFmArtistPageImageUrls(html: String): List<Pair<String, String>> {
+    val out = mutableListOf<Pair<String, String>>()
+    parseArtistOpenGraphImageUrl(html)?.let { out += it to "original" }
+    Regex("""https://[^"'\\\s>]+/i/u/[^"'\\\s>]+""").findAll(html).forEach { match ->
+        val url = match.value.takeIf(::isUsableArtistImageUrl) ?: return@forEach
+        if (out.none { it.first == url }) out += url to "original"
+    }
+    return out.take(12)
+}
+
 internal suspend fun fetchNeteaseArtistImage(artistName: String): String? = withContext(Dispatchers.IO) {
     if (artistName.isBlank()) return@withContext null
     val searchUrl = "https://music.163.com/api/search/get/web".toHttpUrl().newBuilder()

@@ -53,6 +53,17 @@ internal fun CoroutineScope.launchNameSplitConfigObservers(
         }
     }
     launch {
+        settingsManager.albumMergeFields.distinctUntilChanged().collect { raw ->
+            NameSplitConfigStore.albumMergeFields =
+                com.ella.music.data.CustomMetadataCategory.ALBUM_MERGE_FIELD_ORDER.filter { field ->
+                    field == com.ella.music.data.CustomMetadataCategory.MERGE_ALBUM || field in raw.split(',')
+                }
+            onNameSplitConfigChanged()
+            NameSplitConfigStore.notifyChanged()
+            onAlbumIdentityConfigChanged()
+        }
+    }
+    launch {
         settingsManager.parseFeaturedArtists.distinctUntilChanged().collect {
             NameSplitConfigStore.parseFeaturedArtists = it
             onNameSplitConfigChanged()

@@ -259,6 +259,7 @@ class ExternalPlaybackActivity : ComponentActivity() {
             composer = tagInfo.composer.usableTag() ?: composer,
             arranger = tagInfo.arranger.usableTag() ?: arranger,
             lyricist = tagInfo.lyricist.usableTag() ?: lyricist,
+            producer = tagInfo.producer.usableTag() ?: producer,
             trackNumber = tagInfo.trackNumber ?: trackNumber,
             discNumber = tagInfo.discNumber ?: discNumber
         )

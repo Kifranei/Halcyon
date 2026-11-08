@@ -64,7 +64,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -367,7 +367,7 @@ private fun PluginConfigDropdown(
 ) {
     if (field.options.isEmpty()) return
     val selectedIndex = field.options.indexOfFirst { it.value == value }.takeIf { it >= 0 } ?: 0
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = field.title,
         summary = field.summary ?: field.options.getOrNull(selectedIndex)?.summary.orEmpty(),
         items = field.options.map { option ->

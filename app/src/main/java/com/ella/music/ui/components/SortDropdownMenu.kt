@@ -21,15 +21,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.ui.listmodel.SortDirection
-import top.yukonga.miuix.kmp.basic.DropdownImpl
-import top.yukonga.miuix.kmp.basic.DropdownItem
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowListPopup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,10 +34,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -188,7 +180,6 @@ internal fun randomSortDropdownItem(
 internal fun SortDropdownMenu(
     items: List<SortDropdownItem>,
     modifier: Modifier = Modifier,
-    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
     tint: Color = MiuixTheme.colorScheme.onSurface,
     contentDescription: String = stringResource(R.string.common_sort)
 ) {
@@ -227,75 +218,16 @@ internal fun SortDropdownMenu(
             SortListPopup(
                 show = menuVisible,
                 items = items,
-                alignment = alignment,
                 onDismissRequest = { menuVisible = false }
             )
         }
     }
 }
 
-private fun PopupPositionProvider.Align.resolve(layoutDirection: LayoutDirection): PopupPositionProvider.Align {
-    if (layoutDirection == LayoutDirection.Ltr) return this
-    return when (this) {
-        PopupPositionProvider.Align.Start -> PopupPositionProvider.Align.End
-        PopupPositionProvider.Align.End -> PopupPositionProvider.Align.Start
-        PopupPositionProvider.Align.TopStart -> PopupPositionProvider.Align.TopEnd
-        PopupPositionProvider.Align.TopEnd -> PopupPositionProvider.Align.TopStart
-        PopupPositionProvider.Align.BottomStart -> PopupPositionProvider.Align.BottomEnd
-        PopupPositionProvider.Align.BottomEnd -> PopupPositionProvider.Align.BottomStart
-    }
-}
-
-internal val SafeDropdownPositionProvider = object : PopupPositionProvider {
-    private val margins = PaddingValues(horizontal = 0.dp, vertical = 8.dp)
-
-    override fun calculatePosition(
-        anchorBounds: IntRect,
-        windowBounds: IntRect,
-        layoutDirection: LayoutDirection,
-        popupContentSize: IntSize,
-        popupMargin: IntRect,
-        alignment: PopupPositionProvider.Align,
-    ): IntOffset {
-        val isEnd = alignment.resolve(layoutDirection) == PopupPositionProvider.Align.End
-        val offsetX = if (isEnd) {
-            anchorBounds.right - popupContentSize.width - popupMargin.right
-        } else {
-            anchorBounds.left + popupMargin.left
-        }
-
-        val spaceBelow = windowBounds.bottom - anchorBounds.bottom - popupMargin.bottom
-        val spaceAbove = anchorBounds.top - windowBounds.top - popupMargin.top
-
-        val offsetY = if (spaceBelow >= popupContentSize.height) {
-            anchorBounds.bottom + popupMargin.bottom
-        } else if (spaceAbove >= popupContentSize.height) {
-            anchorBounds.top - popupContentSize.height - popupMargin.top
-        } else if (spaceBelow >= spaceAbove) {
-            anchorBounds.bottom + popupMargin.bottom
-        } else {
-            anchorBounds.top - popupContentSize.height - popupMargin.top
-        }
-
-        val minX = windowBounds.left
-        val maxX = (windowBounds.right - popupContentSize.width - popupMargin.right).coerceAtLeast(minX)
-        val minY = windowBounds.top + popupMargin.top
-        val maxY = (windowBounds.bottom - popupContentSize.height - popupMargin.bottom).coerceAtLeast(minY)
-
-        return IntOffset(
-            x = offsetX.coerceIn(minX, maxX),
-            y = offsetY.coerceIn(minY, maxY),
-        )
-    }
-
-    override fun getMargins(): PaddingValues = margins
-}
-
 @Composable
 private fun SortListPopup(
     show: Boolean,
     items: List<SortDropdownItem>,
-    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
     onDismissRequest: () -> Unit
 ) {
     val view = LocalView.current
@@ -303,62 +235,53 @@ private fun SortListPopup(
     val ascendingLabel = stringResource(R.string.common_sort_ascending)
     val descendingLabel = stringResource(R.string.common_sort_descending)
     val resortText = stringResource(R.string.common_sort_random_resort)
-    WindowListPopup(
+    EllaGlassListPopup(
         show = show,
-        popupPositionProvider = SafeDropdownPositionProvider,
-        alignment = alignment,
         maxHeight = maxDropdownHeight,
         onDismissRequest = onDismissRequest
     ) {
-        ApplyHalcyonSystemBarsToCurrentWindow()
-        ListPopupColumn {
-            items.forEachIndexed { index, item ->
-                val hasDirectionChoices = item.onSelectAscending != null || item.onSelectDescending != null
-                val summary = when {
-                    hasDirectionChoices ->
-                        if (item.direction == SortDirection.Descending) descendingLabel else ascendingLabel
-                    else -> item.summary
-                }
-                DropdownImpl(
-                    item = DropdownItem(
-                        text = item.text,
-                        summary = summary,
-                        selected = item.selected
-                    ),
-                    optionSize = items.size,
-                    isSelected = item.selected,
-                    index = index,
-                    onSelectedIndexChange = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        val togglingSelectedField = item.selected &&
-                            item.onSelectAscending != null &&
-                            item.onSelectDescending != null
-                        if (togglingSelectedField) {
-                            if (item.direction == SortDirection.Descending) {
-                                item.onSelectAscending()
-                            } else {
-                                item.onSelectDescending()
-                            }
+        items.forEach { item ->
+            val hasDirectionChoices = item.onSelectAscending != null || item.onSelectDescending != null
+            val summary = when {
+                hasDirectionChoices ->
+                    if (item.direction == SortDirection.Descending) descendingLabel else ascendingLabel
+                else -> item.summary
+            }
+            GlassPopupItem(
+                text = item.text,
+                summary = summary,
+                selected = item.selected,
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    val togglingSelectedField = item.selected &&
+                        item.onSelectAscending != null &&
+                        item.onSelectDescending != null
+                    if (togglingSelectedField) {
+                        if (item.direction == SortDirection.Descending) {
+                            item.onSelectAscending()
                         } else {
-                            item.onClick()
+                            item.onSelectDescending()
                         }
+                    } else {
+                        item.onClick()
                     }
-                )
-                item.onReshuffle?.let { reshuffle ->
-                    Text(
-                        text = resortText,
-                        fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                reshuffle()
-                                onDismissRequest()
-                            }
-                            .padding(start = 48.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
-                    )
+                    onDismissRequest()
                 }
+            )
+            item.onReshuffle?.let { reshuffle ->
+                Text(
+                    text = resortText,
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            reshuffle()
+                            onDismissRequest()
+                        }
+                        .padding(start = 48.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+                )
             }
         }
     }
@@ -532,7 +455,6 @@ private fun SortBottomSheet(
 @Composable
 internal fun SortDropdownMenuContent(
     items: List<SortDropdownItem>,
-    alignment: PopupPositionProvider.Align = PopupPositionProvider.Align.End,
     content: @Composable () -> Unit
 ) {
     if (items.isEmpty()) {
@@ -560,7 +482,6 @@ internal fun SortDropdownMenuContent(
             SortListPopup(
                 show = menuVisible,
                 items = items,
-                alignment = alignment,
                 onDismissRequest = { menuVisible = false }
             )
         }

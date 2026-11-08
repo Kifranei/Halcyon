@@ -29,6 +29,7 @@ internal enum class SearchFilter {
     Composers,
     Arrangers,
     Lyricists,
+    Producers,
     Lyrics,
     Genres,
     Years;
@@ -47,6 +48,7 @@ internal enum class SearchFilter {
                 "composer", "composers" -> Composers
                 "arranger", "arrangers" -> Arrangers
                 "lyricist", "lyricists" -> Lyricists
+                "producer", "producers" -> Producers
                 "lyric", "lyrics" -> Lyrics
                 "genre", "genres" -> Genres
                 "year", "years" -> Years
@@ -222,6 +224,7 @@ internal enum class SearchSongMatchType(val storageKey: String, val labelRes: In
     Comment("comment", R.string.library_search_match_comment),
     Tag("tag", R.string.library_search_match_tag),
     Lyricist("lyricist", R.string.library_search_match_lyricist),
+    Producer("producer", R.string.library_search_match_producer),
     Composer("composer", R.string.library_search_match_composer),
     Arranger("arranger", R.string.library_search_match_arranger),
     AlbumArtist("album_artist", R.string.library_search_match_album_artist),
@@ -317,6 +320,7 @@ internal fun Song.directSearchMatches(
         addMatch(SearchSongMatchType.Lyricist, lyricist, target)
         addMatch(SearchSongMatchType.Composer, composer, target)
         addMatch(SearchSongMatchType.Arranger, arranger, target)
+        addMatch(SearchSongMatchType.Producer, producer, target)
         addMatch(SearchSongMatchType.AlbumArtist, albumArtist, target)
         addMatch(SearchSongMatchType.Genre, genre, target)
         addMatch(SearchSongMatchType.Year, year, target)

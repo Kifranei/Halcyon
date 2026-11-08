@@ -87,7 +87,11 @@ object ActionMenuIds {
         SONG_COMMENTS to SONG_WIKI,
         MV_COMMENTS to VIEW_MV,
         POSTER_WALL to LANDSCAPE,
-        MINI_LYRICS_STYLE to LYRICS_DISPLAY
+        MINI_LYRICS_STYLE to LYRICS_DISPLAY,
+        SONG_INFO_PRODUCER to SONG_INFO_LYRICIST,
+        SONG_INFO_COPYRIGHT to SONG_INFO_PRODUCER,
+        SONG_INFO_LANGUAGE to SONG_INFO_COPYRIGHT,
+        SONG_INFO_CUSTOM to SONG_INFO_LANGUAGE
     )
 
     /** Actions that need a local audio file; hidden for NetEase streams ([Song.isNeteaseStream]). */
@@ -136,6 +140,10 @@ object ActionMenuIds {
     const val SONG_INFO_COMPOSER = "song_info_composer"
     const val SONG_INFO_ARRANGER = "song_info_arranger"
     const val SONG_INFO_LYRICIST = "song_info_lyricist"
+    const val SONG_INFO_PRODUCER = "song_info_producer"
+    const val SONG_INFO_COPYRIGHT = "song_info_copyright"
+    const val SONG_INFO_LANGUAGE = "song_info_language"
+    const val SONG_INFO_CUSTOM = "song_info_custom"
     const val SONG_INFO_COMMENT = "song_info_comment"
     const val SONG_INFO_NETEASE = "song_info_netease"
     const val SONG_INFO_FORMAT = "song_info_format"
@@ -154,7 +162,9 @@ object ActionMenuIds {
 
     val songInfoDefaults = listOf(
         SONG_INFO_TITLE, SONG_INFO_ARTIST, SONG_INFO_ALBUM, SONG_INFO_ALBUM_ARTIST, SONG_INFO_GENRE,
-        SONG_INFO_YEAR, SONG_INFO_COMPOSER, SONG_INFO_ARRANGER, SONG_INFO_LYRICIST, SONG_INFO_COMMENT,
+        SONG_INFO_YEAR, SONG_INFO_COMPOSER, SONG_INFO_ARRANGER, SONG_INFO_LYRICIST,
+        SONG_INFO_PRODUCER, SONG_INFO_COPYRIGHT, SONG_INFO_LANGUAGE, SONG_INFO_CUSTOM,
+        SONG_INFO_COMMENT,
         SONG_INFO_NETEASE, SONG_INFO_FORMAT, SONG_INFO_BITRATE, SONG_INFO_DURATION, SONG_INFO_PLAY_COUNT,
         SONG_INFO_LISTENED, SONG_INFO_LAST_PLAYED, SONG_INFO_SIZE, SONG_INFO_MODIFIED, SONG_INFO_ADDED,
         SONG_INFO_FILE_NAME, SONG_INFO_PATH, SONG_INFO_DIRECTORY, SONG_INFO_MEDIA_INFO

@@ -140,7 +140,7 @@ internal fun PlayerQuickAction(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(42.dp)
-            .playerNoIndicationClick(onClick)
+            .playerNoIndicationClick(onClick, LocalPlayerQuickGestures.current.more.takeIf { kind == PlayerQuickActionKind.More })
     ) {
         Box(
             modifier = Modifier
@@ -168,7 +168,7 @@ internal fun PlayerQuickAction(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(42.dp)
-            .playerNoIndicationClick(onClick)
+            .playerNoIndicationClick(onClick, LocalPlayerQuickGestures.current.quickActionLongPress(id))
     ) {
         Box(
             modifier = Modifier
@@ -291,11 +291,16 @@ internal fun PlayerHeaderAction(
     val favoriteHeartPink by remember(context) {
         SettingsManager.getInstance(context).playerFavoriteHeartPink
     }.collectAsState(initial = false)
+    val gestures = LocalPlayerQuickGestures.current
+    if (kind == PlayerHeaderActionKind.Favorite && !gestures.showFavorite) return
     Box(
         modifier = Modifier
             .size(42.dp)
             .clip(CircleShape)
-            .playerNoIndicationClick(onClick),
+            .playerNoIndicationClick(onClick, when (kind) {
+                PlayerHeaderActionKind.Favorite -> gestures.favorite
+                PlayerHeaderActionKind.More -> gestures.more
+            }),
         contentAlignment = Alignment.Center
     ) {
         when (kind) {

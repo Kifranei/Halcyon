@@ -16,6 +16,7 @@ data class WavMetadata(
     val composer: String? = null,
     val arranger: String? = null,
     val lyricist: String? = null,
+    val producer: String? = null,
     val trackNumber: Int? = null,
     val discNumber: Int? = null,
     val bitRate: Int = 0,
@@ -25,7 +26,7 @@ data class WavMetadata(
     val durationMs: Long = 0L
 ) {
     val hasTags: Boolean
-        get() = listOf(title, artist, album, albumArtist, genre, year, composer, arranger, lyricist)
+        get() = listOf(title, artist, album, albumArtist, genre, year, composer, arranger, lyricist, producer)
             .any { !it.isNullOrBlank() } || trackNumber != null || discNumber != null
 
     val hasQuality: Boolean
@@ -99,6 +100,8 @@ object WavMetadataReader {
                         ?: infoValues.firstInfoValue("IARR", "ARRANGER", "ARRANG", "TPE4"),
                     lyricist = id3Values.firstId3Value("TEXT", "LYRICIST", "WRITER")
                         ?: infoValues.firstInfoValue("IWRI", "TEXT", "WRIT"),
+                    producer = id3Values.firstId3Value("PRODUCER", "PRODUCEDBY", "TIPL")
+                        ?: infoValues.firstInfoValue("PROD", "PRODUCER", "IPRO"),
                     trackNumber = id3Values.firstId3Value("TRCK", "TRACKNUMBER", "TRACK")
                         ?.normalizedNumberFromTag()
                         ?: infoValues.firstInfoValue("IPRT", "ITRK", "TRCK")?.normalizedNumberFromTag(),

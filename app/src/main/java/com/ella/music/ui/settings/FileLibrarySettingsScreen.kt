@@ -28,7 +28,7 @@ import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -113,7 +113,7 @@ internal fun FileLibrarySettingsScreen(source: String, mainViewModel: MainViewMo
                 WebDavTextField(stringResource(R.string.webdav_password), password, { password = it },
                     visualTransformation = PasswordVisualTransformation())
                 WebDavTextField(stringResource(R.string.smb_domain), domain, { domain = it })
-                WindowSpinnerPreference(title = stringResource(R.string.smb_protocol),
+                EllaSpinnerPreference(title = stringResource(R.string.smb_protocol),
                     items = listOf(DropdownItem(stringResource(R.string.smb_protocol_auto)), DropdownItem("SMB 2"), DropdownItem("SMB 3")),
                     selectedIndex = SmbProtocol.entries.indexOf(protocol), onSelectedIndexChange = { protocol = SmbProtocol.entries[it] })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

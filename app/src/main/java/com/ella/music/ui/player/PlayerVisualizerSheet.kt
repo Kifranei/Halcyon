@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -88,7 +88,7 @@ internal fun VisualizerSheetContent(
             checked = rainbow,
             onCheckedChange = { scope.launch { settingsManager.setAudioVisualizerRainbow(it) } }
         )
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.player_visualizer_style),
             summary = visualizerStyleLabels[visualizerStyle.coerceIn(visualizerStyleLabels.indices)],
             items = visualizerStyleLabels.map { DropdownItem(title = it) },
@@ -97,7 +97,7 @@ internal fun VisualizerSheetContent(
                 scope.launch { settingsManager.setAudioVisualizerStyle(index) }
             }
         )
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.player_progress_style),
             summary = progressStyleLabels[progressStyle.coerceIn(progressStyleLabels.indices)],
             items = progressStyleLabels.map { DropdownItem(title = it) },

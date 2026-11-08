@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.ella.music.R
@@ -29,6 +30,15 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+private fun openSongAlbum(context: Context, song: Song?, onNavigateToAlbum: (Long) -> Unit) {
+    val albumId = song?.albumIdentityId() ?: 0L
+    if (albumId > 0L) {
+        onNavigateToAlbum(albumId)
+    } else {
+        Toast.makeText(context, context.getString(R.string.player_no_album_jump), Toast.LENGTH_SHORT).show()
+    }
+}
 
 @Composable
 internal fun CoverPageContent(
@@ -183,356 +193,362 @@ internal fun CoverPageContent(
             }
         }
     }
-    CoverPlayerPage(
-        context = context,
-        mainViewModel = mainViewModel,
+    PlayerQuickGestureHost(
         playerViewModel = playerViewModel,
-        song = song,
-        embeddedCover = embeddedCover,
-        paletteBitmap = paletteBitmap,
-        annotation = songAnnotation,
-        dynamicCoverFailedPath = dynamicCoverFailedPath,
-        dynamicCoverEnabled = dynamicCoverEnabled,
-        dynamicCoverCustomFolders = dynamicCoverCustomFolders,
-        musicVideoCustomFolders = musicVideoCustomFolders,
-        musicVideoSyncEnabled = musicVideoSyncEnabled,
-        musicVideoVisible = musicVideoVisible,
-        videoPlaybackActive = videoPlaybackActive,
-        onToggleMusicVideo = {
-            onMusicVideoVisibleChange(!musicVideoVisible)
-        },
-        onOpenMusicVideoLandscape = onOpenMusicVideoLandscape,
-        immersiveAlbumCover = immersiveAlbumCover,
-        coverContentColor = coverContentColor,
-        playerBackgroundEnabled = playerBackgroundEnabled,
-        playerBackgroundUri = playerBackgroundUri,
-        playerBackgroundOpacity = playerBackgroundOpacity,
-        playerBackgroundDim = playerBackgroundDim,
-        beautifulLyricsBackground = beautifulLyricsBackground,
-        hiResLogoEnabled = hiResLogoEnabled,
-        hiResLogoUri = hiResLogoUri,
-        isPlaying = isPlaying,
-        currentPosition = currentPosition,
-        duration = duration,
-        shuffleEnabled = shuffleEnabled,
-        repeatMode = repeatMode,
-        abRepeatState = abRepeatState,
-        audioInfo = audioInfo,
-        palette = lyricPalette,
-        flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-        dynamicFlowEnabled = playerDynamicFlowEnabled,
-        lyrics = lyrics,
-        lyricsLoading = lyricsLoading,
-        currentLyricIndex = currentLyricIndex,
-        miniLyricLine = miniLyricLine,
-        showTranslation = showLyricTranslation,
-        showPronunciation = showLyricPronunciation,
-        lyricPageKeepScreenOn = lyricPageKeepScreenOn,
-        appleMusicWordLiftEnabled = appleMusicLyricsWordLift,
-        lyricFormatAvailability = lyricFormatAvailability,
-        preferTtmlLyrics = preferTtmlLyrics,
-        lyricSourceMode = lyricSourceMode,
-        lyricLayoutProfile = lyricLayoutProfile,
-        fontFamily = lyricFontFamily,
-        translationFontFamily = lyricTranslationFontFamily,
-        fontPath = effectiveLyricFontPath,
-        fontWeight = lyricFontWeight,
-        fontScale = lyricFontScale,
-        secondaryFontScale = lyricSecondaryFontScale,
-        primaryTextSizeSp = lyricPrimaryTextSizeSp,
-        secondaryTextSizeSp = lyricSecondaryTextSizeSp,
-        lyricPerspectiveEffect = lyricPerspectiveEffect,
-        lyricPerspectiveYAngle = lyricPerspectiveYAngle,
-        lyricTextAlign = lyricTextAlign,
-        playerTapSeekEnabled = playerTapSeekEnabled,
-        playerShowTotalDuration = playerShowTotalDuration,
-        coverSwipeEnabled = coverSwipeEnabled,
-        playerTitlePosition = playerTitlePosition,
-        playerPageStyle = playerPageStyle,
-        defaultAppleMusicShowLyrics = defaultAppleMusicShowLyrics,
-        showPlayerKeepScreenOnAction = showPlayerKeepScreenOnAction,
-        playerKeepScreenOn = playerKeepScreenOn,
-        menuExpanded = menuExpanded,
-        queueExpanded = queueExpanded,
-        playlist = playlist,
-        librarySongs = librarySongs,
-        currentQueueIndexHint = currentQueueIndex,
-        favoriteSongKeys = favoriteSongKeys,
-        loadSongRating = loadSongRating,
-        ratingRevision = ratingRevision,
-        sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
-        stopAfterCurrentEnabled = stopAfterCurrentEnabled,
-        sleepTimerCustomMinutes = sleepTimerCustomMinutes,
-        sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
-        onDynamicCoverFailed = { onDynamicCoverFailedPathChange(it) },
-        onMatchDynamicCover = {
-            onMenuExpandedChange(false)
-            onDynamicCoverSheetSongChange(song)
-        },
-        onToggleMenu = {
-            actionMenuInitialPage = PlayerActionSheetPage.Main
-            onMenuExpandedChange(!menuExpanded)
-        },
-        onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
-        onDismissMenu = { onMenuExpandedChange(false) },
-        onToggleQueue = { onQueueExpandedChange(!queueExpanded) },
-        onDismissQueue = { onQueueExpandedChange(false) },
-        onShowLyrics = onShowLyrics,
-        onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
-        onLyricLineLongClick = openLyricSharePicker,
-        onLyricShare = {
-            onMenuExpandedChange(false)
-            onLyricShare()
-        },
-        onTogglePronunciation = {
-            playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
-        },
-        onToggleTranslation = {
-            playerViewModel.setLyricPageTranslation(!showLyricTranslation)
-        },
-        onToggleLyricKeepScreenOn = {
-            scope.launch { settingsManager.setLyricPageKeepScreenOn(!lyricPageKeepScreenOn) }
-        },
-        onToggleLyricPerspectiveEffect = {
-            scope.launch { settingsManager.setLyricPerspectiveEffect(!lyricPerspectiveEffect) }
-        },
-        onLyricPerspectiveYAngle = { angle ->
-            scope.launch { settingsManager.setLyricPerspectiveYAngle(angle) }
-        },
-        onLyricSourceMode = { mode ->
-            playerViewModel.setLyricSourceMode(mode)
-        },
-        onLyricFormatPreference = { preferTtml ->
-            playerViewModel.setLyricFormatPreference(preferTtml)
-        },
-        onLyricFontScale = { scale ->
-            scope.launch { settingsManager.setLyricFontScale((scale * 100f).roundToInt()) }
-        },
-        onLyricSecondaryFontScale = { scale ->
-            scope.launch { settingsManager.setLyricSecondaryFontScale((scale * 100f).roundToInt()) }
-        },
-        onLyricPrimaryTextSize = { sizeSp ->
-            scope.launch {
-                when (lyricLayoutProfile) {
-                    PlayerLyricLayoutProfile.Compact ->
-                        settingsManager.setLyricCompactPrimaryTextSize(sizeSp.roundToInt())
-                    PlayerLyricLayoutProfile.Wide ->
-                        settingsManager.setLyricWidePrimaryTextSize(sizeSp.roundToInt())
+        onAddToPlaylist = { song?.let(onPlaylistPickerSongChange) },
+        onOpenAlbum = { openSongAlbum(context, song, onNavigateToAlbum) }
+    ) {
+        CoverPlayerPage(
+            context = context,
+            mainViewModel = mainViewModel,
+            playerViewModel = playerViewModel,
+            song = song,
+            embeddedCover = embeddedCover,
+            paletteBitmap = paletteBitmap,
+            annotation = songAnnotation,
+            dynamicCoverFailedPath = dynamicCoverFailedPath,
+            dynamicCoverEnabled = dynamicCoverEnabled,
+            dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+            musicVideoCustomFolders = musicVideoCustomFolders,
+            musicVideoSyncEnabled = musicVideoSyncEnabled,
+            musicVideoVisible = musicVideoVisible,
+            videoPlaybackActive = videoPlaybackActive,
+            onToggleMusicVideo = {
+                onMusicVideoVisibleChange(!musicVideoVisible)
+            },
+            onOpenMusicVideoLandscape = onOpenMusicVideoLandscape,
+            immersiveAlbumCover = immersiveAlbumCover,
+            coverContentColor = coverContentColor,
+            playerBackgroundEnabled = playerBackgroundEnabled,
+            playerBackgroundUri = playerBackgroundUri,
+            playerBackgroundOpacity = playerBackgroundOpacity,
+            playerBackgroundDim = playerBackgroundDim,
+            beautifulLyricsBackground = beautifulLyricsBackground,
+            hiResLogoEnabled = hiResLogoEnabled,
+            hiResLogoUri = hiResLogoUri,
+            isPlaying = isPlaying,
+            currentPosition = currentPosition,
+            duration = duration,
+            shuffleEnabled = shuffleEnabled,
+            repeatMode = repeatMode,
+            abRepeatState = abRepeatState,
+            audioInfo = audioInfo,
+            palette = lyricPalette,
+            flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+            dynamicFlowEnabled = playerDynamicFlowEnabled,
+            lyrics = lyrics,
+            lyricsLoading = lyricsLoading,
+            currentLyricIndex = currentLyricIndex,
+            miniLyricLine = miniLyricLine,
+            showTranslation = showLyricTranslation,
+            showPronunciation = showLyricPronunciation,
+            lyricPageKeepScreenOn = lyricPageKeepScreenOn,
+            appleMusicWordLiftEnabled = appleMusicLyricsWordLift,
+            lyricFormatAvailability = lyricFormatAvailability,
+            preferTtmlLyrics = preferTtmlLyrics,
+            lyricSourceMode = lyricSourceMode,
+            lyricLayoutProfile = lyricLayoutProfile,
+            fontFamily = lyricFontFamily,
+            translationFontFamily = lyricTranslationFontFamily,
+            fontPath = effectiveLyricFontPath,
+            fontWeight = lyricFontWeight,
+            fontScale = lyricFontScale,
+            secondaryFontScale = lyricSecondaryFontScale,
+            primaryTextSizeSp = lyricPrimaryTextSizeSp,
+            secondaryTextSizeSp = lyricSecondaryTextSizeSp,
+            lyricPerspectiveEffect = lyricPerspectiveEffect,
+            lyricPerspectiveYAngle = lyricPerspectiveYAngle,
+            lyricTextAlign = lyricTextAlign,
+            playerTapSeekEnabled = playerTapSeekEnabled,
+            playerShowTotalDuration = playerShowTotalDuration,
+            coverSwipeEnabled = coverSwipeEnabled,
+            playerTitlePosition = playerTitlePosition,
+            playerPageStyle = playerPageStyle,
+            defaultAppleMusicShowLyrics = defaultAppleMusicShowLyrics,
+            showPlayerKeepScreenOnAction = showPlayerKeepScreenOnAction,
+            playerKeepScreenOn = playerKeepScreenOn,
+            menuExpanded = menuExpanded,
+            queueExpanded = queueExpanded,
+            playlist = playlist,
+            librarySongs = librarySongs,
+            currentQueueIndexHint = currentQueueIndex,
+            favoriteSongKeys = favoriteSongKeys,
+            loadSongRating = loadSongRating,
+            ratingRevision = ratingRevision,
+            sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
+            stopAfterCurrentEnabled = stopAfterCurrentEnabled,
+            sleepTimerCustomMinutes = sleepTimerCustomMinutes,
+            sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
+            onDynamicCoverFailed = { onDynamicCoverFailedPathChange(it) },
+            onMatchDynamicCover = {
+                onMenuExpandedChange(false)
+                onDynamicCoverSheetSongChange(song)
+            },
+            onToggleMenu = {
+                actionMenuInitialPage = PlayerActionSheetPage.Main
+                onMenuExpandedChange(!menuExpanded)
+            },
+            onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
+            onDismissMenu = { onMenuExpandedChange(false) },
+            onToggleQueue = { onQueueExpandedChange(!queueExpanded) },
+            onDismissQueue = { onQueueExpandedChange(false) },
+            onShowLyrics = onShowLyrics,
+            onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
+            onLyricLineLongClick = openLyricSharePicker,
+            onLyricShare = {
+                onMenuExpandedChange(false)
+                onLyricShare()
+            },
+            onTogglePronunciation = {
+                playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
+            },
+            onToggleTranslation = {
+                playerViewModel.setLyricPageTranslation(!showLyricTranslation)
+            },
+            onToggleLyricKeepScreenOn = {
+                scope.launch { settingsManager.setLyricPageKeepScreenOn(!lyricPageKeepScreenOn) }
+            },
+            onToggleLyricPerspectiveEffect = {
+                scope.launch { settingsManager.setLyricPerspectiveEffect(!lyricPerspectiveEffect) }
+            },
+            onLyricPerspectiveYAngle = { angle ->
+                scope.launch { settingsManager.setLyricPerspectiveYAngle(angle) }
+            },
+            onLyricSourceMode = { mode ->
+                playerViewModel.setLyricSourceMode(mode)
+            },
+            onLyricFormatPreference = { preferTtml ->
+                playerViewModel.setLyricFormatPreference(preferTtml)
+            },
+            onLyricFontScale = { scale ->
+                scope.launch { settingsManager.setLyricFontScale((scale * 100f).roundToInt()) }
+            },
+            onLyricSecondaryFontScale = { scale ->
+                scope.launch { settingsManager.setLyricSecondaryFontScale((scale * 100f).roundToInt()) }
+            },
+            onLyricPrimaryTextSize = { sizeSp ->
+                scope.launch {
+                    when (lyricLayoutProfile) {
+                        PlayerLyricLayoutProfile.Compact ->
+                            settingsManager.setLyricCompactPrimaryTextSize(sizeSp.roundToInt())
+                        PlayerLyricLayoutProfile.Wide ->
+                            settingsManager.setLyricWidePrimaryTextSize(sizeSp.roundToInt())
+                    }
                 }
-            }
-        },
-        onLyricSecondaryTextSize = { sizeSp ->
-            scope.launch {
-                when (lyricLayoutProfile) {
-                    PlayerLyricLayoutProfile.Compact ->
-                        settingsManager.setLyricCompactSecondaryTextSize(sizeSp.roundToInt())
-                    PlayerLyricLayoutProfile.Wide ->
-                        settingsManager.setLyricWideSecondaryTextSize(sizeSp.roundToInt())
+            },
+            onLyricSecondaryTextSize = { sizeSp ->
+                scope.launch {
+                    when (lyricLayoutProfile) {
+                        PlayerLyricLayoutProfile.Compact ->
+                            settingsManager.setLyricCompactSecondaryTextSize(sizeSp.roundToInt())
+                        PlayerLyricLayoutProfile.Wide ->
+                            settingsManager.setLyricWideSecondaryTextSize(sizeSp.roundToInt())
+                    }
                 }
-            }
-        },
-        onSeek = { fraction -> playerViewModel.seekToProgress(fraction, duration) },
-        onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
-        onAbRepeat = { playerViewModel.toggleAbRepeat() },
-        onPrevious = { playerViewModel.skipToPrevious() },
-        onSwipePrevious = onSwipePrevious,
-        onPlayPause = { playerViewModel.togglePlayPause() },
-        onNext = { playerViewModel.skipToNext() },
-        onQueueSongClick = { index ->
-            onQueueExpandedChange(false)
-            playerViewModel.playQueueIndex(index)
-        },
-        onRemoveQueueSong = { index ->
-            playerViewModel.removeFromPlaylist(index)
-        },
-        onMoveQueueSong = { fromIndex, toIndex ->
-            playerViewModel.movePlaylistItem(fromIndex, toIndex)
-        },
-        onAddQueueToPlaylist = {
-            onQueueExpandedChange(false)
-            onPlaylistPickerSongsChange(playlist)
-        },
-        onClearQueue = {
-            onQueueExpandedChange(false)
-            playerViewModel.clearPlaylist()
-        },
-        onAlbum = {
-            onMenuExpandedChange(false)
-            val albumId = song?.albumIdentityId() ?: 0L
-            if (albumId > 0L) onNavigateToAlbum(albumId)
-            else Toast.makeText(context, context.getString(R.string.player_no_album_jump), Toast.LENGTH_SHORT).show()
-        },
-        onArtist = {
-            onMenuExpandedChange(false)
-            navigateToArtistOrChoose(song?.artist.orEmpty())
-        },
-        onNavigateToAlbumId = onNavigateToAlbum,
-        onNavigateToArtistName = onNavigateToArtist,
-        onDownload = {
-            onMenuExpandedChange(false)
-            val current = song
-            if (current != null) {
-                if (current.onlineSource == "netease") {
-                    com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, current)
+            },
+            onSeek = { fraction -> playerViewModel.seekToProgress(fraction, duration) },
+            onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+            onAbRepeat = { playerViewModel.toggleAbRepeat() },
+            onPrevious = { playerViewModel.skipToPrevious() },
+            onSwipePrevious = onSwipePrevious,
+            onPlayPause = { playerViewModel.togglePlayPause() },
+            onNext = { playerViewModel.skipToNext() },
+            onQueueSongClick = { index ->
+                onQueueExpandedChange(false)
+                playerViewModel.playQueueIndex(index)
+            },
+            onRemoveQueueSong = { index ->
+                playerViewModel.removeFromPlaylist(index)
+            },
+            onMoveQueueSong = { fromIndex, toIndex ->
+                playerViewModel.movePlaylistItem(fromIndex, toIndex)
+            },
+            onAddQueueToPlaylist = {
+                onQueueExpandedChange(false)
+                onPlaylistPickerSongsChange(playlist)
+            },
+            onClearQueue = {
+                onQueueExpandedChange(false)
+                playerViewModel.clearPlaylist()
+            },
+            onAlbum = {
+                onMenuExpandedChange(false)
+                val albumId = song?.albumIdentityId() ?: 0L
+                if (albumId > 0L) onNavigateToAlbum(albumId)
+                else Toast.makeText(context, context.getString(R.string.player_no_album_jump), Toast.LENGTH_SHORT).show()
+            },
+            onArtist = {
+                onMenuExpandedChange(false)
+                navigateToArtistOrChoose(song?.artist.orEmpty())
+            },
+            onNavigateToAlbumId = onNavigateToAlbum,
+            onNavigateToArtistName = onNavigateToArtist,
+            onDownload = {
+                onMenuExpandedChange(false)
+                val current = song
+                if (current != null) {
+                    if (current.onlineSource == "netease") {
+                        com.ella.music.data.netease.NeteaseDownloadService.enqueue(context, current)
+                    } else {
+                        enqueuePlayerDownload(context, current)
+                        Toast.makeText(context, context.getString(R.string.player_download_started), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onLandscape = {
+                onMenuExpandedChange(false)
+                onLandscapeExpandedChange(true)
+            },
+            onSongInfo = {
+                onMenuExpandedChange(false)
+                onSongInfoExpandedChange(true)
+            },
+            onAddToPlaylist = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    onPlaylistPickerSongChange(current)
                 } else {
-                    enqueuePlayerDownload(context, current)
-                    Toast.makeText(context, context.getString(R.string.player_download_started), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
                 }
-            }
-        },
-        onLandscape = {
-            onMenuExpandedChange(false)
-            onLandscapeExpandedChange(true)
-        },
-        onSongInfo = {
-            onMenuExpandedChange(false)
-            onSongInfoExpandedChange(true)
-        },
-        onAddToPlaylist = {
-            val current = song
-            if (current != null) {
+            },
+            onShareSong = {
+                val current = song
+                if (current != null) shareLocalSong(context, current)
+                else Toast.makeText(context, context.getString(R.string.player_no_share_song), Toast.LENGTH_SHORT).show()
+            },
+            onAddToQueue = {
+                val current = song
+                if (current != null) {
+                    playerViewModel.addToPlaylist(current)
+                    onMenuExpandedChange(false)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onPlayNext = {
+                val current = song
+                if (current != null) {
+                    playerViewModel.playNext(current)
+                    onMenuExpandedChange(false)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSetRating = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    onRatingSheetSongChange(current)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onAiInterpret = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    onAiSheetSongChange(current)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onSpectrum = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    scope.launch { SpectrumViewerLauncher.openSelected(context, current) { spectrumSong = it } }
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onOpenEqualizer = {
                 onMenuExpandedChange(false)
-                onPlaylistPickerSongChange(current)
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onShareSong = {
-            val current = song
-            if (current != null) shareLocalSong(context, current)
-            else Toast.makeText(context, context.getString(R.string.player_no_share_song), Toast.LENGTH_SHORT).show()
-        },
-        onAddToQueue = {
-            val current = song
-            if (current != null) {
-                playerViewModel.addToPlaylist(current)
-                onMenuExpandedChange(false)
-                Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onPlayNext = {
-            val current = song
-            if (current != null) {
-                playerViewModel.playNext(current)
-                onMenuExpandedChange(false)
-                Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onSetRating = {
-            val current = song
-            if (current != null) {
-                onMenuExpandedChange(false)
-                onRatingSheetSongChange(current)
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onAiInterpret = {
-            val current = song
-            if (current != null) {
-                onMenuExpandedChange(false)
-                onAiSheetSongChange(current)
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onSpectrum = {
-            val current = song
-            if (current != null) {
-                onMenuExpandedChange(false)
-                scope.launch { SpectrumViewerLauncher.openSelected(context, current) { spectrumSong = it } }
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onOpenEqualizer = {
-            onMenuExpandedChange(false)
-            onOpenEqualizer()
-        },
-        onDeleteSong = {
-            val current = song
-            if (current != null) {
-                onMenuExpandedChange(false)
-                onRequestDeleteSong(current)
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onOpenTimer = {
-            actionMenuInitialPage = PlayerActionSheetPage.Timer
-            onMenuExpandedChange(true)
-        },
-        onOpenMetadataEditor = {
-            openTagEditor(TagEditorOptionKind.Metadata)
-        },
-        onEditMetadata = {
-            openTagEditor(TagEditorOptionKind.Metadata)
-        },
-        onLyricTiming = {
-            openTagEditor(TagEditorOptionKind.LyricTiming)
-        },
-        onMatchOnlineLyrics = {
-            val current = song
-            if (current != null) {
-                onMenuExpandedChange(false)
-                onLyricMatchSongChange(current)
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
-            }
-        },
-        onStopAfterCurrent = {
-            scope.launch { settingsManager.setSleepTimerStopAfterCurrent(it) }
-            if (sleepTimerEndRealtimeMs == null) {
-                playerViewModel.setStopAfterCurrentEnabled(it)
-            } else if (!it) {
+                onOpenEqualizer()
+            },
+            onDeleteSong = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    onRequestDeleteSong(current)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onOpenTimer = {
+                actionMenuInitialPage = PlayerActionSheetPage.Timer
+                onMenuExpandedChange(true)
+            },
+            onOpenMetadataEditor = {
+                openTagEditor(TagEditorOptionKind.Metadata)
+            },
+            onEditMetadata = {
+                openTagEditor(TagEditorOptionKind.Metadata)
+            },
+            onLyricTiming = {
+                openTagEditor(TagEditorOptionKind.LyricTiming)
+            },
+            onMatchOnlineLyrics = {
+                val current = song
+                if (current != null) {
+                    onMenuExpandedChange(false)
+                    onLyricMatchSongChange(current)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onStopAfterCurrent = {
+                scope.launch { settingsManager.setSleepTimerStopAfterCurrent(it) }
+                if (sleepTimerEndRealtimeMs == null) {
+                    playerViewModel.setStopAfterCurrentEnabled(it)
+                } else if (!it) {
+                    playerViewModel.setStopAfterCurrentEnabled(false)
+                }
+                Toast.makeText(
+                    context,
+                    if (it) context.getString(R.string.player_pause_after_current_on) else context.getString(R.string.player_pause_after_current_off),
+                    Toast.LENGTH_SHORT
+                ).show()
+            },
+            onTimer = { minutes ->
+                scope.launch { settingsManager.setSleepTimerCustomMinutes(minutes) }
                 playerViewModel.setStopAfterCurrentEnabled(false)
-            }
-            Toast.makeText(
-                context,
-                if (it) context.getString(R.string.player_pause_after_current_on) else context.getString(R.string.player_pause_after_current_off),
-                Toast.LENGTH_SHORT
-            ).show()
-        },
-        onTimer = { minutes ->
-            scope.launch { settingsManager.setSleepTimerCustomMinutes(minutes) }
-            playerViewModel.setStopAfterCurrentEnabled(false)
-            playerViewModel.startSleepTimer(
-                minutes = minutes,
-                stopAfterCurrentWhenExpired = sleepTimerStopAfterCurrent
-            )
-            Toast.makeText(context, context.getString(R.string.player_sleep_timer_minutes, minutes), Toast.LENGTH_SHORT).show()
-        },
-        onCustomTimerMinutes = { minutes ->
-            scope.launch { settingsManager.setSleepTimerCustomMinutes(minutes) }
-        },
-        onCancelTimer = {
-            playerViewModel.cancelSleepTimer()
-            Toast.makeText(context, context.getString(R.string.player_sleep_timer_cancelled), Toast.LENGTH_SHORT).show()
-        },
-        onSpeed = { playerViewModel.setPlaybackSpeed(it) },
-        onPitch = { playerViewModel.setPlaybackPitch(it) },
-        onLyricOffset = { playerViewModel.setCurrentLyricOffsetMs(it) },
-        playbackSpeed = playbackSpeed,
-        playbackPitch = playbackPitch,
-        isFavorite = isCurrentSongFavorite,
-        audioSessionId = audioSessionId,
-        visualizerEnabled = audioVisualizerEnabled,
-        visualizerOpacity = audioVisualizerOpacity,
-        visualizerOpacityPercent = audioVisualizerOpacityPercent,
-        lyricOffsetMs = lyricOffsetMs,
-        metadataEditorId = metadataEditorId,
-        lyricTimingEditorId = lyricTimingEditorId,
-        onVisualizerEnabled = onVisualizerEnabled,
-        onVisualizerOpacityChange = onVisualizerOpacityChange,
-        onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
-        actionMenuInitialPage = actionMenuInitialPage,
-        drawBackground = drawBackground,
-        modifier = modifier
-    )
+                playerViewModel.startSleepTimer(
+                    minutes = minutes,
+                    stopAfterCurrentWhenExpired = sleepTimerStopAfterCurrent
+                )
+                Toast.makeText(context, context.getString(R.string.player_sleep_timer_minutes, minutes), Toast.LENGTH_SHORT).show()
+            },
+            onCustomTimerMinutes = { minutes ->
+                scope.launch { settingsManager.setSleepTimerCustomMinutes(minutes) }
+            },
+            onCancelTimer = {
+                playerViewModel.cancelSleepTimer()
+                Toast.makeText(context, context.getString(R.string.player_sleep_timer_cancelled), Toast.LENGTH_SHORT).show()
+            },
+            onSpeed = { playerViewModel.setPlaybackSpeed(it) },
+            onPitch = { playerViewModel.setPlaybackPitch(it) },
+            onLyricOffset = { playerViewModel.setCurrentLyricOffsetMs(it) },
+            playbackSpeed = playbackSpeed,
+            playbackPitch = playbackPitch,
+            isFavorite = isCurrentSongFavorite,
+            audioSessionId = audioSessionId,
+            visualizerEnabled = audioVisualizerEnabled,
+            visualizerOpacity = audioVisualizerOpacity,
+            visualizerOpacityPercent = audioVisualizerOpacityPercent,
+            lyricOffsetMs = lyricOffsetMs,
+            metadataEditorId = metadataEditorId,
+            lyricTimingEditorId = lyricTimingEditorId,
+            onVisualizerEnabled = onVisualizerEnabled,
+            onVisualizerOpacityChange = onVisualizerOpacityChange,
+            onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
+            actionMenuInitialPage = actionMenuInitialPage,
+            drawBackground = drawBackground,
+            modifier = modifier
+        )
+    }
 }
 
 @Composable
@@ -581,6 +597,7 @@ internal fun LyricsPageContent(
     scope: CoroutineScope,
     openLyricSharePicker: (LyricLine) -> Unit,
     navigateToArtistOrChoose: (String) -> Unit,
+    onNavigateToAlbum: (Long) -> Unit,
     onDismissLyrics: () -> Unit,
     enableSwipeDismiss: Boolean,
     backEnabled: Boolean = true,
@@ -591,6 +608,7 @@ internal fun LyricsPageContent(
 ) {
     val playWhenReady by playerViewModel.playWhenReady.collectAsState()
     val isActuallyPaused = !isPlaying && !playWhenReady
+    val context = LocalContext.current
     LyricsPlayerPage(
         song = song,
         embeddedCover = embeddedCover,
@@ -690,6 +708,7 @@ internal fun LyricsPageContent(
         onArtist = {
             navigateToArtistOrChoose(song?.artist.orEmpty())
         },
+        onOpenAlbum = { openSongAlbum(context, song, onNavigateToAlbum) },
         enableSwipeDismiss = enableSwipeDismiss,
         backEnabled = backEnabled,
         pageVisible = pageVisible,
@@ -775,6 +794,7 @@ internal fun DetailPageContent(
         onComposer = { name -> onNavigateToMetadataCategory("composer", name) },
         onArranger = { name -> onNavigateToMetadataCategory("arranger", name) },
         onLyricist = { name -> onNavigateToMetadataCategory("lyricist", name) },
+        onProducer = { name -> onNavigateToMetadataCategory("producer", name) },
         onYear = { year -> onNavigateToMetadataCategory("year", year) },
         onGenre = { genre -> onNavigateToMetadataCategory("genre", genre) },
         onNeteaseSong = {

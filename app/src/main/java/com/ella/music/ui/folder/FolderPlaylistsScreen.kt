@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -154,8 +155,8 @@ fun FolderPlaylistsScreen(
         showEditor = true
     }
     var pendingDelete by remember { mutableStateOf<FolderPlaylist?>(null) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val folderDisplayColumns = rememberFolderDisplaySettings().columns
     val listState = rememberLazyListState()
     RestoreListScrollAfterSearch(

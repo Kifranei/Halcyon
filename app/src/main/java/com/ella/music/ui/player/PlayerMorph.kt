@@ -113,7 +113,16 @@ internal fun Modifier.playerMorphSurface(
         val origin = state.origin
         val start = state.miniBounds?.translate(-origin)
             ?: Rect(0f, size.height - 72.dp.toPx(), size.width, size.height)
-        val surface = morphRect(start, Rect(Offset.Zero, size), t)
+        val end = Rect(Offset.Zero, size)
+        // Vertical stretch leads while the horizontal edges lag behind, so a floating
+        // dock reads as a liquid card stretching upward before it fills the screen.
+        val tX = if (floating) t * t else t
+        val surface = if (tX == t) morphRect(start, end, t) else Rect(
+            left = start.left + (end.left - start.left) * tX,
+            top = start.top + (end.top - start.top) * t,
+            right = start.right + (end.right - start.right) * tX,
+            bottom = start.bottom + (end.bottom - start.bottom) * t
+        )
         val radius = (if (state.miniBounds != null) state.miniCornerRadius else if (floating) start.height / 2f else 0f) * (1f - t)
         val path = Path().apply { addRoundRect(RoundRect(surface, CornerRadius(radius))) }
         clipPath(path) {

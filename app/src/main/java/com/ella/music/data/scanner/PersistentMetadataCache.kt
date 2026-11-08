@@ -117,6 +117,7 @@ internal class PersistentMetadataCache internal constructor(
         val composer: String,
         val arranger: String,
         val lyricist: String,
+        val producer: String,
         val trackNumber: Int,
         val discNumber: Int,
         val folderAlbumConfirmed: Boolean = false,
@@ -133,6 +134,7 @@ internal class PersistentMetadataCache internal constructor(
             composer = composer.ifBlank { shallow.composer },
             arranger = arranger.ifBlank { shallow.arranger },
             lyricist = lyricist.ifBlank { shallow.lyricist },
+            producer = producer.ifBlank { shallow.producer },
             trackNumber = if (trackNumber > 0) trackNumber else shallow.trackNumber,
             discNumber = if (discNumber > 0) discNumber else shallow.discNumber,
             customTags = if (customTagsLoaded) customTags else shallow.customTags,
@@ -152,6 +154,7 @@ internal class PersistentMetadataCache internal constructor(
             .put("composer", composer)
             .put("arranger", arranger)
             .put("lyricist", lyricist)
+            .put("producer", producer)
             .put("trackNumber", trackNumber)
             .put("discNumber", discNumber)
             .put("customTags", JSONObject().apply { customTags.forEach { (key, values) -> put(key, JSONArray(values)) } })
@@ -172,6 +175,7 @@ internal class PersistentMetadataCache internal constructor(
                 composer = song.composer,
                 arranger = song.arranger,
                 lyricist = song.lyricist,
+                producer = song.producer,
                 trackNumber = song.trackNumber,
                 discNumber = song.discNumber,
                 folderAlbumConfirmed = folderAlbumConfirmed,
@@ -197,6 +201,7 @@ internal class PersistentMetadataCache internal constructor(
                     composer = obj.optString("composer", ""),
                     arranger = obj.optString("arranger", ""),
                     lyricist = obj.optString("lyricist", ""),
+                    producer = obj.optString("producer", ""),
                     trackNumber = obj.optInt("trackNumber", 0),
                     discNumber = obj.optInt("discNumber", 0),
                     folderAlbumConfirmed = obj.optBoolean("folderAlbumConfirmed", false),

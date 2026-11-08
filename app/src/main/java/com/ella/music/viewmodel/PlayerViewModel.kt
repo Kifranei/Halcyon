@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 // Compose lyrics interpolate between position samples on the display clock. 10 Hz is therefore
@@ -73,6 +74,7 @@ private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 private const val PLAYBACK_POSITION_UPDATE_INTERVAL_MS = 100L
 private const val SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS = 80L
 private const val LIVE_UPDATE_ARTWORK_SIZE = 256
+private const val NOTIFICATION_ARTWORK_TIMEOUT_MS = 6_000L
 private const val AB_REPEAT_MIN_LENGTH_MS = 300L
 private const val AB_REPEAT_LOOP_GUARD_MS = 250L
 
@@ -1073,13 +1075,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                     emptyList()
                 }
+                if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
+                    // A newer emission normally re-runs this block and re-arms the flag, but a
+                    // transient identity mismatch without a follow-up emission would otherwise
+                    // leave the lyric page pinned on the loading state forever.
+                    _lyricsLoading.value = false
+                    return@collectLatest
+                }
+                loadedLyricSongKey = loadedKey
+                setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
+                _lyricsLoading.value = false
+                // Artwork is a notification nicety; it must never pin the lyric page in a
+                // loading state, so it gets a bounded fetch after lyrics are committed.
                 val notificationArtwork = try {
-                    withContext(Dispatchers.IO) {
-                        repository.getCoverArtBitmap(
-                            song = activeSong,
-                            maxSize = LIVE_UPDATE_ARTWORK_SIZE,
-                            usage = CoverUsage.Notification
-                        ) ?: remoteNotificationArtwork(activeSong)
+                    withTimeoutOrNull(NOTIFICATION_ARTWORK_TIMEOUT_MS) {
+                        withContext(Dispatchers.IO) {
+                            repository.getCoverArtBitmap(
+                                song = activeSong,
+                                maxSize = LIVE_UPDATE_ARTWORK_SIZE,
+                                usage = CoverUsage.Notification
+                            ) ?: remoteNotificationArtwork(activeSong)
+                        }
                     }
                 } catch (error: CancellationException) {
                     throw error
@@ -1093,12 +1109,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     null
                 }
                 if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
+                    _lyricsLoading.value = false
                     return@collectLatest
                 }
                 liveUpdateArtwork = notificationArtwork
-                loadedLyricSongKey = loadedKey
-                setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
-                _lyricsLoading.value = false
                 val displayedLyrics = loadedLyricsForCurrentSong()
 
                 if (lyriconBridge.isEnabled()) {
@@ -1946,6 +1960,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun cyclePlaybackMode() {
         playerManager.cyclePlaybackMode()
+    }
+
+    fun setPlaybackMode(shuffle: Boolean, repeatMode: Int) {
+        playerManager.applyExternalPlaybackMode(shuffle, repeatMode)
     }
 
     fun toggleAbRepeat() {

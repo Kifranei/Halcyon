@@ -73,6 +73,7 @@ internal fun PlayerDetailPage(
     onComposer: (String) -> Unit,
     onArranger: (String) -> Unit,
     onLyricist: (String) -> Unit,
+    onProducer: (String) -> Unit,
     onYear: (String) -> Unit,
     onGenre: (String) -> Unit,
     onNeteaseSong: () -> Unit,
@@ -99,6 +100,9 @@ internal fun PlayerDetailPage(
     }
     val lyricistNames = remember(tagInfo?.lyricist, song?.lyricist) {
         splitArtistNames(tagInfo?.lyricist?.ifBlank { song?.lyricist.orEmpty() }.orEmpty())
+    }
+    val producerNames = remember(tagInfo?.producer, song?.producer) {
+        splitArtistNames(tagInfo?.producer?.ifBlank { song?.producer.orEmpty() }.orEmpty())
     }
     val artistNames = remember(tagInfo?.artist, song?.artist, song?.title, parseFeaturedArtists) {
         val artistText = tagInfo?.artist?.ifBlank { song?.artist.orEmpty() }.orEmpty()
@@ -161,6 +165,16 @@ internal fun PlayerDetailPage(
                 name = name,
                 songs = effectiveLibrarySongs.filter { candidate ->
                     splitArtistNames(candidate.lyricist).any { it.equals(name, ignoreCase = true) }
+                }
+            )
+        }
+    }
+    val producerDetails = remember(producerNames, effectiveLibrarySongs) {
+        producerNames.map { name ->
+            PlayerDetailEntity(
+                name = name,
+                songs = effectiveLibrarySongs.filter { candidate ->
+                    splitArtistNames(candidate.producer).any { it.equals(name, ignoreCase = true) }
                 }
             )
         }
@@ -454,6 +468,20 @@ internal fun PlayerDetailPage(
                                 title = detail.name,
                                 summary = detail.songs.stats().personSummary(),
                                 onClick = { onLyricist(detail.name) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (producerDetails.isNotEmpty()) {
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_producer)) {
+                        producerDetails.forEach { detail ->
+                            PlayerDetailGroupedActionRow(
+                                title = detail.name,
+                                summary = detail.songs.stats().personSummary(),
+                                onClick = { onProducer(detail.name) }
                             )
                         }
                     }

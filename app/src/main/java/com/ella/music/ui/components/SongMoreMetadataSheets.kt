@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -36,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.metadata.AudioCoverInfo
 import com.ella.music.data.metadata.AudioTagInfo
@@ -45,11 +48,15 @@ import com.ella.music.ui.player.PluginLyricsMatchSheet
 import com.ella.music.viewmodel.MainViewModel
 import com.lonx.audiotag.model.AudioTagKeys
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -150,11 +157,17 @@ internal fun SongMetadataEditorSheet(
     song: Song,
     mainViewModel: MainViewModel,
     onDismiss: () -> Unit,
-    onSave: (AudioTagInfo, AudioCoverInfo?, Boolean) -> Unit,
+    onSave: (AudioTagInfo, AudioCoverInfo?, Boolean, Boolean) -> Unit,
     onWritePermissionRequired: (WritePermissionRequiredException, suspend () -> Unit) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    var keepModifiedTime by remember(song.id) {
+        mutableStateOf(
+            runBlocking(Dispatchers.IO) { settingsManager.metadataEditorKeepModifiedTime.first() }
+        )
+    }
     val tagInfo by produceState<SongTagInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
         value = withContext(Dispatchers.IO) { mainViewModel.getSongTagInfo(song) }
     }
@@ -173,6 +186,7 @@ internal fun SongMetadataEditorSheet(
     var composer by remember(tagInfo) { mutableStateOf(tagInfo?.composer.orEmpty()) }
     var arranger by remember(tagInfo) { mutableStateOf(tagInfo?.arranger.orEmpty()) }
     var lyricist by remember(tagInfo) { mutableStateOf(tagInfo?.lyricist.orEmpty()) }
+    var producer by remember(tagInfo) { mutableStateOf(tagInfo?.producer.orEmpty()) }
     var songwriters by remember(tagInfo) { mutableStateOf(tagInfo?.songwriters.orEmpty().ifBlank { fullTagInfo?.songwriters.orEmpty() }) }
     var copyright by remember(tagInfo) { mutableStateOf(tagInfo?.copyright.orEmpty()) }
     var comment by remember(tagInfo) { mutableStateOf(tagInfo?.comment.orEmpty()) }
@@ -213,14 +227,16 @@ internal fun SongMetadataEditorSheet(
         if (uri == null) return@rememberLauncherForActivityResult
         openCoverCrop(uri)
     }
-    var customTags: MutableList<Pair<String, String>> by remember(fullTagInfo) {
-        val initial: MutableList<Pair<String, String>> = fullTagInfo?.customTags
+    val initialCustomTags = remember(fullTagInfo) {
+        fullTagInfo?.customTags
             ?.filter { entry -> !AudioTagKeys.isReserved(entry.key) && !entry.key.isTtmlLyricTag() }
             ?.map { entry -> entry.key to entry.value.joinToString("; ") }
-            ?.toMutableList()
-            ?: mutableListOf()
-        mutableStateOf(initial)
+            .orEmpty()
     }
+    var customTags: MutableList<Pair<String, String>> by remember(fullTagInfo) {
+        mutableStateOf(initialCustomTags.toMutableList())
+    }
+    var originalCustomTags by remember(fullTagInfo) { mutableStateOf(initialCustomTags) }
     var showAddTag by remember { mutableStateOf(false) }
     var showLyricoMatch by remember(song.id) { mutableStateOf(false) }
 
@@ -247,6 +263,7 @@ internal fun SongMetadataEditorSheet(
             composer = composer.takeIf { v -> v != currentTagInfo.composer },
             arranger = arranger.takeIf { v -> v != currentTagInfo.arranger },
             lyricist = lyricist.takeIf { v -> v != currentTagInfo.lyricist },
+            producer = producer.takeIf { v -> v != currentTagInfo.producer },
             songwriters = songwriters.takeIf { v -> v != currentTagInfo.songwriters && v != fullTagInfo?.songwriters },
             copyright = copyright.takeIf { v -> v != currentTagInfo.copyright },
             comment = comment.takeIf { v -> v != currentTagInfo.comment },
@@ -254,7 +271,7 @@ internal fun SongMetadataEditorSheet(
             rating = rating.takeIf { v -> v != currentTagInfo.rating },
             customTags = ctMap
         )
-        onSave(tags, selectedCover, coverChanged)
+        onSave(tags, selectedCover, coverChanged, keepModifiedTime)
     }
 
     EllaMiuixBottomSheet(
@@ -289,6 +306,28 @@ internal fun SongMetadataEditorSheet(
             spacing = 8.dp,
             showHandle = false
         ) {
+            EllaMiuixActionMenuGroup {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.batch_keep_modified_time),
+                        modifier = Modifier.weight(1f),
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Switch(
+                        checked = keepModifiedTime,
+                        onCheckedChange = { checked ->
+                            keepModifiedTime = checked
+                            scope.launch { settingsManager.setMetadataEditorKeepModifiedTime(checked) }
+                        }
+                    )
+                }
+            }
+
             SectionHeader(stringResource(R.string.song_more_metadata_section_cover))
             EllaMiuixActionMenuGroup {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -382,32 +421,33 @@ internal fun SongMetadataEditorSheet(
             SectionHeader(stringResource(R.string.song_more_metadata_section_basic))
             EllaMiuixActionMenuGroup {
                 Spacer(modifier = Modifier.height(6.dp))
-                MetadataField(stringResource(R.string.song_more_metadata_title), title) { title = it }
-                MetadataField(stringResource(R.string.song_more_metadata_artist), artist) { artist = it }
-                MetadataField(stringResource(R.string.song_more_metadata_album), album) { album = it }
-                MetadataField(stringResource(R.string.song_more_metadata_album_artist), albumArtist) { albumArtist = it }
-                MetadataField(stringResource(R.string.song_more_metadata_genre), genre) { genre = it }
-                MetadataField(stringResource(R.string.song_more_metadata_year), year) { year = it }
+                MetadataField(stringResource(R.string.song_more_metadata_title), title, tagInfo?.title.orEmpty()) { title = it }
+                MetadataField(stringResource(R.string.song_more_metadata_artist), artist, tagInfo?.artist.orEmpty()) { artist = it }
+                MetadataField(stringResource(R.string.song_more_metadata_album), album, tagInfo?.album.orEmpty()) { album = it }
+                MetadataField(stringResource(R.string.song_more_metadata_album_artist), albumArtist, tagInfo?.albumArtist.orEmpty()) { albumArtist = it }
+                MetadataField(stringResource(R.string.song_more_metadata_genre), genre, tagInfo?.genre.orEmpty()) { genre = it }
+                MetadataField(stringResource(R.string.song_more_metadata_year), year, tagInfo?.year.orEmpty()) { year = it }
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
             SectionHeader(stringResource(R.string.song_more_metadata_section_track))
             EllaMiuixActionMenuGroup {
                 Spacer(modifier = Modifier.height(6.dp))
-                MetadataField(stringResource(R.string.song_more_metadata_track_number), trackNumber) { trackNumber = it }
-                MetadataField(stringResource(R.string.song_more_metadata_disc_number), discNumber) { discNumber = it }
+                MetadataField(stringResource(R.string.song_more_metadata_track_number), trackNumber, tagInfo?.track.orEmpty()) { trackNumber = it }
+                MetadataField(stringResource(R.string.song_more_metadata_disc_number), discNumber, fullTagInfo?.discNumber?.toString().orEmpty()) { discNumber = it }
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
             SectionHeader(stringResource(R.string.song_more_metadata_section_credits))
             EllaMiuixActionMenuGroup {
                 Spacer(modifier = Modifier.height(6.dp))
-                MetadataField(stringResource(R.string.song_more_metadata_composer), composer) { composer = it }
-                MetadataField(stringResource(R.string.song_more_metadata_arranger), arranger) { arranger = it }
-                MetadataField(stringResource(R.string.song_more_metadata_lyricist), lyricist) { lyricist = it }
-                MetadataField(stringResource(R.string.song_more_metadata_songwriters), songwriters) { songwriters = it }
-                MetadataField(stringResource(R.string.song_more_metadata_copyright), copyright) { copyright = it }
-                MetadataField(stringResource(R.string.song_more_metadata_comment), comment) { comment = it }
+                MetadataField(stringResource(R.string.song_more_metadata_composer), composer, tagInfo?.composer.orEmpty()) { composer = it }
+                MetadataField(stringResource(R.string.song_more_metadata_arranger), arranger, tagInfo?.arranger.orEmpty()) { arranger = it }
+                MetadataField(stringResource(R.string.song_more_metadata_lyricist), lyricist, tagInfo?.lyricist.orEmpty()) { lyricist = it }
+                MetadataField(stringResource(R.string.player_detail_producer), producer, tagInfo?.producer.orEmpty()) { producer = it }
+                MetadataField(stringResource(R.string.song_more_metadata_songwriters), songwriters, tagInfo?.songwriters.orEmpty().ifBlank { fullTagInfo?.songwriters.orEmpty() }) { songwriters = it }
+                MetadataField(stringResource(R.string.song_more_metadata_copyright), copyright, tagInfo?.copyright.orEmpty()) { copyright = it }
+                MetadataField(stringResource(R.string.song_more_metadata_comment), comment, tagInfo?.comment.orEmpty()) { comment = it }
                 Spacer(modifier = Modifier.height(6.dp))
             }
 
@@ -417,8 +457,8 @@ internal fun SongMetadataEditorSheet(
                 MetadataField(
                     label = stringResource(R.string.song_more_metadata_lyrics),
                     value = lyrics,
+                    original = initialLyrics,
                     singleLine = false,
-                    modifier = Modifier.height(150.dp)
                 ) { lyrics = it }
                 if (lyrics.isBlank()) {
                     Text(
@@ -431,8 +471,8 @@ internal fun SongMetadataEditorSheet(
                 MetadataField(
                     label = stringResource(R.string.song_more_metadata_ttml_lyrics),
                     value = ttmlLyrics,
+                    original = initialTtmlLyrics,
                     singleLine = false,
-                    modifier = Modifier.height(170.dp)
                 ) { ttmlLyrics = it }
                 if (ttmlLyrics.isBlank()) {
                     Text(
@@ -484,6 +524,7 @@ internal fun SongMetadataEditorSheet(
                 Spacer(modifier = Modifier.height(6.dp))
                 for (index in customTags.indices) {
                     val pair = customTags[index]
+                    val original = originalCustomTags.getOrNull(index)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -493,26 +534,35 @@ internal fun SongMetadataEditorSheet(
                             .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextField(
-                            value = pair.first,
-                            onValueChange = { newKey -> customTags = customTags.toMutableList().apply { set(index, newKey to pair.second) } },
+                        MetadataField(
                             label = stringResource(R.string.song_more_custom_tag_name),
-                            modifier = Modifier.weight(1f)
+                            value = pair.first,
+                            original = original?.first.orEmpty(),
+                            modifier = Modifier.weight(1f),
+                            onValueChange = { newKey ->
+                                customTags = customTags.toMutableList().apply { set(index, newKey to pair.second) }
+                            },
                         )
-                        TextField(
-                            value = pair.second,
-                            onValueChange = { newValue -> customTags = customTags.toMutableList().apply { set(index, pair.first to newValue) } },
+                        MetadataField(
                             label = stringResource(R.string.song_more_custom_tag_value),
-                            modifier = Modifier.weight(1f)
+                            value = pair.second,
+                            original = original?.second.orEmpty(),
+                            modifier = Modifier.weight(1f),
+                            onValueChange = { newValue ->
+                                customTags = customTags.toMutableList().apply { set(index, pair.first to newValue) }
+                            },
                         )
                         Text(
                             text = "✕",
                             fontSize = 16.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier
-                                .padding(top = 14.dp)
+                                .padding(top = 32.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable { customTags = customTags.toMutableList().apply { removeAt(index) } }
+                                .clickable {
+                                    customTags = customTags.toMutableList().apply { removeAt(index) }
+                                    originalCustomTags = originalCustomTags.filterIndexed { i, _ -> i != index }
+                                }
                                 .padding(4.dp)
                         )
                     }
@@ -526,17 +576,19 @@ internal fun SongMetadataEditorSheet(
                             .padding(vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextField(
-                            value = newKey,
-                            onValueChange = { newKey = it },
+                        MetadataField(
                             label = stringResource(R.string.song_more_custom_tag_name),
-                            modifier = Modifier.weight(1f)
+                            value = newKey,
+                            original = "",
+                            modifier = Modifier.weight(1f),
+                            onValueChange = { newKey = it },
                         )
-                        TextField(
-                            value = newValue,
-                            onValueChange = { newValue = it },
+                        MetadataField(
                             label = stringResource(R.string.song_more_custom_tag_value),
-                            modifier = Modifier.weight(1f)
+                            value = newValue,
+                            original = "",
+                            modifier = Modifier.weight(1f),
+                            onValueChange = { newValue = it },
                         )
                         Icon(
                             imageVector = MiuixIcons.Regular.Ok,
@@ -548,6 +600,7 @@ internal fun SongMetadataEditorSheet(
                                 .clickable {
                                     if (newKey.isNotBlank()) {
                                         customTags = customTags.toMutableList().apply { add(newKey to newValue) }
+                                        originalCustomTags = originalCustomTags + ("" to "")
                                         newKey = ""
                                         newValue = ""
                                         showAddTag = false
@@ -597,6 +650,7 @@ internal fun SongMetadataEditorSheet(
                     composer = match.tags.composer ?: composer
                     arranger = match.tags.arranger ?: arranger
                     lyricist = match.tags.lyricist ?: lyricist
+                    producer = match.tags.producer ?: producer
                     songwriters = match.tags.songwriters ?: songwriters
                     copyright = match.tags.copyright ?: copyright
                     comment = match.tags.comment ?: comment
@@ -721,17 +775,73 @@ private fun String.isTtmlLyricTag(): Boolean =
 private fun MetadataField(
     label: String,
     value: String,
+    original: String,
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
 ) {
-    TextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = label,
-        singleLine = singleLine,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(modifier)
-    )
+    var redoValue by remember(original) { mutableStateOf<String?>(null) }
+    fun change(next: String) {
+        if (next != original) redoValue = null
+        onValueChange(next)
+    }
+    val showRedo = redoValue != null && value == original
+    val showUndo = !showRedo && value != original
+    Column(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                style = MiuixTheme.textStyles.subtitle,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            if (showUndo) {
+                TextButton(
+                    text = stringResource(R.string.metadata_field_undo),
+                    onClick = {
+                        redoValue = value
+                        onValueChange(original)
+                    },
+                )
+            } else if (showRedo) {
+                TextButton(
+                    text = stringResource(R.string.metadata_field_redo),
+                    onClick = {
+                        val restored = redoValue ?: return@TextButton
+                        redoValue = null
+                        onValueChange(restored)
+                    },
+                )
+            }
+        }
+        Box(Modifier.fillMaxWidth()) {
+            TextField(
+                value = value,
+                onValueChange = ::change,
+                label = "",
+                singleLine = singleLine,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (singleLine) Modifier else Modifier.heightIn(min = 140.dp)),
+            )
+            if (value.isNotEmpty()) {
+                IconButton(
+                    onClick = { change("") },
+                    modifier = Modifier
+                        .align(if (singleLine) Alignment.CenterEnd else Alignment.TopEnd)
+                        .padding(end = 2.dp, top = if (singleLine) 0.dp else 4.dp),
+                ) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Close,
+                        contentDescription = stringResource(R.string.common_clear),
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+    }
 }

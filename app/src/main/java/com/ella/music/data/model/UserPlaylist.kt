@@ -44,6 +44,7 @@ data class PlaylistSong(
     val composer: String = "",
     val arranger: String = "",
     val lyricist: String = "",
+    val producer: String = "",
     val coverUrl: String,
     val onlineSource: String,
     val onlineId: String,
@@ -85,6 +86,7 @@ fun Song.toPlaylistSong(addedAt: Long = System.currentTimeMillis()): PlaylistSon
         composer = composer,
         arranger = arranger,
         lyricist = lyricist,
+        producer = producer,
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
@@ -117,6 +119,7 @@ fun PlaylistSong.toSong(): Song =
         composer = composer,
         arranger = arranger,
         lyricist = lyricist,
+        producer = producer,
         coverUrl = coverUrl,
         onlineSource = onlineSource,
         onlineId = onlineId,
@@ -176,6 +179,7 @@ fun PlaylistSong.toJson(): JSONObject =
         .put("composer", composer)
         .put("arranger", arranger)
         .put("lyricist", lyricist)
+        .put("producer", producer)
         .put("coverUrl", coverUrl)
         .put("onlineSource", onlineSource)
         .put("onlineId", onlineId)
@@ -208,6 +212,7 @@ fun JSONObject.toPlaylistSong(): PlaylistSong =
         composer = optString("composer"),
         arranger = optString("arranger"),
         lyricist = optString("lyricist"),
+        producer = optString("producer"),
         coverUrl = optString("coverUrl"),
         onlineSource = optString("onlineSource"),
         onlineId = optString("onlineId"),

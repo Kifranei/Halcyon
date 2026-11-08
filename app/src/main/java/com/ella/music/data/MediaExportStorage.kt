@@ -73,8 +73,11 @@ internal object MediaExportStorage {
             try { file.outputStream().use(output); Uri.fromFile(file) }
             catch (error: Throwable) { file.delete(); throw error }
         } else {
-            val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-                else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val collection = when {
+                mime.startsWith("video/") -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                mime.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                else -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
             val names = context.contentResolver.query(collection, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
                 "${MediaStore.MediaColumns.RELATIVE_PATH} = ?", arrayOf(relativePath), null)?.use { cursor ->
                 buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }

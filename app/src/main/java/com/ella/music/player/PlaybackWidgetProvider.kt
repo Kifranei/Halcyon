@@ -40,11 +40,13 @@ import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -111,6 +113,12 @@ internal object PlaybackWidgetUpdater {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // AppWidgetManager calls are synchronous binder transactions; on congested systems
+    // (seen in the field at multiple seconds, once over a minute) they must not run on
+    // the main thread. A single-thread lane keeps lyric/progress/snapshot updates ordered.
+    private val widgetLane = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "PlaybackWidgetUpdater")
+    }.asCoroutineDispatcher()
     private val artworkRequest = AtomicLong(0L)
     private val bitmapFileLock = Any()
     private var progressJob: Job? = null
@@ -214,9 +222,12 @@ internal object PlaybackWidgetUpdater {
         lastLyricSignature = signature
         lastLyricUpdateElapsedMs = nowElapsedMs
 
-        if (!hasWidgets(appContext)) return
         val rendered = renderLyric(primaryText, translation, lyricLine.words, wordIndex)
-        updateLyricViews(appContext, rendered, visible = true)
+        scope.launch(widgetLane) {
+            if (hasWidgets(appContext)) {
+                updateLyricViews(appContext, rendered, visible = true)
+            }
+        }
     }
 
     @Synchronized
@@ -226,8 +237,12 @@ internal object PlaybackWidgetUpdater {
         clearStoredLyric(appContext)
         lastLyricSignature = null
         lastLyricUpdateElapsedMs = 0L
-        if (hadLyric && hasWidgets(appContext)) {
-            updateLyricViews(appContext, "", visible = false)
+        if (hadLyric) {
+            scope.launch(widgetLane) {
+                if (hasWidgets(appContext)) {
+                    updateLyricViews(appContext, "", visible = false)
+                }
+            }
         }
     }
 
@@ -262,40 +277,49 @@ internal object PlaybackWidgetUpdater {
     }
 
     fun updateAll(context: Context) {
-        val manager = AppWidgetManager.getInstance(context)
-        val compactIds = manager.getAppWidgetIds(
-            ComponentName(context, PlaybackCompactWidgetProvider::class.java)
-        )
-        val expandedIds = manager.getAppWidgetIds(
-            ComponentName(context, PlaybackExpandedWidgetProvider::class.java)
-        )
-        val snapshot = loadSnapshot(context)
-        val artwork = loadArtwork(context, snapshot.mediaKey)
-        val background = loadBackground(context, snapshot.mediaKey)
-        updateCompact(context, compactIds, snapshot, artwork, background)
-        updateExpanded(context, expandedIds, snapshot, artwork, background)
+        val appContext = context.applicationContext
+        scope.launch(widgetLane) {
+            val manager = AppWidgetManager.getInstance(appContext)
+            val compactIds = manager.getAppWidgetIds(
+                ComponentName(appContext, PlaybackCompactWidgetProvider::class.java)
+            )
+            val expandedIds = manager.getAppWidgetIds(
+                ComponentName(appContext, PlaybackExpandedWidgetProvider::class.java)
+            )
+            val snapshot = loadSnapshot(appContext)
+            val artwork = loadArtwork(appContext, snapshot.mediaKey)
+            val background = loadBackground(appContext, snapshot.mediaKey)
+            updateCompact(appContext, compactIds, snapshot, artwork, background)
+            updateExpanded(appContext, expandedIds, snapshot, artwork, background)
+        }
     }
 
     fun updateCompact(context: Context, ids: IntArray) {
-        val snapshot = loadSnapshot(context)
-        updateCompact(
-            context,
-            ids,
-            snapshot,
-            loadArtwork(context, snapshot.mediaKey),
-            loadBackground(context, snapshot.mediaKey)
-        )
+        val appContext = context.applicationContext
+        scope.launch(widgetLane) {
+            val snapshot = loadSnapshot(appContext)
+            updateCompact(
+                appContext,
+                ids,
+                snapshot,
+                loadArtwork(appContext, snapshot.mediaKey),
+                loadBackground(appContext, snapshot.mediaKey)
+            )
+        }
     }
 
     fun updateExpanded(context: Context, ids: IntArray) {
-        val snapshot = loadSnapshot(context)
-        updateExpanded(
-            context,
-            ids,
-            snapshot,
-            loadArtwork(context, snapshot.mediaKey),
-            loadBackground(context, snapshot.mediaKey)
-        )
+        val appContext = context.applicationContext
+        scope.launch(widgetLane) {
+            val snapshot = loadSnapshot(appContext)
+            updateExpanded(
+                appContext,
+                ids,
+                snapshot,
+                loadArtwork(appContext, snapshot.mediaKey),
+                loadBackground(appContext, snapshot.mediaKey)
+            )
+        }
     }
 
     private fun updateCompact(
@@ -440,13 +464,14 @@ internal object PlaybackWidgetUpdater {
     }
 
     private fun updateProgressLoop(context: Context, player: Player) {
-        if (!player.isPlaying || !hasWidgets(context)) {
+        if (!player.isPlaying) {
             stopProgressUpdates()
             return
         }
         if (progressJob?.isActive == true) return
         progressJob = scope.launch {
-            while (isActive && player.isPlaying && hasWidgets(context)) {
+            while (isActive && player.isPlaying) {
+                if (withContext(widgetLane) { !hasWidgets(context) }) break
                 delay(PROGRESS_UPDATE_INTERVAL_MS)
                 if (!player.isPlaying) break
                 val existing = loadSnapshot(context)
@@ -459,7 +484,9 @@ internal object PlaybackWidgetUpdater {
                         updatedAtElapsedMs = SystemClock.elapsedRealtime()
                     )
                 )
-                updateProgress(context, existing)
+                withContext(widgetLane) {
+                    updateProgress(context, existing)
+                }
             }
             progressJob = null
         }

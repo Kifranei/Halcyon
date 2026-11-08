@@ -29,7 +29,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsXiaomiSuperIslandControls() {
@@ -263,7 +263,7 @@ internal fun SettingsXiaomiSuperIslandControls() {
     val selectedXmsfMode = settings.xmsfBypassMode.coerceIn(0, xmsfLabels.lastIndex)
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_xiaomi_super_island_xmsf_mode) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_xiaomi_super_island_xmsf_mode),
         summary = xmsfSummaries[selectedXmsfMode],
         items = xmsfEntries,
@@ -319,7 +319,7 @@ private fun SuperIslandSpinner(
 ) {
     val safeIndex = selectedIndex.coerceIn(0, labels.lastIndex)
     val entries = remember(labels) { labels.map { DropdownItem(title = it) } }
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = title,
         summary = summary,
         items = entries,

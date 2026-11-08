@@ -38,15 +38,26 @@ internal data class GithubRelease(
 
 internal fun matchAssetForDevice(
     assets: List<ReleaseApkAsset>,
-    supportedAbis: Array<String> = android.os.Build.SUPPORTED_ABIS
+    supportedAbis: Array<String> = android.os.Build.SUPPORTED_ABIS,
+    supported64BitAbis: Array<String> = android.os.Build.SUPPORTED_64_BIT_ABIS
 ): ReleaseApkAsset? {
     val apkAssets = assets.filter { it.name.endsWith(".apk", ignoreCase = true) }
     if (apkAssets.isEmpty()) return null
     if (apkAssets.size == 1) return apkAssets.first()
 
+    // Some 64-bit ROMs list armeabi-v7a ahead of arm64-v8a in SUPPORTED_ABIS. Prefer the
+    // 64-bit list first, and do not fall through to a 32-bit package while a universal
+    // build is still available.
+    val deviceIs64Bit = supported64BitAbis.isNotEmpty()
+    val abiOrder = (supported64BitAbis.asSequence() + supportedAbis.asSequence())
+        .map { it.lowercase() }
+        .distinct()
+        .filter { abi -> !deviceIs64Bit || abi !in THIRTY_TWO_BIT_ABIS }
+        .toList()
+
     // 1. Try matching preferred supported ABIs in order
-    for (abi in supportedAbis) {
-        val matched = when (abi.lowercase()) {
+    for (abi in abiOrder) {
+        val matched = when (abi) {
             "arm64-v8a" -> apkAssets.firstOrNull { asset ->
                 val name = asset.name.lowercase()
                 (name.contains("arm64-v8a") || name.contains("arm64") || name.contains("aarch64") || name.contains("v8a")) &&
@@ -91,6 +102,8 @@ internal fun matchAssetForDevice(
     // 4. Fallback to first apk
     return apkAssets.first()
 }
+
+private val THIRTY_TWO_BIT_ABIS = setOf("armeabi-v7a", "armeabi", "x86")
 
 internal fun detectArchLabel(assetName: String): String? {
     val name = assetName.lowercase()

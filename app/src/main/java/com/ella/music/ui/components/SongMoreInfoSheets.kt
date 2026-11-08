@@ -40,6 +40,7 @@ import com.ella.music.data.detailedAudioInfo
 import com.ella.music.data.formatBitRate
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.metadata.songInfoCustomRows
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.navigation.LocalAppNavigator
@@ -118,6 +119,7 @@ fun SongInfoSheet(
                     SongInfoJump.Composer -> context.getString(R.string.song_more_select_composer)
                     SongInfoJump.Arranger -> context.getString(R.string.song_more_select_arranger)
                     SongInfoJump.Lyricist -> context.getString(R.string.song_more_select_lyricist)
+                    SongInfoJump.Producer -> context.getString(R.string.song_more_select_producer)
                     SongInfoJump.Genre -> context.getString(R.string.song_more_select_genre)
                     else -> label
                 },
@@ -143,6 +145,7 @@ fun SongInfoSheet(
                     SongInfoJump.Composer -> "composer"
                     SongInfoJump.Arranger -> "arranger"
                     SongInfoJump.Lyricist -> "lyricist"
+                    SongInfoJump.Producer -> "producer"
                     SongInfoJump.Genre -> "genre"
                     else -> null
                 })
@@ -253,6 +256,10 @@ fun SongInfoSheet(
     val composerValue = tagInfo?.composer?.ifBlank { song.composer }.orEmpty()
     val arrangerValue = tagInfo?.arranger?.ifBlank { song.arranger }.orEmpty()
     val lyricistValue = tagInfo?.lyricist?.ifBlank { song.lyricist }.orEmpty()
+    val producerValue = tagInfo?.producer?.ifBlank { song.producer }.orEmpty()
+    val copyrightValue = tagInfo?.copyright.orEmpty()
+    val languageValue = tagInfo?.language.orEmpty()
+    val customRows = tagInfo?.customTags?.songInfoCustomRows().orEmpty()
     val directoryValue = song.parentFolderPath().orEmpty()
     val artistLabel = stringResource(R.string.player_detail_artist)
     val albumLabel = stringResource(R.string.player_detail_album)
@@ -262,6 +269,9 @@ fun SongInfoSheet(
     val composerLabel = stringResource(R.string.player_detail_composer)
     val arrangerLabel = stringResource(R.string.player_detail_arranger)
     val lyricistLabel = stringResource(R.string.player_detail_lyricist)
+    val producerLabel = stringResource(R.string.player_detail_producer)
+    val copyrightLabel = stringResource(R.string.song_more_metadata_copyright)
+    val languageLabel = stringResource(R.string.player_detail_language)
     val formatLabelText = stringResource(R.string.song_more_detail_format)
     val bitrateLabel = stringResource(R.string.song_more_detail_bitrate)
     val pathLabel = stringResource(R.string.song_more_detail_path)
@@ -325,6 +335,17 @@ fun SongInfoSheet(
                     SongInfoRow(lyricistLabel, lyricistValue, onClick = {
                         jumpField(SongInfoJump.Lyricist, lyricistLabel, lyricistValue)
                     })
+                ActionMenuIds.SONG_INFO_PRODUCER ->
+                    SongInfoRow(producerLabel, producerValue, onClick = {
+                        jumpField(SongInfoJump.Producer, producerLabel, producerValue)
+                    })
+                ActionMenuIds.SONG_INFO_COPYRIGHT ->
+                    SongInfoRow(copyrightLabel, copyrightValue)
+                ActionMenuIds.SONG_INFO_LANGUAGE ->
+                    SongInfoRow(languageLabel, languageValue)
+                ActionMenuIds.SONG_INFO_CUSTOM -> customRows.forEach { (key, value) ->
+                    SongInfoRow(key, value)
+                }
                 ActionMenuIds.SONG_INFO_COMMENT ->
                     SongInfoRow(stringResource(R.string.player_detail_comment), tagInfo?.displayComment.orEmpty())
                 ActionMenuIds.SONG_INFO_NETEASE -> if (!tagInfo?.neteaseKey.isNullOrBlank()) {

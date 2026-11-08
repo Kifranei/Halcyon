@@ -107,7 +107,7 @@ internal fun SongMoreTagActionSheets(
             mainViewModel = mainViewModel,
             onDismiss = { onMetadataEditorSongChange(null) },
             onWritePermissionRequired = onWritePermissionRequired,
-            onSave = { tags, cover, coverChanged ->
+            onSave = { tags, cover, coverChanged, keepModifiedTime ->
                 scope.launch {
                     val result = mainViewModel.writeSongMetadata(song, tags)
                     if (result.isSuccess) {
@@ -117,8 +117,9 @@ internal fun SongMoreTagActionSheets(
                             Result.success(result.getOrNull())
                         }
                         if (coverResult.isSuccess) {
-                            Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                            onMetadataEditorSongChange(null)
+                            completeMetadataSave(mainViewModel, song, keepModifiedTime, context) {
+                                onMetadataEditorSongChange(null)
+                            }
                         } else {
                             handleMetadataSaveError(
                                 context = context,
@@ -127,8 +128,9 @@ internal fun SongMoreTagActionSheets(
                                 retry = {
                                     val retryResult = mainViewModel.writeSongEmbeddedCover(song, cover)
                                     if (retryResult.isSuccess) {
-                                        Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                                        onMetadataEditorSongChange(null)
+                                        completeMetadataSave(mainViewModel, song, keepModifiedTime, context) {
+                                            onMetadataEditorSongChange(null)
+                                        }
                                     } else {
                                         Toast.makeText(
                                             context,
@@ -155,8 +157,9 @@ internal fun SongMoreTagActionSheets(
                                         Result.success(retryResult.getOrNull())
                                     }
                                     if (coverResult.isSuccess) {
-                                        Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
-                                        onMetadataEditorSongChange(null)
+                                        completeMetadataSave(mainViewModel, song, keepModifiedTime, context) {
+                                            onMetadataEditorSongChange(null)
+                                        }
                                     } else {
                                         Toast.makeText(
                                             context,
@@ -189,6 +192,18 @@ internal fun SongMoreTagActionSheets(
             onLyricTimingEditorSongChange(null)
         }
     }
+}
+
+private suspend fun completeMetadataSave(
+    mainViewModel: MainViewModel,
+    song: Song,
+    keepModifiedTime: Boolean,
+    context: Context,
+    onDismiss: () -> Unit,
+) {
+    if (keepModifiedTime) mainViewModel.keepSongModifiedTime(song)
+    Toast.makeText(context, context.getString(R.string.song_more_metadata_saved), Toast.LENGTH_SHORT).show()
+    onDismiss()
 }
 
 private fun handleMetadataSaveError(
