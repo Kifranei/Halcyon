@@ -22,18 +22,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaCheckOptionGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -50,7 +45,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.ella.music.ui.artist.rememberArtistCoverModel
+import com.ella.music.ui.components.EllaGlassListPopup
 import com.ella.music.ui.components.SafeCoverImage
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -60,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.foundation.lazy.itemsIndexed
 import top.yukonga.miuix.kmp.icon.extended.Music
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 
 internal data class ReplayPalette(
     val isDark: Boolean,
@@ -95,6 +94,7 @@ internal fun MonthlyListeningReportCard(
     val palette = replayPalette()
     val monthListState = rememberLazyListState()
     var yearPicker by remember { mutableStateOf(false) }
+    var yearPickerBounds by remember { mutableStateOf(Rect.Zero) }
     LaunchedEffect(monthTabs, selectedMonthOffset) {
         val selectedIndex = monthTabs.indexOfFirst {
             it.offsetFromCurrent == selectedMonthOffset
@@ -153,7 +153,8 @@ internal fun MonthlyListeningReportCard(
                         .clip(RoundedCornerShape(20.dp))
                         .background(palette.content.copy(alpha = if (palette.isDark) 0.14f else 0.08f))
                         .testTag("replay-year-selector")
-                        .clickable(enabled = availableYears.isNotEmpty(), role = Role.Button,
+                        .onGloballyPositioned { yearPickerBounds = it.boundsInWindow() }
+                        .clickable(enabled = availableYears.isNotEmpty(), role = Role.DropdownList,
                             onClickLabel = stringResource(R.string.category_year)) { yearPicker = true }
                         .padding(horizontal = 15.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -271,14 +272,21 @@ internal fun MonthlyListeningReportCard(
             }
         }
     }
-    EllaMiuixBottomSheet(show = yearPicker, title = stringResource(R.string.category_year),
-        onDismissRequest = { yearPicker = false }) {
-        Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.60f).dp)
-            .verticalScroll(rememberScrollState())) {
-            EllaCheckOptionGroup(availableYears.map { it to it.toString() }, report.year, onSelect = { year ->
-                onYearSelected(year)
-                yearPicker = false
-            })
+    EllaGlassListPopup(
+        show = yearPicker,
+        onDismissRequest = { yearPicker = false },
+        anchorBoundsOverride = yearPickerBounds
+    ) {
+        availableYears.forEach { year ->
+            GlassPopupItem(
+                text = year.toString(),
+                selected = year == report.year,
+                selectedContentColor = MiuixTheme.colorScheme.onSurface,
+                onClick = {
+                    onYearSelected(year)
+                    yearPicker = false
+                }
+            )
         }
     }
 }
@@ -378,8 +386,17 @@ private fun HabitMetric(label: String, value: String, modifier: Modifier = Modif
 }
 
 @Composable
-internal fun TasteProfileCard(profile: TasteProfile) {
-    val insights = listOfNotNull(profile.topArtist, profile.topAlbum, profile.topGenre)
+internal fun TasteProfileCard(
+    profile: TasteProfile,
+    onArtistClick: ((String) -> Unit)? = null,
+    onAlbumClick: ((Long) -> Unit)? = null,
+    onGenreClick: ((String) -> Unit)? = null
+) {
+    val groups = listOf(
+        profile.topArtists,
+        profile.topAlbums,
+        profile.topGenres
+    )
     Card(modifier = Modifier.fillMaxWidth(), colors = analyticsWallpaperCardColors()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -395,20 +412,43 @@ internal fun TasteProfileCard(profile: TasteProfile) {
                 modifier = Modifier.padding(top = 3.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
-            if (insights.isEmpty()) {
+            if (groups.all { it.isEmpty() }) {
                 Text(
                     text = stringResource(R.string.analytics_taste_empty),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             } else {
-                insights.forEach { TasteInsightRow(insight = it) }
+                groups.forEach { insights ->
+                    insights.forEach { insight ->
+                        TasteInsightRow(
+                            insight = insight,
+                            onClick = when {
+                                insight.labelRes == R.string.analytics_taste_top_artist &&
+                                    onArtistClick != null &&
+                                    insight.title.isNotBlank() &&
+                                    !LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(insight.title) ->
+                                    { -> onArtistClick(insight.title) }
+
+                                insight.labelRes == R.string.analytics_taste_top_album &&
+                                    onAlbumClick != null && insight.albumId != null ->
+                                    { -> onAlbumClick(insight.albumId) }
+
+                                insight.labelRes == R.string.analytics_taste_top_genre &&
+                                    onGenreClick != null && insight.title.isNotBlank() ->
+                                    { -> onGenreClick(insight.title) }
+
+                                else -> null
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TasteInsightRow(insight: TasteInsight) {
+private fun TasteInsightRow(insight: TasteInsight, onClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val displayTitle = if (insight.labelRes == R.string.analytics_taste_top_album &&
         LibraryNormalizer.isGeneratedUnknownAlbumPlaceholder(insight.title)
@@ -420,6 +460,7 @@ private fun TasteInsightRow(insight: TasteInsight) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -459,7 +500,8 @@ private fun TasteInsightRow(insight: TasteInsight) {
 @Composable
 internal fun MonthlyFavoritesCard(
     report: MonthlyListeningReport,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onArtistClick: ((String) -> Unit)? = null
 ) {
     val palette = replayPalette()
     val insights = report.favoriteArtists.ifEmpty {
@@ -505,7 +547,8 @@ internal fun MonthlyFavoritesCard(
                     FavoriteInsightCard(
                         insight = insight,
                         rank = index + 1,
-                        mainViewModel = mainViewModel
+                        mainViewModel = mainViewModel,
+                        onArtistClick = onArtistClick
                     )
                 }
             }
@@ -518,7 +561,8 @@ internal fun MonthlyFavoritesCard(
 private fun FavoriteInsightCard(
     insight: ListeningInsight,
     rank: Int,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onArtistClick: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val displayTitle = if (insight.labelRes == R.string.analytics_month_favorite_album &&
@@ -541,12 +585,17 @@ private fun FavoriteInsightCard(
         )
     } else null
 
+    val navigableArtist = isArtist && onArtistClick != null && insight.title.isNotBlank() &&
+        !LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(insight.title)
     Card(
         modifier = Modifier
             .width(168.dp)
             .height(244.dp),
         cornerRadius = 20.dp,
-        colors = analyticsWallpaperCardColors(alpha = 0.55f)
+        colors = analyticsWallpaperCardColors(alpha = 0.55f),
+        onClick = {
+            if (navigableArtist) onArtistClick?.invoke(insight.title)
+        }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (isArtist) {

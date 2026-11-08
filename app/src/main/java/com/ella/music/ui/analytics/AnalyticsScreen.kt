@@ -36,15 +36,20 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import java.util.Calendar
 
 @Composable
 fun AnalyticsScreen(
     mainViewModel: MainViewModel,
+    playerViewModel: com.ella.music.viewmodel.PlayerViewModel,
     onBack: () -> Unit,
     showBackButton: Boolean = true,
-    onNavigateToHistory: () -> Unit = {}
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToGenre: (String) -> Unit = {},
+    onNavigateToRanking: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val replay = replayPalette()
@@ -52,6 +57,24 @@ fun AnalyticsScreen(
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
     val dailyListenMs by mainViewModel.dailyListenMs.collectAsState()
+    val settings = com.ella.music.data.SettingsManager.getInstance(context)
+    val historyCardCount by settings.analyticsHistoryCardCount.collectAsState(initial = 20)
+    // #781: the calendar day-detail toggle stores one shared ordering; this card keeps
+    // its latest-first default until the user explicitly picks ascending there.
+    val historySortMode by settings.analyticsHistorySortMode.collectAsState(
+        initial = com.ella.music.data.SettingsManager.ANALYTICS_HISTORY_SORT_DEFAULT
+    )
+    val historyAscending = historySortMode == com.ella.music.data.SettingsManager.ANALYTICS_HISTORY_SORT_ASC
+    // #781: history rows may outlive the songs they reference (retag/rescan/deletion);
+    // resolve them back to a library song by stats key, online id or file name.
+    val historySongResolver = remember(songs) { HistorySongResolver(songs) }
+    val statsSongMap = remember(playbackHistory, historySongResolver) {
+        buildStatsSongMap(playbackHistory, historySongResolver)
+    }
+    val durationCardRange by settings.analyticsRankingRange("duration").collectAsState(initial = "all")
+    val durationCardCount by settings.analyticsRankingCount("duration").collectAsState(initial = 10)
+    val countCardRange by settings.analyticsRankingRange("count").collectAsState(initial = "all")
+    val countCardCount by settings.analyticsRankingCount("count").collectAsState(initial = 10)
     val now = remember { Calendar.getInstance() }
     val replayYears = remember(playbackHistory, dailyListenMs, now) {
         buildReplayYears(playbackHistory, dailyListenMs, now)
@@ -98,7 +121,7 @@ fun AnalyticsScreen(
             if (showBackButton) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = replay.content,
                         modifier = Modifier.size(24.dp)
@@ -143,7 +166,8 @@ fun AnalyticsScreen(
             item {
                 MonthlyFavoritesCard(
                     report = monthlyReport,
-                    mainViewModel = mainViewModel
+                    mainViewModel = mainViewModel,
+                    onArtistClick = onNavigateToArtist
                 )
             }
 
@@ -152,7 +176,12 @@ fun AnalyticsScreen(
             }
 
             item {
-                TasteProfileCard(profile = tasteProfile)
+                TasteProfileCard(
+                    profile = tasteProfile,
+                    onArtistClick = onNavigateToArtist,
+                    onAlbumClick = onNavigateToAlbum,
+                    onGenreClick = onNavigateToGenre
+                )
             }
 
             item {
@@ -161,12 +190,13 @@ fun AnalyticsScreen(
 
             item {
                 HistoryCard(
-                    history = playbackHistory.take(20),
+                    history = playbackHistory.take(historyCardCount)
+                        .let { if (historyAscending) it.asReversed() else it },
                     totalCount = playbackHistory.size,
-                    libraryById = libraryById,
-                    libraryByStatsKey = libraryByStatsKey,
+                    resolveSong = { entry -> historySongResolver.resolve(entry) },
                     mainViewModel = mainViewModel,
-                    onClick = onNavigateToHistory
+                    onClick = onNavigateToHistory,
+                    onSongClick = { playerViewModel.playSong(it) }
                 )
             }
 
@@ -174,14 +204,20 @@ fun AnalyticsScreen(
                 RankingCard(
                     title = stringResource(R.string.analytics_listen_duration_ranking),
                     emptyText = stringResource(R.string.analytics_listen_duration_empty),
-                    stats = playbackStats
-                        .filter { it.listenedMs > 0L }
-                        .sortedByDescending { it.listenedMs }
-                        .take(10),
-                    libraryById = libraryById,
-                    libraryByStatsKey = libraryByStatsKey,
+                    stats = remember(playbackHistory, durationCardRange, durationCardCount) {
+                        buildRangeRankingStats(
+                            playbackHistory,
+                            AnalyticsRankingRange.fromPref(durationCardRange),
+                            "duration"
+                        ).take(durationCardCount)
+                    },
+                    resolveSong = { stat ->
+                        statsSongMap[stat.analyticsStatsKey()] ?: historySongResolver.resolve(stat)
+                    },
                     mainViewModel = mainViewModel,
-                    valueText = { formatListenDuration(context, it.listenedMs) }
+                    valueText = { formatListenDuration(context, it.listenedMs) },
+                    onSongClick = { playerViewModel.playSong(it) },
+                    onHeaderClick = { onNavigateToRanking("duration") }
                 )
             }
 
@@ -189,14 +225,20 @@ fun AnalyticsScreen(
                 RankingCard(
                     title = stringResource(R.string.analytics_play_count_ranking),
                     emptyText = stringResource(R.string.analytics_play_count_empty),
-                    stats = playbackStats
-                        .filter { it.playCount > 0 }
-                        .sortedByDescending { it.playCount }
-                        .take(10),
-                    libraryById = libraryById,
-                    libraryByStatsKey = libraryByStatsKey,
+                    stats = remember(playbackHistory, countCardRange, countCardCount) {
+                        buildRangeRankingStats(
+                            playbackHistory,
+                            AnalyticsRankingRange.fromPref(countCardRange),
+                            "count"
+                        ).take(countCardCount)
+                    },
+                    resolveSong = { stat ->
+                        statsSongMap[stat.analyticsStatsKey()] ?: historySongResolver.resolve(stat)
+                    },
                     mainViewModel = mainViewModel,
-                    valueText = { context.getString(R.string.analytics_times_count, it.playCount) }
+                    valueText = { context.getString(R.string.analytics_times_count, it.playCount) },
+                    onSongClick = { playerViewModel.playSong(it) },
+                    onHeaderClick = { onNavigateToRanking("count") }
                 )
             }
         }

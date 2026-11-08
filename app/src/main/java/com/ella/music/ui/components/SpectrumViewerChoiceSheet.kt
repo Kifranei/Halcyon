@@ -26,7 +26,7 @@ internal fun SpectrumViewerChoiceSheet(
                         "builtin" -> R.string.settings_spectrum_builtin
                         SpectrumViewerLauncher.ASPECT_PRO -> R.string.settings_spectrum_aspect_pro
                         SpectrumViewerLauncher.KASPEK -> R.string.settings_spectrum_kaspek
-                        else -> R.string.settings_spectrum_hearusy
+                        else -> R.string.settings_spectrum_salt
                     }
                     SongMenuItem(stringResource(label), onClick = { onSelect(id) })
                 }

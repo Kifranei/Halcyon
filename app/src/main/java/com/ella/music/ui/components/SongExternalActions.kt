@@ -28,8 +28,8 @@ import kotlin.math.roundToInt
 private const val ASPECT_PRO_PACKAGE = "com.andrewkhandr.aspectpro"
 private const val ASPECT_PRO_ACTIVITY = "com.andrewkhandr.aspectpro.MainActivity"
 private const val KASPEK_PACKAGE = "ka.spek"
-private const val HEARUSY_PACKAGE = "com.hearusy.spectrum"
-private const val HEARUSY_ACTIVITY = "com.hearusy.spectrum.MainActivity"
+private const val SALT_PACKAGE = "com.xuncorp.saltaudioanalyzer"
+private const val SALT_ACTIVITY = "com.xuncorp.saltaudioanalyzer.MainActivity"
 private const val MEDIA_INFO_PACKAGE = "net.mediaarea.mediainfo"
 private const val MEDIA_INFO_ACTIVITY = "net.mediaarea.mediainfo.ReportListActivity"
 private const val TAG = "SongExternalActions"
@@ -48,14 +48,14 @@ fun openSongSpectrumWithKaspek(context: Context, song: Song) {
     openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Kaspek)
 }
 
-fun openSongSpectrumWithHearusy(context: Context, song: Song) {
-    openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Hearusy)
+fun openSongSpectrumWithSalt(context: Context, song: Song) {
+    openSongSpectrumWithExternalApp(context, song, SpectrumExternalApp.Salt)
 }
 
 private enum class SpectrumExternalApp {
     AspectPro,
     Kaspek,
-    Hearusy
+    Salt
 }
 
 private fun openSongSpectrumWithExternalApp(
@@ -89,10 +89,10 @@ private fun openSongSpectrumWithExternalApp(
             ASPECT_PRO_ACTIVITY,
             R.string.aspect_pro_open_failed
         )
-        SpectrumExternalApp.Hearusy -> Triple(
-            HEARUSY_PACKAGE,
-            HEARUSY_ACTIVITY,
-            R.string.hearusy_open_failed
+        SpectrumExternalApp.Salt -> Triple(
+            SALT_PACKAGE,
+            SALT_ACTIVITY,
+            R.string.salt_open_failed
         )
         SpectrumExternalApp.Kaspek -> error("Kaspek is handled above")
     }

@@ -19,7 +19,7 @@ import com.ella.music.ui.components.SongSelectionActionRow
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Playlist
@@ -54,7 +54,7 @@ internal fun LibrarySearchTopBar(
         if (showBackButton) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
+                    imageVector = GlassChevronBackwardIcon,
                     contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
@@ -117,6 +117,7 @@ internal fun LibrarySearchFilterBar(
                 SearchFilter.Composers -> categoryResultsByType["composer"].orEmpty().size
                 SearchFilter.Arrangers -> categoryResultsByType["arranger"].orEmpty().size
                 SearchFilter.Lyricists -> categoryResultsByType["lyricist"].orEmpty().size
+                SearchFilter.Producers -> categoryResultsByType["producer"].orEmpty().size
                 SearchFilter.Genres -> categoryResultsByType["genre"].orEmpty().size
                 SearchFilter.Years -> categoryResultsByType["year"].orEmpty().size
             }
@@ -245,6 +246,7 @@ internal fun LibrarySearchSelectionToolbar(
     onRangeSelect: () -> Unit,
     onSelectAll: () -> Unit,
     onInvertSelection: () -> Unit,
+    onBatchEdit: () -> Unit,
     onPlayNext: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -269,6 +271,7 @@ internal fun LibrarySearchSelectionToolbar(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        com.ella.music.ui.components.SelectionBatchEditButton(onClick = onBatchEdit)
         IconButton(onClick = onPlayNext) {
             com.ella.music.ui.components.PlayNextActionIcon(
                 contentDescription = stringResource(R.string.song_more_play_next),

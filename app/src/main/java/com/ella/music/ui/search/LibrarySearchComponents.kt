@@ -49,14 +49,15 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun SearchPill(text: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = top.yukonga.miuix.kmp.glass.GlassTabRowDefaults.neutralColors()
     Text(
         text = text,
         fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        color = if (selected) colors.selectedContentColor else colors.contentColor,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.82f))
+            .background(if (selected) colors.selectedContainerColor else colors.restingContainerColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     )

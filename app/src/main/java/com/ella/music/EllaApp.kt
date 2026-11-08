@@ -35,6 +35,8 @@ class EllaApp : Application() {
         }
         WebDavClient.initContext(this)
         RemoteAudioCache.init(this)
+        runCatching { com.ella.music.data.sourceplugin.SourcePluginRegistry.init(this) }
+            .onFailure { AppLogStore.warn(this, "EllaApp", "Source-plugin registry init failed", it) }
         AppLogStore.install(this)
         AppLogcatCollector.start(this)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()

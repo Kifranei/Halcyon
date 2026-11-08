@@ -13,11 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,13 +23,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
@@ -52,7 +53,7 @@ import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
@@ -69,6 +70,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 
 @Composable
@@ -118,23 +121,23 @@ fun PlaylistDetailScreen(
     val songs = remember(playlist, librarySongs, fiveStarSongs, isFiveStarPlaylist) {
         if (isFiveStarPlaylist) fiveStarSongs else playlist?.let(mainViewModel::playlistSongs).orEmpty()
     }
-    val listState = rememberLazyListState()
+    val listState = com.ella.music.ui.components.rememberDetailListState(playlistId)
     val scope = rememberCoroutineScope()
     var actionSong by remember { mutableStateOf<com.ella.music.data.model.Song?>(null) }
     val sortIndex by mainViewModel.settingsManager.playlistDetailSongSortIndex.collectAsState(initial = 2)
     val sortMode = PlaylistSongSortMode.entries.getOrElse(sortIndex) { PlaylistSongSortMode.AddedAt }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
 
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     var removeFromPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var removeSelectedPlaylistSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var manualOrder by remember(playlist?.id) { mutableStateOf(songs) }
     val selection = rememberLibrarySelectionState<String>()
@@ -234,7 +237,7 @@ fun PlaylistDetailScreen(
     val showScrollIndicator = displayedSongs.size > 30 && !showSongSideIndex
     val songActionsEndPadding = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp
     val reorderableLazyListState = rememberEllaReorderableLazyListState(
-        lazyListState = listState,
+        lazyListState = activeListState,
         onMove = { from, to ->
             if (!reorderHandlesVisible) return@rememberEllaReorderableLazyListState
             val fromSong = reorderableSongs.getOrNull(from.index - songListHeaderCount)
@@ -341,17 +344,26 @@ fun PlaylistDetailScreen(
         }
     }
 
+    val playlistBackdrop = rememberLayerBackdrop()
+    var playlistTopBarHeightPx by remember { mutableIntStateOf(0) }
+    val playlistDensity = LocalDensity.current
+    val playlistTopBarHeight = with(playlistDensity) { playlistTopBarHeightPx.toDp() }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
+
+
+
+
+        if (playlist == null) {
         PlaylistDetailTopBar(
+            backdrop = playlistBackdrop,
             title = when {
                 selection.selectionMode -> stringResource(R.string.library_selected_fraction, selection.selectedIds.size, displayedSongs.size)
                 playlist == null -> stringResource(R.string.playlist_title)
-                listState.firstVisibleItemIndex > 0 -> playlist.name
+                activeListState.firstVisibleItemIndex > 0 -> playlist.name
                 else -> stringResource(R.string.playlist_title)
             },
             selectionMode = selection.selectionMode,
@@ -359,6 +371,9 @@ fun PlaylistDetailScreen(
             showExport = playlist != null && !isFiveStarPlaylist,
             showRatingFilter = showRatingFilter,
             showFavoriteFilter = showFavoriteFilter,
+            hasUnratedSongs = remember(songs, ratingRevision) {
+                songs.any { mainViewModel.getSongRating(it) <= 0 }
+            },
             ratingFilter = ratingFilter,
             onRatingFilterChange = {
                 ratingFilter = it
@@ -366,6 +381,14 @@ fun PlaylistDetailScreen(
             },
             onNavigationClick = {
                 if (selection.selectionMode) finishSelectionMode() else onBack()
+            },
+            onBatchEditSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    batchEditSongs = selected
+                }
             },
             onPlayNextSelectedClick = {
                 val selected = selectedDisplayedSongs()
@@ -402,27 +425,32 @@ fun PlaylistDetailScreen(
                 }
             },
 
-            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
+            bottomContent = {
+                PlaylistFloatingSearchBar(
+                    visible = searchExpanded && !selection.selectionMode,
+                    query = searchQuery,
+                    placeholderRes = R.string.playlist_search_songs_placeholder,
+                    backdrop = playlistBackdrop,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = { searchExpanded = false },
+                    onCancel = {
+                        searchExpanded = false
+                        searchQuery = ""
+                    }
+                )
+            }
         )
-
-        PlaylistDetailSearchSection(
-            visible = searchExpanded && !selection.selectionMode,
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onSearch = { searchExpanded = false }
-        )
-
-        if (playlist == null) {
             PlaylistDetailNotFoundState()
             return@Column
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, remember(reorderableSongs) { reorderableSongs.map { it.playlistIdentityKey() } }, excludedEndWidth = 112.dp),
+                state = activeListState,
+                modifier = Modifier.fillMaxSize().layerBackdrop(playlistBackdrop).dragSelectList(activeListState, selection, remember(reorderableSongs) { reorderableSongs.map { it.playlistIdentityKey() } }, excludedEndWidth = 112.dp),
                 // Keep the hero's gradient full width; reserve the scrollbar space on actions.
-                contentPadding = PaddingValues(bottom = 150.dp)
+                contentPadding = PaddingValues(top = playlistTopBarHeight, bottom = 150.dp)
             ) {
                 item {
                     val playlistPlayCount = remember(sortedSongs, playbackStats) {
@@ -537,14 +565,14 @@ fun PlaylistDetailScreen(
                             selectedMode = sortMode,
                             onSelect = { mode ->
                                 scope.launch { mainViewModel.settingsManager.setPlaylistDetailSongSortIndex(mode.ordinal) }
-                                scope.launch { listState.animateScrollToItem(0) }
+                                scope.launch { activeListState.animateScrollToItem(0) }
                             }
                         ) + listOf(
                             com.ella.music.ui.components.randomSortDropdownItem(
                                 selected = sortMode == PlaylistSongSortMode.Random,
                                 onSelect = {
                                     scope.launch { mainViewModel.settingsManager.setPlaylistDetailSongSortIndex(PlaylistSongSortMode.Random.ordinal) }
-                                    scope.launch { listState.animateScrollToItem(0) }
+                                    scope.launch { activeListState.animateScrollToItem(0) }
                                 }
                             )
                         )
@@ -704,7 +732,7 @@ fun PlaylistDetailScreen(
                         sortMode == PlaylistSongSortMode.FileNameDesc,
                     onLetterClick = { letter ->
                         songFastIndexData.firstOrNull { it.first == letter }?.second?.let { itemIndex ->
-                            scope.launch { listState.scrollToItem(itemIndex) }
+                            scope.launch { activeListState.scrollToItem(itemIndex) }
                         }
                     },
                     modifier = Modifier
@@ -713,7 +741,7 @@ fun PlaylistDetailScreen(
                 )
             } else if (showScrollIndicator) {
                 LazyListScrollIndicator(
-                    state = listState,
+                    state = activeListState,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .padding(top = 72.dp, bottom = 126.dp)
@@ -721,7 +749,7 @@ fun PlaylistDetailScreen(
             }
 
             LocateCurrentSongFloatingButton(
-                listState = listState,
+                listState = activeListState,
                 currentItemIndex = if (selection.selectionMode) -1 else currentSongItemIndex,
                 locateRequest = locateCurrentSongRequest,
                 modifier = Modifier
@@ -740,6 +768,92 @@ fun PlaylistDetailScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
+
+            Box(modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { playlistTopBarHeightPx = it.height }) {
+        PlaylistDetailTopBar(
+            backdrop = playlistBackdrop,
+            title = when {
+                selection.selectionMode -> stringResource(R.string.library_selected_fraction, selection.selectedIds.size, displayedSongs.size)
+                playlist == null -> stringResource(R.string.playlist_title)
+                activeListState.firstVisibleItemIndex > 0 -> playlist.name
+                else -> stringResource(R.string.playlist_title)
+            },
+            selectionMode = selection.selectionMode,
+            showRemoveSelected = !isFiveStarPlaylist && !isRemoteReadOnly,
+            showExport = playlist != null && !isFiveStarPlaylist,
+            showRatingFilter = showRatingFilter,
+            showFavoriteFilter = showFavoriteFilter,
+            hasUnratedSongs = remember(songs, ratingRevision) {
+                songs.any { mainViewModel.getSongRating(it) <= 0 }
+            },
+            ratingFilter = ratingFilter,
+            onRatingFilterChange = {
+                ratingFilter = it
+                HomeRatingFilterUiState.selection = it
+            },
+            onNavigationClick = {
+                if (selection.selectionMode) finishSelectionMode() else onBack()
+            },
+            onBatchEditSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    batchEditSongs = selected
+                }
+            },
+            onPlayNextSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playerViewModel.playNext(selected)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    finishSelectionMode()
+                }
+            },
+            onAddSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playlistPickerSongs = selected
+                }
+            },
+            onRemoveSelectedClick = {
+                val selected = selectedDisplayedSongs()
+                if (selected.isNotEmpty()) removeSelectedPlaylistSongs = selected
+            },
+            onSearchClick = {
+                searchExpanded = !searchExpanded
+                if (!searchExpanded) searchQuery = ""
+            },
+            onExportClick = { showExportFormatSheet = true },
+            onSelectionModeClick = {
+                selection.selectionMode = true
+                if (selection.selectedIds.isEmpty()) {
+                    selection.rangeAnchorId = null
+                    selection.rangeTargetId = null
+                }
+            },
+
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
+            bottomContent = {
+                PlaylistFloatingSearchBar(
+                    visible = searchExpanded && !selection.selectionMode,
+                    query = searchQuery,
+                    placeholderRes = R.string.playlist_search_songs_placeholder,
+                    backdrop = playlistBackdrop,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = { searchExpanded = false },
+                    onCancel = {
+                        searchExpanded = false
+                        searchQuery = ""
+                    }
+                )
+            }
+        )
+            }
 
             SongMoreActionHost(
                 actionSong = actionSong,
@@ -788,6 +902,7 @@ fun PlaylistDetailScreen(
                 )
             }
 
+            com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
             playlistPickerSongs?.let { songsToAdd ->
                 EllaMiuixBottomSheet(
                     show = true,

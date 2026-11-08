@@ -25,6 +25,8 @@ data class SongTagInfo(
     val composer: String = "",
     val arranger: String = "",
     val lyricist: String = "",
+    val producer: String = "",
+    val language: String = "",
     val track: String = "",
     val comment: String = "",
     val copyright: String = "",
@@ -35,7 +37,9 @@ data class SongTagInfo(
     val rating: Int = 0,
     val customTagText: String = "",
     /** Keeps individual metadata keys available to search UI and content filters. */
-    val customTags: Map<String, List<String>> = emptyMap()
+    val customTags: Map<String, List<String>> = emptyMap(),
+    /** Stream duration read from the file; 0 when unknown (some vendors leave MediaStore empty). */
+    val durationMs: Long = 0L
 ) {
     val displayComment: String
         get() = comment
@@ -80,6 +84,8 @@ fun Song.searchableTagValues(tagInfo: SongTagInfo = SongTagInfo()): Sequence<Str
     yieldNonBlank(tagInfo.composer)
     yieldNonBlank(tagInfo.arranger)
     yieldNonBlank(tagInfo.lyricist)
+    yieldNonBlank(tagInfo.producer)
+    yieldNonBlank(tagInfo.language)
     yieldNonBlank(tagInfo.songwriters)
     yieldNonBlank(tagInfo.track)
     yieldNonBlank(tagInfo.displayComment)

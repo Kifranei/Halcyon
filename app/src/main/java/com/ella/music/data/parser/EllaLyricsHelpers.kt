@@ -1,6 +1,7 @@
 package com.ella.music.data.parser
 
 import android.text.Html
+import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 
 internal val lrcGenericMetaPattern = Regex("""^\[(?!bg:)[A-Za-z][A-Za-z0-9 _\-]*:[^\]]*]$""", RegexOption.IGNORE_CASE)
@@ -197,4 +198,40 @@ internal fun String.isRtlText(): Boolean {
         i += Character.charCount(cp)
     }
     return rtlCount > 0 && rtlCount >= ltrCount
+}
+
+/**
+ * True when [this] contains more than one singable reveal unit (≥2 CJK/Kana/Hangul characters, a
+ * mixed CJK + alphanumeric phrase, or ≥2 whitespace-separated tokens). A single [LyricWord]
+ * spanning such text only encodes `[lineStart, lineEnd]`, not real per-word timing.
+ */
+internal fun String.hasMultipleSingableUnits(): Boolean {
+    val cleaned = cleanLyricText()
+    if (cleaned.isBlank()) return false
+    if (cleaned.count { it.isCjkChar() } >= 2) return true
+    if (cleaned.any { it.isCjkChar() } && cleaned.any { !it.isCjkChar() && it.isLetterOrDigit() }) return true
+    return cleaned.split(Regex("\\s+")).count { token -> token.any { it.isLetterOrDigit() } } >= 2
+}
+
+/**
+ * Strips redundant single-span `words` when no line in the lyric set carries multi-word timing,
+ * preserving each line's `endMs` / `backgroundEndMs` so line-timed lyrics with explicit `[start, end]`
+ * stay line-timed unless the user enables 「逐行歌词逐字化」.
+ */
+internal fun List<LyricLine>.stripWholeLineOnlyWordTiming(): List<LyricLine> {
+    if (isEmpty()) return this
+    if (any { it.words.size > 1 || it.backgroundWords.size > 1 }) return this
+    return map { line ->
+        if (line.words.isEmpty() && line.backgroundWords.isEmpty() && !line.hasExplicitWordTiming) {
+            line
+        } else {
+            line.copy(
+                words = emptyList(),
+                backgroundWords = emptyList(),
+                hasExplicitWordTiming = false,
+                endMs = line.endMs ?: line.words.maxOfOrNull { it.endMs },
+                backgroundEndMs = line.backgroundEndMs ?: line.backgroundWords.maxOfOrNull { it.endMs }
+            )
+        }
+    }
 }

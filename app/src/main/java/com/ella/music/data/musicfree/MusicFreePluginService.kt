@@ -149,6 +149,14 @@ class MusicFreePluginService internal constructor(
         }
     }
 
+    /** Loads the plugin in the sandbox to report its runtime status and declared capabilities. */
+    suspend fun inspectPlugin(script: String): JSONObject = withContext(Dispatchers.IO) {
+        val appContext = context ?: error("MusicFree 运行环境未初始化")
+        MusicFreePluginRuntime(appContext, client).use { runtime ->
+            runtime.inspectPlugin(script)
+        }
+    }
+
     private fun normalizeModuleScript(script: String): String {
         return script
             .replace(Regex("""^\s*export\s+default\s+""", RegexOption.MULTILINE), "module.exports = ")

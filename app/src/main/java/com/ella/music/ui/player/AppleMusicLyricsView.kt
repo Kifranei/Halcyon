@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.isSingingAt
 import com.ella.music.data.model.LyricLine
+import com.ella.music.data.parser.needsPhoneticAnnotation
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -86,6 +89,13 @@ internal fun AppleMusicLyricsView(
     onLineClick: (LyricLine) -> Unit,
     onLineDoubleClick: (() -> Unit)? = null,
     onLineLongClick: (LyricLine) -> Unit,
+    /**
+     * #727: when both are set, dragging the opening blank lyric row reports scrub positions
+     * through this preview channel (null clears it) instead of live-seeking on every move;
+     * [onOpeningLyricCommit] fires once with the final position when the gesture ends.
+     */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     topContentPadding: Dp = 72.dp,
     bottomContentPadding: Dp = 132.dp,
     lineSpacing: Dp = 25.dp,
@@ -111,8 +121,23 @@ internal fun AppleMusicLyricsView(
     val residentPreferences = LocalAppleMusicLyricsViewPreferences.current
     val sustainMotion by remember(context) { com.ella.music.data.SettingsManager.getInstance(context).lyricSustainMotion }
         .collectAsState(initial = residentPreferences?.sustainMotion ?: true)
+    val sustainTailMode by remember(context) { com.ella.music.data.SettingsManager.getInstance(context).appleMusicLyricsSustainTailMode }
+        .collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE)
     val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
         .collectAsState(initial = residentPreferences?.pronunciationBelow ?: false)
+    val dimmedOpacityTenths by remember(context) { SettingsManager.getInstance(context).playerLyricDimmedOpacity }
+        .collectAsState(initial = residentPreferences?.dimmedOpacityTenths ?: SettingsManager.DEFAULT_PLAYER_LYRIC_DIMMED_OPACITY)
+    val unsungLineOpacityTenths by remember(context) { SettingsManager.getInstance(context).playerLyricUnsungOpacity }
+        .collectAsState(initial = residentPreferences?.unsungOpacityTenths ?: SettingsManager.DEFAULT_PLAYER_LYRIC_UNSUNG_OPACITY)
+    val blockAlign by remember(context) { SettingsManager.getInstance(context).playerLyricBlockAlign }
+        .collectAsState(initial = residentPreferences?.blockAlign ?: SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP)
+    val fauxWordTimingEnabled by remember(context) { SettingsManager.getInstance(context).playerLyricFauxWordTiming }
+        .collectAsState(initial = residentPreferences?.fauxWordTiming ?: false)
+    // #781 「逐行歌词逐字化」: line-timed rows can be swept like real karaoke once each line
+    // carries synthesized per-word timings.
+    val renderedLyrics = remember(lyrics, fauxWordTimingEnabled) {
+        if (fauxWordTimingEnabled) lyrics.withPlayerFauxWordTiming() else lyrics
+    }
     val sustainThresholdMs by remember(context) {
         SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
     }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
@@ -132,7 +157,7 @@ internal fun AppleMusicLyricsView(
         SettingsManager.getInstance(context).lyricPauseCurrentOnly
     }.collectAsState(initial = residentPreferences?.pauseCurrentOnly ?: true)
     val revealAllLinesWhilePaused = brightenAllLinesWhenPaused ?: !pauseCurrentOnly
-    if (lyrics.isEmpty()) {
+    if (renderedLyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
                 text = "♪",
@@ -145,8 +170,8 @@ internal fun AppleMusicLyricsView(
     // Some files use a shared 00:00 timestamp for static credits / instrumental notices. They
     // are not a scrolling timeline: render every row as a readable, centered card instead of
     // pinning the first row to the normal lyric focus offset.
-    val singleTimestampTimeline = lyrics.firstOrNull()?.timeMs?.let { timestamp ->
-        lyrics.all { it.timeMs == timestamp }
+    val singleTimestampTimeline = renderedLyrics.firstOrNull()?.timeMs?.let { timestamp ->
+        renderedLyrics.all { it.timeMs == timestamp }
     } == true
     if (singleTimestampTimeline) {
         Box(modifier = modifier.fillMaxSize().lyricViewportEdges(edgeFeatherEnabled, userScrollEnabled).playerLyricPerspective(perspectiveEffectEnabled, perspectiveYAngle, lyricTextAlign), contentAlignment = Alignment.Center) {
@@ -154,8 +179,9 @@ internal fun AppleMusicLyricsView(
                 verticalArrangement = Arrangement.spacedBy(lineSpacing),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                lyrics.forEachIndexed { index, line ->
+                renderedLyrics.forEachIndexed { index, line ->
                     val presentation = linePresentation?.invoke(index, line)
+                    val openingScrub = line.openingScrubHandlers(onOpeningLyricPreview, onOpeningLyricCommit)
                     AppleMusicLyricLine(
                         line = line,
                         active = true,
@@ -167,6 +193,8 @@ internal fun AppleMusicLyricsView(
                         showTranslation = presentation?.showTranslation ?: showTranslation,
                         showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
+                        inactiveOpacityBase = dimmedOpacityTenths / 1000f,
+                        untimedLineAlpha = unsungLineOpacityTenths / 1000f,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
                         fontWeight = fontWeight,
@@ -189,7 +217,8 @@ internal fun AppleMusicLyricsView(
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
                         } else null,
-                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        onTapFraction = openingScrub?.onFraction ?: line.openingSeekHandler(onLineClick),
+                        onDragEnd = openingScrub?.onRelease,
                         touchFeedbackEnabled = touchFeedbackEnabled
                     )
                 }
@@ -198,12 +227,12 @@ internal fun AppleMusicLyricsView(
         return
     }
 
-    val interludes = remember(lyrics) { lyrics.interludes() }
-    val backingSpans = remember(lyrics) { backingVocalSpans(lyrics) }
-    val initialActiveIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val interludes = remember(renderedLyrics) { renderedLyrics.interludes() }
+    val backingSpans = remember(renderedLyrics) { backingVocalSpans(renderedLyrics) }
+    val initialActiveIndex = currentIndex.coerceIn(0, renderedLyrics.lastIndex)
     val initialActiveInterlude = interludes.firstOrNull { it.isActiveAt(currentPositionMs) }
     fun hasVisibleBackground(index: Int): Boolean {
-        val line = lyrics.getOrNull(index) ?: return false
+        val line = renderedLyrics.getOrNull(index) ?: return false
         val presentation = linePresentation?.invoke(index, line)
         return showBackgroundText &&
             (presentation?.showBackgroundText ?: true) &&
@@ -224,8 +253,11 @@ internal fun AppleMusicLyricsView(
         initialFirstVisibleItemIndex = initialScrollTargetIndex
     )
     val userDragging by listState.interactionSource.collectIsDraggedAsState()
-    var trailingLineHeightPx by remember(lyrics) { mutableIntStateOf(0) }
-    var hasPositionedScroll by remember(lyrics) { mutableStateOf(false) }
+    var trailingLineHeightPx by remember(renderedLyrics) { mutableIntStateOf(0) }
+    var hasPositionedScroll by remember(renderedLyrics) { mutableStateOf(false) }
+    // #781 歌词行垂直位置: measured row-block heights let the center/bottom/main-lyric anchors
+    // land exactly; an unmeasured far target falls back to the row-height estimate below.
+    val lyricBlockHeightsPx = remember(renderedLyrics) { mutableStateMapOf<Int, Int>() }
     var deferAutoScroll by remember { mutableStateOf(false) }
     LaunchedEffect(userDragging) {
         if (userDragging) {
@@ -262,7 +294,7 @@ internal fun AppleMusicLyricsView(
     }
 
     LaunchedEffect(currentIndex) {
-        val line = lyrics.getOrNull(currentIndex) ?: return@LaunchedEffect
+        val line = renderedLyrics.getOrNull(currentIndex) ?: return@LaunchedEffect
         val startMs = line.timeMs
         val endMs = line.endMs
             ?: line.words.maxOfOrNull { it.endMs }
@@ -278,7 +310,7 @@ internal fun AppleMusicLyricsView(
     // Keep one frame-clock loop for the lifetime of this lyric list. Keying it on the 10 Hz
     // player sample (or word-lift) cancelled interpolation every tick and made the karaoke
     // fill jump like a slideshow.
-    LaunchedEffect(lyrics, pageVisible, renderIsPlaying) {
+    LaunchedEffect(renderedLyrics, pageVisible, renderIsPlaying) {
         // A retained/paused lyrics page must not keep a frame-clock coroutine alive. Snap to the
         // latest sample so reopening starts from the correct line, then let the active playing
         // page resume the smooth karaoke clock below.
@@ -319,7 +351,7 @@ internal fun AppleMusicLyricsView(
     val activeInterlude by remember(interludes) {
         derivedStateOf { interludes.firstOrNull { it.isActiveAt(smoothPositionMs) } }
     }
-    val activeIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val activeIndex = currentIndex.coerceIn(0, renderedLyrics.lastIndex)
     val backgroundFocusIndex by remember(backingSpans, activeIndex, showBackgroundText, linePresentation) {
         derivedStateOf {
             activeBackingVocalIndex(backingSpans, activeIndex, smoothPositionMs)?.takeIf { hasVisibleBackground(it) }
@@ -335,18 +367,52 @@ internal fun AppleMusicLyricsView(
     val focusOffsetNudgePx = with(density) { focusOffsetNudgeDp.toPx() }
     val focusOffsetPx = focusOffsetDp?.let { with(density) { it.toPx() } }
     val autoScrollShift = remember(listState) { LyricAutoScrollShift() }
-    LaunchedEffect(pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, focusOffsetNudgePx, focusOffsetPx) {
+    LaunchedEffect(
+        pageVisible, scrollTargetIndex, userDragging, deferAutoScroll, focusOffsetNudgePx,
+        focusOffsetPx, focusOffsetRatio, blockAlign, lyricBlockHeightsPx[scrollTargetIndex]
+    ) {
         if (!pageVisible || userDragging || deferAutoScroll) return@LaunchedEffect
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
             listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
         }.filter { it > 0 }.first()
-        val desiredItemOffset = if (focusOffsetPx != null) {
-            (focusOffsetPx - focusOffsetNudgePx).coerceAtLeast(0f)
+        val focusAnchorPx = if (focusOffsetPx != null) {
+            focusOffsetPx - focusOffsetNudgePx
         } else {
-            (viewportHeight * focusOffsetRatio - focusOffsetNudgePx).coerceAtLeast(0f)
+            viewportHeight * focusOffsetRatio - focusOffsetNudgePx
         }
+        // #781 歌词行垂直位置: the anchor inside the current row-block (top/center/bottom/main
+        // lyric center) shifts where the item top must land on the focus line.
+        val anchorInsidePx = if (blockAlign == SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP) {
+            0f
+        } else {
+            val targetLine = renderedLyrics.getOrNull(scrollTargetIndex)
+            val secondaryRowPx = estimatePlayerLyricSecondaryRowPx(
+                density, secondaryTextSizeSp, fontScale, secondaryFontScale
+            )
+            val primaryRowPx = estimatePlayerLyricPrimaryRowPx(density, primaryTextSizeSp, fontScale)
+            val sections = targetLine?.let { target ->
+                val targetPresentation = linePresentation?.invoke(scrollTargetIndex, target)
+                estimatePlayerLyricBlockSectionsPx(
+                    line = target,
+                    showPronunciation = targetPresentation?.showPronunciation ?: showPronunciation,
+                    showTranslation = targetPresentation?.showTranslation ?: showTranslation,
+                    pronunciationBelow = pronunciationBelow,
+                    showBackground = hasVisibleBackground(scrollTargetIndex),
+                    secondaryRowPx = secondaryRowPx,
+                    backgroundRowPx = secondaryRowPx
+                )
+            } ?: (0f to 0f)
+            resolvePlayerLyricBlockAnchorPx(
+                blockAlign = blockAlign,
+                measuredBlockPx = lyricBlockHeightsPx[scrollTargetIndex],
+                aboveSectionPx = sections.first,
+                belowSectionPx = sections.second,
+                primaryRowPx = primaryRowPx
+            )
+        }
+        val desiredItemOffset = (focusAnchorPx - anchorInsidePx).coerceAtLeast(0f)
 
         if (!hasPositionedScroll) {
             // Initial positioning should not fly through the whole song when the player is
@@ -414,7 +480,10 @@ internal fun AppleMusicLyricsView(
         } else {
             bottomContentPadding
         }
-        androidx.compose.runtime.CompositionLocalProvider(LocalReferenceLyricMotion provides sustainMotion) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalReferenceLyricMotion provides sustainMotion,
+            LocalLyricSustainTailExtended provides (sustainTailMode != SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_IMMEDIATE)
+        ) {
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(top = leadingFocusPadding, bottom = trailingFocusPadding),
@@ -422,7 +491,7 @@ internal fun AppleMusicLyricsView(
             userScrollEnabled = userScrollEnabled,
             modifier = Modifier.fillMaxSize()
         ) {
-            lyrics.forEachIndexed { index, line ->
+            renderedLyrics.forEachIndexed { index, line ->
                 interludes.firstOrNull { it.nextLineIndex == index }?.let { interlude ->
                     item(key = "interlude-${interlude.startMs}-${interlude.endMs}") {
                         Box(Modifier.referenceLyricRowMotion(
@@ -448,11 +517,11 @@ internal fun AppleMusicLyricsView(
                     }
                 }
                 item(key = "${line.timeMs}-$index") {
-                    val followingLine = remember(lyrics, index) {
-                        (index + 1 until lyrics.size).firstOrNull { lyrics[it].timeMs > line.timeMs }?.let(lyrics::get)
+                    val followingLine = remember(renderedLyrics, index) {
+                        (index + 1 until renderedLyrics.size).firstOrNull { renderedLyrics[it].timeMs > line.timeMs }?.let(renderedLyrics::get)
                     }
                     val simultaneous = !line.isTtml && (line.words.isNotEmpty() ||
-                        lyrics.getOrNull(index - 1)?.timeMs == line.timeMs || lyrics.getOrNull(index + 1)?.timeMs == line.timeMs)
+                        renderedLyrics.getOrNull(index - 1)?.timeMs == line.timeMs || renderedLyrics.getOrNull(index + 1)?.timeMs == line.timeMs)
                     val duetActive by remember(line, followingLine, simultaneous) {
                         derivedStateOf {
                             (line.isTtml || line.isDuetLine() || simultaneous) &&
@@ -461,6 +530,7 @@ internal fun AppleMusicLyricsView(
                     }
                     val lineIsActive = activeInterlude == null && (index == activeIndex || duetActive)
                     val presentation = linePresentation?.invoke(index, line)
+                    val openingScrub = line.openingScrubHandlers(onOpeningLyricPreview, onOpeningLyricCommit)
                     AppleMusicLyricLine(
                         line = line,
                         active = lineIsActive,
@@ -478,6 +548,8 @@ internal fun AppleMusicLyricsView(
                         showTranslation = presentation?.showTranslation ?: showTranslation,
                         showPronunciation = presentation?.showPronunciation ?: showPronunciation,
                         pronunciationBelow = pronunciationBelow,
+                        inactiveOpacityBase = dimmedOpacityTenths / 1000f,
+                        untimedLineAlpha = unsungLineOpacityTenths / 1000f,
                         fontFamily = fontFamily,
                         translationFontFamily = translationFontFamily,
                         fontWeight = fontWeight,
@@ -500,11 +572,15 @@ internal fun AppleMusicLyricsView(
                         onWordClick = if (wordSeekEnabled && !line.isOpeningMetadata) {
                             { positionMs -> onLineClick(line.copy(timeMs = positionMs)) }
                         } else null,
-                        onTapFraction = line.openingSeekHandler(onLineClick),
+                        onTapFraction = openingScrub?.onFraction ?: line.openingSeekHandler(onLineClick),
+                        onDragEnd = openingScrub?.onRelease,
                         touchFeedbackEnabled = touchFeedbackEnabled,
-                        modifier = (if (index == lyrics.lastIndex) {
-                            Modifier.onSizeChanged { trailingLineHeightPx = it.height }
-                        } else Modifier).referenceLyricRowMotion(
+                        modifier = Modifier.onSizeChanged { size ->
+                            if (index == renderedLyrics.lastIndex) trailingLineHeightPx = size.height
+                            if (lyricBlockHeightsPx[index] != size.height) {
+                                lyricBlockHeightsPx[index] = size.height
+                            }
+                        }.referenceLyricRowMotion(
                             targetY = {
                                 listState.layoutInfo.visibleItemsInfo.firstOrNull {
                                     it.key == "${line.timeMs}-$index"
@@ -536,7 +612,12 @@ internal data class AppleMusicLyricsViewPreferences(
     val sustainMotion: Boolean,
     val pronunciationBelow: Boolean,
     val nonCurrentLineBlurPercent: Int,
-    val pauseCurrentOnly: Boolean
+    val pauseCurrentOnly: Boolean,
+    val dimmedOpacityTenths: Int,
+    val focusPosition: Int,
+    val blockAlign: Int,
+    val unsungOpacityTenths: Int,
+    val fauxWordTiming: Boolean
 )
 
 internal val LocalAppleMusicLyricsViewPreferences =
@@ -548,16 +629,28 @@ internal fun rememberAppleMusicLyricsViewPreferences(
 ): AppleMusicLyricsViewPreferences? {
     val flow = remember(settingsManager) {
         combine(
-            settingsManager.lyricSustainMotion,
-            settingsManager.lyricPronunciationBelow,
-            settingsManager.lyricNonCurrentBlurPercent,
-            settingsManager.lyricPauseCurrentOnly
-        ) { sustainMotion, pronunciationBelow, blurPercent, pauseCurrentOnly ->
+            listOf<Flow<Any>>(
+                settingsManager.lyricSustainMotion,
+                settingsManager.lyricPronunciationBelow,
+                settingsManager.lyricNonCurrentBlurPercent,
+                settingsManager.lyricPauseCurrentOnly,
+                settingsManager.playerLyricDimmedOpacity,
+                settingsManager.playerLyricFocusPosition,
+                settingsManager.playerLyricBlockAlign,
+                settingsManager.playerLyricUnsungOpacity,
+                settingsManager.playerLyricFauxWordTiming
+            )
+        ) { values ->
             AppleMusicLyricsViewPreferences(
-                sustainMotion = sustainMotion,
-                pronunciationBelow = pronunciationBelow,
-                nonCurrentLineBlurPercent = blurPercent,
-                pauseCurrentOnly = pauseCurrentOnly
+                sustainMotion = values[0] as Boolean,
+                pronunciationBelow = values[1] as Boolean,
+                nonCurrentLineBlurPercent = values[2] as Int,
+                pauseCurrentOnly = values[3] as Boolean,
+                dimmedOpacityTenths = values[4] as Int,
+                focusPosition = values[5] as Int,
+                blockAlign = values[6] as Int,
+                unsungOpacityTenths = values[7] as Int,
+                fauxWordTiming = values[8] as Boolean
             )
         }
     }
@@ -576,6 +669,39 @@ private fun LyricLine.openingSeekHandler(
             onLineClick(copy(timeMs = positionMs))
         }
     }
+}
+
+/**
+ * #727: paired scrub callbacks for the opening metadata row. `onFraction` previews each
+ * position through the player seek bar; `onRelease` commits the last previewed position once
+ * and clears the preview. The shared `lastDragMs` lives in the closure — a lyric set holds at
+ * most one opening row and both callbacks always run on the gesture thread.
+ */
+internal class OpeningLyricScrub(
+    val onFraction: (Float) -> Unit,
+    val onRelease: () -> Unit
+)
+
+private fun LyricLine.openingScrubHandlers(
+    onPreview: ((Long?) -> Unit)?,
+    onCommit: ((Long) -> Unit)?
+): OpeningLyricScrub? {
+    if (onPreview == null || onCommit == null) return null
+    if (resolveOpeningLyricSeekPosition(this, 0f) == null) return null
+    var lastDragMs: Long? = null
+    return OpeningLyricScrub(
+        onFraction = { fraction ->
+            resolveOpeningLyricSeekPosition(this, fraction)?.let { positionMs ->
+                lastDragMs = positionMs
+                onPreview(positionMs)
+            }
+        },
+        onRelease = {
+            lastDragMs?.let(onCommit)
+            lastDragMs = null
+            onPreview(null)
+        }
+    )
 }
 
 internal fun resolveOpeningLyricSeekPosition(line: LyricLine, fraction: Float): Long? {
@@ -615,6 +741,93 @@ internal fun resolveAppleMusicLyricsTrailingPadding(
     return maxOf(minimumBottomPadding, requiredPadding)
 }
 
+/**
+ * #781 歌词行垂直位置: single-line height of one stacked secondary slot (pronunciation /
+ * translation), matching [AppleMusicLyricLine]'s secondary style — 1.28 line-height plus the
+ * stacked-row spacing that rides along as padding.
+ */
+internal fun estimatePlayerLyricSecondaryRowPx(
+    density: androidx.compose.ui.unit.Density,
+    secondaryTextSizeSp: Float,
+    fontScale: Float,
+    secondaryFontScale: Float
+): Float = with(density) {
+    (secondaryTextSizeSp * fontScale * secondaryFontScale * 1.28f).sp.toPx() +
+        AppleMusicLyricSecondaryRowSpacing.toPx()
+}
+
+/** Single-line primary row height, matching the player list's 1.18 line-height factor. */
+internal fun estimatePlayerLyricPrimaryRowPx(
+    density: androidx.compose.ui.unit.Density,
+    primaryTextSizeSp: Float,
+    fontScale: Float
+): Float = with(density) { (primaryTextSizeSp * fontScale * 1.18f).sp.toPx() }
+
+/**
+ * Estimated height of the secondary sections above and below [line]'s primary row, mirroring
+ * [AppleMusicLyricLine]'s layout order: a stacked pronunciation row sits above the original
+ * unless [pronunciationBelow] moves it under, inline ruby lives inside the primary row, and
+ * the translation and active backing-vocal sections always sit below.
+ *
+ * @return above-section px to below-section px.
+ */
+internal fun estimatePlayerLyricBlockSectionsPx(
+    line: LyricLine,
+    showPronunciation: Boolean,
+    showTranslation: Boolean,
+    pronunciationBelow: Boolean,
+    showBackground: Boolean,
+    secondaryRowPx: Float,
+    backgroundRowPx: Float
+): Pair<Float, Float> {
+    val pronunciation = line.pronunciation.orEmpty()
+    var abovePx = 0f
+    var belowPx = 0f
+    if (showPronunciation && pronunciation.isNotBlank()) {
+        val annotatableBase = line.text.ifBlank { line.backgroundText.orEmpty() }
+            .needsPhoneticAnnotation()
+        val timedKanaReading = line.pronunciationWords.any { it.endMs > it.startMs } &&
+            line.pronunciationWords.all { isInlineRubyPronunciation(it.text) }
+        val inlineRuby = (annotatableBase || timedKanaReading) &&
+            (line.pronunciationWords.isNotEmpty() || isInlineRubyPronunciation(pronunciation))
+        if (!inlineRuby) {
+            if (pronunciationBelow) belowPx += secondaryRowPx else abovePx += secondaryRowPx
+        }
+    }
+    if (showTranslation && !line.translation.isNullOrBlank()) belowPx += secondaryRowPx
+    if (showBackground) {
+        belowPx += backgroundRowPx *
+            if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) 2f else 1f
+    }
+    return abovePx to belowPx
+}
+
+/**
+ * Distance from the current row-block's top edge to the anchor point selected by
+ * [blockAlign]. A measured block height wins over the single-line estimate so wrapped rows
+ * still center correctly; for [SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_MAIN] the primary
+ * row's center is block-center shifted by half the above/below section imbalance — exactly
+ * `(pronunciation height - translation height) / 2` when one stacked row sits on each side.
+ */
+internal fun resolvePlayerLyricBlockAnchorPx(
+    blockAlign: Int,
+    measuredBlockPx: Int?,
+    aboveSectionPx: Float,
+    belowSectionPx: Float,
+    primaryRowPx: Float
+): Float {
+    val measuredPx = measuredBlockPx?.takeIf { it > 0 }?.toFloat()
+    val blockPx = measuredPx ?: (aboveSectionPx + primaryRowPx + belowSectionPx)
+    return when (blockAlign) {
+        SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_CENTER -> blockPx / 2f
+        SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_BOTTOM -> blockPx
+        SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_MAIN ->
+            measuredPx?.let { it / 2f + (aboveSectionPx - belowSectionPx) / 2f }
+                ?: (aboveSectionPx + primaryRowPx / 2f)
+        else -> 0f
+    }
+}
+
 internal fun resolveAppleMusicLyricsScrollTargetIndex(
     activeLyricIndex: Int,
     activeInterlude: AppleMusicInterlude?,
@@ -634,13 +847,26 @@ internal fun lyricFramePositionMs(
     displayMs: Long,
     sampledMs: Long,
     frameDeltaMs: Long,
-    playing: Boolean
-): Long = livePositionMs?.coerceAtLeast(0L) ?: nextSmoothLyricPositionMs(
-    displayMs = displayMs,
-    sampledMs = sampledMs,
-    frameDeltaMs = frameDeltaMs,
-    playing = playing
-)
+    playing: Boolean,
+    seekThresholdMs: Long = 1_500L,
+    backwardToleranceMs: Long = PLAYER_POSITION_BACKWARD_DRIFT_TOLERANCE_MS
+): Long {
+    val live = livePositionMs?.coerceAtLeast(0L)
+    if (live != null) {
+        if (!playing) return live
+        // Real seeks land far from the last authoritative sample; anything within the window
+        // is engine jitter. Clamp it so a stuttering live read cannot rewind the karaoke
+        // sweep by more than the drift tolerance (#727).
+        if (abs(live - sampledMs) > seekThresholdMs) return live
+        return live.coerceAtLeast(displayMs - backwardToleranceMs)
+    }
+    return nextSmoothLyricPositionMs(
+        displayMs = displayMs,
+        sampledMs = sampledMs,
+        frameDeltaMs = frameDeltaMs,
+        playing = playing
+    )
+}
 
 internal fun nextSmoothLyricPositionMs(
     displayMs: Long,

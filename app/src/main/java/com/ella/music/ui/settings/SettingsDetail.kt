@@ -4,6 +4,10 @@ package com.ella.music.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +44,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 enum class SettingsDetailMode {
@@ -71,11 +75,13 @@ fun SettingsDetailScreen(
     onNavigateToWebDavConfig: (() -> Unit)? = null,
     onNavigateToSmbConfig: (() -> Unit)? = null,
     onNavigateToTransferConfig: ((String) -> Unit)? = null,
+    onNavigateToSourcePlugins: (() -> Unit)? = null,
     onNavigateToLyricPluginSources: () -> Unit = {},
     onNavigateToLastFmSettings: () -> Unit = {},
     onNavigateToBottomNavigationSettings: () -> Unit = {},
     onNavigateToPlayerShortcutSettings: (String) -> Unit = {},
     onNavigateToAppearancePage: (String) -> Unit = {},
+    onNavigateToHomeDisplaySettings: (() -> Unit)? = null,
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null,
     onCloseSettings: (() -> Unit)? = null
 ) {
@@ -85,22 +91,22 @@ fun SettingsDetailScreen(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = com.ella.music.ui.components.ellaPageBackground()
 
-    val lyricWesternFontName by settingsManager.lyricWesternFontName.collectAsState(initial = "")
-    val lyricCjkFontName by settingsManager.lyricCjkFontName.collectAsState(initial = "")
-    val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_SECTION_ORDER)
+    val lyricWesternFontName by settingsManager.lyricWesternFontName.collectAsStateSeeded(initial = "")
+    val lyricCjkFontName by settingsManager.lyricCjkFontName.collectAsStateSeeded(initial = "")
+    val homeSectionOrder by settingsManager.homeSectionOrder.collectAsStateSeeded(initial = SettingsManager.DEFAULT_HOME_SECTION_ORDER)
     val homeRecentSectionMode by settingsManager.homeRecentSectionMode.collectAsState(
         initial = SettingsManager.HOME_RECENT_SECTION_MODE_ADDED
     )
-    val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = "")
+    val homeHiddenSections by settingsManager.homeHiddenSections.collectAsStateSeeded(initial = "")
     val homeTopBarActionOrder by settingsManager.homeTopBarActionOrder.collectAsState(
         initial = SettingsManager.DEFAULT_HOME_TOP_BAR_ACTION_ORDER
     )
-    val homeHiddenTopBarActions by settingsManager.homeHiddenTopBarActions.collectAsState(initial = "")
-    val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
-    val homeHiddenLibraryTiles by settingsManager.homeHiddenLibraryTiles.collectAsState(initial = "")
-    val homeOnlineTileOrder by settingsManager.homeOnlineTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_ONLINE_TILE_ORDER)
-    val homeHiddenOnlineTiles by settingsManager.homeHiddenOnlineTiles.collectAsState(initial = "")
-    val homeTilePinButtonsVisible by settingsManager.homeTilePinButtonsVisible.collectAsState(initial = false)
+    val homeHiddenTopBarActions by settingsManager.homeHiddenTopBarActions.collectAsStateSeeded(initial = "")
+    val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsStateSeeded(initial = SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
+    val homeHiddenLibraryTiles by settingsManager.homeHiddenLibraryTiles.collectAsStateSeeded(initial = "")
+    val homeOnlineTileOrder by settingsManager.homeOnlineTileOrder.collectAsStateSeeded(initial = SettingsManager.DEFAULT_HOME_ONLINE_TILE_ORDER)
+    val homeHiddenOnlineTiles by settingsManager.homeHiddenOnlineTiles.collectAsStateSeeded(initial = "")
+    val homeTilePinButtonsVisible by settingsManager.homeTilePinButtonsVisible.collectAsStateSeeded(initial = false)
     val homeSectionItems = listOf(
         HomePreferenceItem("library", stringResource(R.string.settings_home_section_library), stringResource(R.string.settings_home_section_library_summary)),
         HomePreferenceItem("online", stringResource(R.string.settings_home_section_online), stringResource(R.string.settings_home_section_online_summary)),
@@ -137,7 +143,8 @@ fun SettingsDetailScreen(
         HomePreferenceItem("year", stringResource(R.string.settings_library_tile_year), stringResource(R.string.settings_library_tile_year_summary)),
         HomePreferenceItem("composer", stringResource(R.string.settings_library_tile_composer), stringResource(R.string.settings_library_tile_composer_summary)),
         HomePreferenceItem("arranger", stringResource(R.string.settings_library_tile_arranger), stringResource(R.string.settings_library_tile_arranger_summary)),
-        HomePreferenceItem("lyricist", stringResource(R.string.settings_library_tile_lyricist), stringResource(R.string.settings_library_tile_lyricist_summary))
+        HomePreferenceItem("lyricist", stringResource(R.string.settings_library_tile_lyricist), stringResource(R.string.settings_library_tile_lyricist_summary)),
+        HomePreferenceItem("producer", stringResource(R.string.settings_library_tile_producer), stringResource(R.string.settings_library_tile_producer_summary))
     )
     val homeOnlineTileItems = listOf(
         HomePreferenceItem("musicfree", "MusicFree", stringResource(R.string.home_import_api_source)),
@@ -152,6 +159,14 @@ fun SettingsDetailScreen(
     val contentScrollState = if (showHomeDisplayPage) homeDisplayScrollState else detailScrollState
     LaunchedEffect(showHomeDisplayPage) {
         if (showHomeDisplayPage) homeDisplayScrollState.scrollTo(0)
+    }
+    // The home-display page swaps in place instead of navigating, so without this it would
+    // appear instantly. Slide the freshly shown content in from the side it conceptually
+    // lives on (from the right when drilling in, back from the left when returning).
+    val homeDisplayEnterProgress = remember { Animatable(0f) }
+    LaunchedEffect(showHomeDisplayPage) {
+        homeDisplayEnterProgress.snapTo(1f)
+        homeDisplayEnterProgress.animateTo(0f, tween(durationMillis = 280, easing = FastOutSlowInEasing))
     }
 
     BackHandler(
@@ -183,6 +198,11 @@ fun SettingsDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(settingsBackdrop)
+                .graphicsLayer {
+                    val direction = if (showHomeDisplayPage) 1f else -1f
+                    translationX = homeDisplayEnterProgress.value * size.width * 0.12f * direction
+                    alpha = 1f - homeDisplayEnterProgress.value * 0.7f
+                }
                 .verticalScroll(contentScrollState)
                 .padding(horizontal = 12.dp)
         ) {
@@ -206,8 +226,15 @@ fun SettingsDetailScreen(
                             onNavigateToAppearancePage = onNavigateToAppearancePage,
                             onNavigateToLyricFont = onNavigateToLyricFont,
                             onNavigateToHomeDisplay = {
-                                showHomeDisplayPage = true
-                                scope.launch { homeDisplayScrollState.scrollTo(0) }
+                                // Prefer real third-level navigation so the page gets the
+                                // standard enter/exit transitions; the in-place swap remains
+                                // only as a fallback for callers without a nav callback.
+                                if (onNavigateToHomeDisplaySettings != null) {
+                                    onNavigateToHomeDisplaySettings()
+                                } else {
+                                    showHomeDisplayPage = true
+                                    scope.launch { homeDisplayScrollState.scrollTo(0) }
+                                }
                             }
                         )
                     }
@@ -276,6 +303,7 @@ fun SettingsDetailScreen(
                         onOpenWebDavConfig = onNavigateToWebDavConfig,
                         onOpenSmbConfig = onNavigateToSmbConfig,
                         onOpenTransferConfig = onNavigateToTransferConfig,
+                        onOpenSourcePlugins = onNavigateToSourcePlugins,
                         mainViewModel = mainViewModel
                     )
                     SettingsScanSection(highlightKey = highlightKey)
@@ -328,7 +356,7 @@ fun SettingsDetailScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)

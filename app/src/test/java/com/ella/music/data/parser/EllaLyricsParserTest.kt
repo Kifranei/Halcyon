@@ -3,6 +3,7 @@ package com.ella.music.data.parser
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.primaryEndMs
+import com.ella.music.ui.player.withPlayerFauxWordTiming
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -808,6 +809,43 @@ class EllaLyricsParserTest {
         assertEquals("When I see you again", line.text)
         assertEquals("Uh-huh", line.backgroundText)
         assertEquals(listOf("Uh-", "huh"), line.backgroundWords.map { it.text })
+    }
+
+    @Test
+    fun lineTimedLyricsWithStartAndEndTimesStayLineTimedUntilFauxTimingIsEnabled() {
+        val lrcWithTrailingEnd = LrcParser.parse(
+            """
+            [00:12.34]树上的金丝雀 轻唱着摇篮曲[00:15.67]
+            [00:16.00]Even when the wind changes<00:19.50>
+            """.trimIndent()
+        ).lyrics
+        assertEquals(2, lrcWithTrailingEnd.size)
+        assertTrue(lrcWithTrailingEnd.all { it.words.isEmpty() && !it.hasExplicitWordTiming })
+        assertEquals(listOf(12_340L, 16_000L), lrcWithTrailingEnd.map { it.timeMs })
+        assertEquals(listOf(15_670L, 19_500L), lrcWithTrailingEnd.map { it.endMs })
+
+        val elrcSingleSpanLines = LrcParser.parse(
+            """
+            [00:01.00]<00:01.00>春宵雨至明<00:03.50>
+            [00:04.00]<00:04.00>Hello world<00:06.00>
+            """.trimIndent()
+        ).lyrics
+        assertTrue(elrcSingleSpanLines.all { it.words.isEmpty() && !it.hasExplicitWordTiming })
+        assertEquals(listOf(3_500L, 6_000L), elrcSingleSpanLines.map { it.endMs })
+
+        val singleSpanYrc = EllaLyricsParser.parse(
+            """
+            [12000,3000](12000,3000,0)路过人间 也才几十年
+            [15500,2500]却为了爱 勇于蹉跎岁月
+            """.trimIndent()
+        ).lyrics
+        assertEquals(2, singleSpanYrc.size)
+        assertTrue(singleSpanYrc.all { it.words.isEmpty() && !it.hasExplicitWordTiming })
+        assertEquals(listOf(15_000L, 18_000L), singleSpanYrc.map { it.endMs })
+
+        val fauxTimed = lrcWithTrailingEnd.withPlayerFauxWordTiming()
+        assertTrue(fauxTimed.all { it.words.size > 1 && it.hasExplicitWordTiming })
+        assertEquals(15_670L, fauxTimed.first().words.last().endMs)
     }
 
     @Test

@@ -87,7 +87,9 @@ object WebDavAutoBackupScheduler {
         val now = System.currentTimeMillis()
         val intervalMs = settings.webDavAutoBackupIntervalHours.first() * 60L * 60L * 1000L
         if (now - settings.webDavAutoBackupLastAt.first() < intervalMs) return
-        val archive = buildApplicationBackupZipFile(context)
+        val uploadTypes = settings.webDavUploadTypes.first().toWebDavRestoreTypes()
+            .ifEmpty { BackupType.entries.toSet() }
+        val archive = buildApplicationBackupZipFile(context, selectedTypes = uploadTypes)
         try {
             WebDavClient.uploadFileFromFile(targetUrl, config, archive)
         } finally {

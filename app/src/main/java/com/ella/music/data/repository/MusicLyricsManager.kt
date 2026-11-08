@@ -51,13 +51,6 @@ internal class MusicLyricsManager(
             lyricsCache.remove(cacheKey)
         }
 
-        if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO) {
-            fetchOnlineLyrics(song, ignoreHeaderTags)?.let { onlineLyrics ->
-                lyricsCache[cacheKey] = onlineLyrics
-                return@withContext onlineLyrics
-            }
-        }
-
         val effectivePath = song.effectiveLocalPathForMetadataBlocking(settingsManager, httpClient, remoteAudioCacheDir, remoteMetadataHeaderCacheDir)
         val orderedSources = orderedLyricSourceIds(sourcePriority, safeMode).let { ids ->
             if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO &&
@@ -70,6 +63,16 @@ internal class MusicLyricsManager(
             loadLyricsBySourceId(song, effectivePath, sourceId, ignoreHeaderTags)?.let { lyrics ->
                 lyricsCache[cacheKey] = lyrics
                 return@withContext lyrics
+            }
+        }
+
+        // The server/online lyric is a last-resort source, not a short-circuit: remote songs
+        // used to return the Subsonic default plain text before embedded TTML (read through
+        // the cached metadata header) or sidecar files were ever consulted (#remote-ttml).
+        if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO) {
+            fetchOnlineLyrics(song, ignoreHeaderTags)?.let { onlineLyrics ->
+                lyricsCache[cacheKey] = onlineLyrics
+                return@withContext onlineLyrics
             }
         }
 

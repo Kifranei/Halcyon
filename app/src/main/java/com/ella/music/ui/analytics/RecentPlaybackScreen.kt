@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.collectLatest
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Search
 import com.ella.music.ui.components.rememberLibrarySelectionState
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.SortSummaryHeader
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SongSelectionActionRow
@@ -96,6 +97,7 @@ import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ArtistPickerContent
 import com.ella.music.ui.components.ConfirmDangerDialog
+import com.ella.music.ui.components.EllaGlassPillTab
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.LibraryEntityAction
@@ -132,7 +134,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Settings
@@ -156,7 +158,8 @@ internal enum class RecentPlaybackTab(val routeValue: String, val labelRes: Int)
     Genre("genre", R.string.category_genre),
     Composer("composer", R.string.category_composer),
     Arranger("arranger", R.string.category_arranger),
-    Lyricist("lyricist", R.string.category_lyricist);
+    Lyricist("lyricist", R.string.category_lyricist),
+    Producer("producer", R.string.category_producer);
 
     companion object {
         fun fromRoute(value: String?): RecentPlaybackTab =
@@ -436,7 +439,7 @@ fun RecentPlaybackScreen(
         ) {
             IconButton(onClick = { exitTransientMode() }) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
+                    imageVector = GlassChevronBackwardIcon,
                     contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onBackground,
                     modifier = Modifier.size(24.dp)
@@ -536,28 +539,16 @@ fun RecentPlaybackScreen(
                         bringIntoView.bringIntoView()
                     }
                 }
-                Text(
+                EllaGlassPillTab(
                     text = stringResource(tab.labelRes),
-                    fontSize = 14.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .bringIntoViewRequester(bringIntoView)
-                        .clip(CircleShape)
-                        .background(
-                            if (selected) MiuixTheme.colorScheme.primary
-                            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f)
-                        )
-                        .clickable {
-                            // Switch the chip, count and actions to the target at once instead of
-                            // waiting for the page animation to settle.
-                            selectedTab = tab.routeValue
-                            scope.launch { pagerState.animateScrollToPage(tabs.indexOf(tab)) }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 9.dp)
+                    selected = selected,
+                    onClick = {
+                        // Switch the chip, count and actions to the target at once instead of
+                        // waiting for the page animation to settle.
+                        selectedTab = tab.routeValue
+                        scope.launch { pagerState.animateScrollToPage(tabs.indexOf(tab)) }
+                    },
+                    modifier = Modifier.bringIntoViewRequester(bringIntoView),
                 )
             }
         }
@@ -688,12 +679,16 @@ fun RecentPlaybackScreen(
             val pageShowDate = showDateByTab.getValue(pageTab)
             val pageTabSongs = remember(pageRows) { pageRows.mapNotNull { it.song } }
             val pageListState = androidx.compose.foundation.lazy.rememberLazyListState()
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val pageSearchListState = rememberSearchListState(searchActive, searchQuery)
+            val pageActiveListState = if (searchActive) pageSearchListState else pageListState
             // Turning the date header on (or rows arriving) inserts an item above the first row;
             // the list keeps its anchor on that row, which hid the header above the viewport.
             // If the list was at the top, stay at the very top.
-            LaunchedEffect(pageListState, pageShowDate, pageRows.firstOrNull()?.key) {
-                if (pageListState.firstVisibleItemIndex <= 1 && pageListState.firstVisibleItemScrollOffset == 0) {
-                    pageListState.scrollToItem(0)
+            LaunchedEffect(pageActiveListState, pageShowDate, pageRows.firstOrNull()?.key) {
+                if (pageActiveListState.firstVisibleItemIndex <= 1 && pageActiveListState.firstVisibleItemScrollOffset == 0) {
+                    pageActiveListState.scrollToItem(0)
                 }
             }
             if (pageRows.isEmpty()) {
@@ -711,8 +706,8 @@ fun RecentPlaybackScreen(
             } else {
                 val daySections = remember(pageRows) { groupRowsByPlayDay(pageRows) }
                 LazyColumn(
-                    state = pageListState,
-                    modifier = Modifier.fillMaxSize().dragSelectList(pageListState, selectionMode && pageTab == currentTab, remember(pageRows) { pageRows.map { it.key } }, selection.selectedIds, onSelectionChange = { selection.selectedIds = it; selection.rangeAnchorId = null; selection.rangeTargetId = null }, onToggle = selection::toggleSelection),
+                    state = pageActiveListState,
+                    modifier = Modifier.fillMaxSize().dragSelectList(pageActiveListState, selectionMode && pageTab == currentTab, remember(pageRows) { pageRows.map { it.key } }, selection.selectedIds, onSelectionChange = { selection.selectedIds = it; selection.rangeAnchorId = null; selection.rangeTargetId = null }, onToggle = selection::toggleSelection),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 160.dp)
                 ) {
                     daySections.forEach { section ->
@@ -1799,7 +1794,7 @@ internal fun buildRecentPlaybackRowsForResolved(
                 subtitle = formatPlayedToSubtitle(members.size, latest.entry.title, latest.entry.artist),
                 playedAt = latest.entry.playedAt, song = latest.song ?: members.firstOrNull(),
                 entryIds = entries.map { it.entry.entryId },
-                circularArt = kind in setOf(RecentPlaybackTab.Artist, RecentPlaybackTab.Composer, RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist),
+                circularArt = kind in setOf(RecentPlaybackTab.Artist, RecentPlaybackTab.Composer, RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist, RecentPlaybackTab.Producer),
                 kind = kind, entityId = id, albumId = albumId, rowSongs = members, nestedFolder = nestedFolder
             )
         }.sortedByDescending { it.playedAt }
@@ -1829,7 +1824,7 @@ internal fun recentPlaybackRowRoute(row: RecentPlaybackRow): String? = when (row
     RecentPlaybackTab.Folder -> if (row.nestedFolder) Screen.FolderDetail.createRoute(row.entityId)
         else Screen.MetadataCategoryDetail.createRoute("folder", row.entityId)
     RecentPlaybackTab.Year, RecentPlaybackTab.Genre, RecentPlaybackTab.Composer,
-    RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist -> Screen.MetadataCategoryDetail.createRoute(row.kind.routeValue, row.entityId)
+    RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist, RecentPlaybackTab.Producer -> Screen.MetadataCategoryDetail.createRoute(row.kind.routeValue, row.entityId)
     else -> null
 }
 
@@ -1912,6 +1907,7 @@ private fun RecentPlaybackTab.countDescriptionRes(): Int = when (this) {
     RecentPlaybackTab.Composer -> R.string.recent_playback_count_composer
     RecentPlaybackTab.Arranger -> R.string.recent_playback_count_arranger
     RecentPlaybackTab.Lyricist -> R.string.recent_playback_count_lyricist
+    RecentPlaybackTab.Producer -> R.string.recent_playback_count_producer
 }
 
 private fun formatPlayedToSubtitle(songCount: Int, title: String, artist: String): String {
@@ -1932,6 +1928,7 @@ private fun formatCollectionTitle(tab: RecentPlaybackTab, name: String): String 
         RecentPlaybackTab.Composer -> "作曲家"
         RecentPlaybackTab.Arranger -> "编曲家"
         RecentPlaybackTab.Lyricist -> "作词家"
+        RecentPlaybackTab.Producer -> "制作人"
         else -> return name
     }
     return "$prefix：$name"
@@ -1981,7 +1978,8 @@ private fun resolveRecentRowSongs(
         RecentPlaybackTab.Genre,
         RecentPlaybackTab.Composer,
         RecentPlaybackTab.Arranger,
-        RecentPlaybackTab.Lyricist ->
+        RecentPlaybackTab.Lyricist,
+        RecentPlaybackTab.Producer ->
             mainViewModel.getSongsForMetadataCategory(row.kind.routeValue, row.entityId).ifEmpty { fallback }
         RecentPlaybackTab.Collection -> fallback
     }

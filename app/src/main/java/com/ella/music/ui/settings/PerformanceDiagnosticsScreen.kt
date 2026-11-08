@@ -64,10 +64,12 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -556,6 +558,7 @@ internal fun PerformanceDiagnosticsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val pageBackground = diagnosticsPageBackground()
+    val settingsBackdrop = rememberLayerBackdrop()
     val sampler = remember { PerformanceTracker.get(context) }
     val isToolbarShowing by PerformanceFloatingToolbarManager.isShowingState
     val snapshot by sampler.snapshot
@@ -603,12 +606,13 @@ internal fun PerformanceDiagnosticsScreen(
             .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
             title = stringResource(R.string.settings_performance_diagnostics),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
@@ -637,7 +641,7 @@ internal fun PerformanceDiagnosticsScreen(
             }
         )
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().layerBackdrop(settingsBackdrop),
             contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {

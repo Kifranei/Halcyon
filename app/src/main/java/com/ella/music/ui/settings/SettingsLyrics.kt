@@ -32,6 +32,7 @@ import com.ella.music.ui.player.secondaryScaleRangePercent
 import com.ella.music.ui.player.secondaryTextSizeRangeSp
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.size
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
@@ -44,7 +45,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsLyricsSection(
@@ -56,21 +57,21 @@ internal fun SettingsLyricsSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
-    val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
-    val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsState(initial = true)
-    val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsState(initial = "")
-    val lyricOpeningAsFallback by settingsManager.lyricOpeningAsFallback.collectAsState(initial = false)
-    val lyricShareLongPressEnabled by settingsManager.lyricShareLongPressEnabled.collectAsState(initial = true)
-    val lyricRainbowEnabled by settingsManager.lyricRainbowEnabled.collectAsState(initial = false)
-    val lyricSustainMotion by settingsManager.lyricSustainMotion.collectAsState(initial = true)
-    val lyricHdrHighlightEnabled by settingsManager.lyricHdrHighlightEnabled.collectAsState(initial = false)
-    val lyricHdrBrightness by settingsManager.lyricHdrBrightness.collectAsState(initial = SettingsManager.DEFAULT_LYRIC_HDR_BRIGHTNESS)
-    val lyricWordSeekEnabled by settingsManager.lyricWordSeekEnabled.collectAsState(initial = false)
-    val lyricTouchFeedbackEnabled by settingsManager.lyricTouchFeedbackEnabled.collectAsState(initial = false)
-    val lyricPauseCurrentOnly by settingsManager.lyricPauseCurrentOnly.collectAsState(initial = true)
-    val immersiveLyricSwipe by settingsManager.playerImmersiveLyricSwipe.collectAsState(initial = false)
-    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = 70)
+    val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsStateSeeded(initial = emptyList())
+    val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsStateSeeded(initial = true)
+    val hideLyricExtraInfo by settingsManager.hideLyricExtraInfo.collectAsStateSeeded(initial = true)
+    val lyricOpeningTemplate by settingsManager.lyricOpeningTemplate.collectAsStateSeeded(initial = "")
+    val lyricOpeningAsFallback by settingsManager.lyricOpeningAsFallback.collectAsStateSeeded(initial = false)
+    val lyricShareLongPressEnabled by settingsManager.lyricShareLongPressEnabled.collectAsStateSeeded(initial = true)
+    val lyricRainbowEnabled by settingsManager.lyricRainbowEnabled.collectAsStateSeeded(initial = false)
+    val lyricSustainMotion by settingsManager.lyricSustainMotion.collectAsStateSeeded(initial = true)
+    val lyricHdrHighlightEnabled by settingsManager.lyricHdrHighlightEnabled.collectAsStateSeeded(initial = false)
+    val lyricHdrBrightness by settingsManager.lyricHdrBrightness.collectAsStateSeeded(initial = SettingsManager.DEFAULT_LYRIC_HDR_BRIGHTNESS)
+    val lyricWordSeekEnabled by settingsManager.lyricWordSeekEnabled.collectAsStateSeeded(initial = false)
+    val lyricTouchFeedbackEnabled by settingsManager.lyricTouchFeedbackEnabled.collectAsStateSeeded(initial = false)
+    val lyricPauseCurrentOnly by settingsManager.lyricPauseCurrentOnly.collectAsStateSeeded(initial = true)
+    val immersiveLyricSwipe by settingsManager.playerImmersiveLyricSwipe.collectAsStateSeeded(initial = false)
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsStateSeeded(initial = 70)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var showLyricSizingSheet by remember { mutableStateOf(false) }
     var showPlayerMiniLyricsSheet by remember { mutableStateOf(false) }
@@ -119,7 +120,7 @@ internal fun SettingsLyricsSection(
             SettingsSearchAnchor(R.string.player_lyric_style_settings) {
             ArrowPreference(
                 title = stringResource(R.string.player_lyric_style_settings),
-                summary = stringResource(R.string.settings_lyrics_summary),
+                summary = stringResource(R.string.settings_player_lyric_style_summary),
                 onClick = { showLyricSizingSheet = true }
             )
             } // search-anchor:end
@@ -521,20 +522,21 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
     }
     val primaryTextSizeRange = remember(layoutProfile) { layoutProfile.primaryTextSizeRangeSp() }
     val secondaryTextSizeRange = remember(layoutProfile) { layoutProfile.secondaryTextSizeRangeSp() }
-    val lyricFontScale by settingsManager.lyricFontScale.collectAsState(initial = 100)
-    val lyricSecondaryFontScale by settingsManager.lyricSecondaryFontScale.collectAsState(initial = 100)
-    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsState(initial = initialBlurPercent ?: 70)
+    val lyricFontScale by settingsManager.lyricFontScale.collectAsStateSeeded(initial = 100)
+    val lyricSecondaryFontScale by settingsManager.lyricSecondaryFontScale.collectAsStateSeeded(initial = 100)
+    val lyricNonCurrentBlurPercent by settingsManager.lyricNonCurrentBlurPercent.collectAsStateSeeded(initial = initialBlurPercent ?: 70)
+    val lyricUnsungOpacity by settingsManager.lyricUnsungOpacity.collectAsStateSeeded(initial = 36)
     val lyricPrimaryTextSize by when (layoutProfile) {
         PlayerLyricLayoutProfile.Compact -> settingsManager.lyricCompactPrimaryTextSize
-            .collectAsState(initial = SettingsManager.LYRIC_COMPACT_PRIMARY_TEXT_SIZE_DEFAULT_SP)
+            .collectAsStateSeeded(initial = SettingsManager.LYRIC_COMPACT_PRIMARY_TEXT_SIZE_DEFAULT_SP)
         PlayerLyricLayoutProfile.Wide -> settingsManager.lyricWidePrimaryTextSize
-            .collectAsState(initial = SettingsManager.LYRIC_WIDE_PRIMARY_TEXT_SIZE_DEFAULT_SP)
+            .collectAsStateSeeded(initial = SettingsManager.LYRIC_WIDE_PRIMARY_TEXT_SIZE_DEFAULT_SP)
     }
     val lyricSecondaryTextSize by when (layoutProfile) {
         PlayerLyricLayoutProfile.Compact -> settingsManager.lyricCompactSecondaryTextSize
-            .collectAsState(initial = SettingsManager.LYRIC_COMPACT_SECONDARY_TEXT_SIZE_DEFAULT_SP)
+            .collectAsStateSeeded(initial = SettingsManager.LYRIC_COMPACT_SECONDARY_TEXT_SIZE_DEFAULT_SP)
         PlayerLyricLayoutProfile.Wide -> settingsManager.lyricWideSecondaryTextSize
-            .collectAsState(initial = SettingsManager.LYRIC_WIDE_SECONDARY_TEXT_SIZE_DEFAULT_SP)
+            .collectAsStateSeeded(initial = SettingsManager.LYRIC_WIDE_SECONDARY_TEXT_SIZE_DEFAULT_SP)
     }
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_lyric_non_current_blur) {
@@ -549,6 +551,23 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
         }
     )
     } // search-anchor:end
+
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_lyric_unsung_opacity) {
+    SettingsIntSliderPreference(
+        title = stringResource(R.string.settings_lyric_unsung_opacity, lyricUnsungOpacity),
+        summary = stringResource(R.string.settings_lyric_unsung_opacity_summary),
+        value = lyricUnsungOpacity,
+        valueRange = 0..100,
+        valueText = "${lyricUnsungOpacity.coerceIn(0, 100)}%",
+        onValueChange = { value ->
+            scope.launch { settingsManager.setLyricUnsungOpacity(value) }
+        }
+    )
+    } // search-anchor:end
+
+    // #781: player-side lyric display overrides (position/alignment/opacity/faux timing).
+    PlayerLyricDisplayPreferences()
 
     // search-anchor:start
     SettingsSearchAnchor(R.string.player_lyric_font_scale) {
@@ -634,16 +653,123 @@ private fun SettingsPlayerLyricSizingControls(initialBlurPercent: Int? = null) {
 
 }
 
+/**
+ * #781 player-side lyric display overrides (`player_lyric_*`). Shared between this settings
+ * page's sizing sheet and the player's 更多操作-歌词显示 sheet, so both entry points edit the
+ * same DataStore keys — mirroring the desktop_lyric_* family for the overlay.
+ */
+@Composable
+internal fun PlayerLyricDisplayPreferences() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager.getInstance(context) }
+    val focusPosition by settingsManager.playerLyricFocusPosition
+        .collectAsStateSeeded(initial = SettingsManager.DEFAULT_PLAYER_LYRIC_FOCUS_POSITION)
+    val blockAlign by settingsManager.playerLyricBlockAlign
+        .collectAsStateSeeded(initial = SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP)
+    val unsungOpacity by settingsManager.playerLyricUnsungOpacity
+        .collectAsStateSeeded(initial = SettingsManager.DEFAULT_PLAYER_LYRIC_UNSUNG_OPACITY)
+    val dimmedOpacity by settingsManager.playerLyricDimmedOpacity
+        .collectAsStateSeeded(initial = SettingsManager.DEFAULT_PLAYER_LYRIC_DIMMED_OPACITY)
+    val fauxWordTiming by settingsManager.playerLyricFauxWordTiming.collectAsStateSeeded(initial = false)
+    val blockAlignEntries = listOf(
+        DropdownItem(title = stringResource(R.string.settings_player_lyric_block_align_top)),
+        DropdownItem(title = stringResource(R.string.settings_status_align_center)),
+        DropdownItem(title = stringResource(R.string.settings_player_lyric_block_align_bottom)),
+        DropdownItem(title = stringResource(R.string.settings_player_lyric_block_align_primary))
+    )
+    // Drag previews keep the slider smooth while the ten-thousandths value lands in DataStore.
+    var previewFocusPosition by remember(focusPosition) { mutableStateOf(focusPosition / 100f) }
+    var previewUnsungOpacity by remember(unsungOpacity) { mutableStateOf(unsungOpacity / 10f) }
+    var previewDimmedOpacity by remember(dimmedOpacity) { mutableStateOf(dimmedOpacity / 10f) }
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_focus_position) {
+    SettingsFloatSliderPreference(
+        title = stringResource(R.string.settings_player_lyric_focus_position, previewFocusPosition),
+        summary = stringResource(R.string.settings_player_lyric_focus_position_summary),
+        value = previewFocusPosition,
+        valueRange = 0f..100f,
+        steps = 0,
+        decimalPlaces = 2,
+        valueText = String.format(java.util.Locale.US, "%.2f%%", previewFocusPosition),
+        onValueChange = { value ->
+            previewFocusPosition = value
+            scope.launch {
+                settingsManager.setPlayerLyricFocusPosition((value * 100f).roundToInt())
+            }
+        }
+    )
+    } // search-anchor:end
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_block_align) {
+    EllaSpinnerPreference(
+        title = stringResource(R.string.settings_player_lyric_block_align),
+        summary = stringResource(R.string.settings_player_lyric_block_align_summary),
+        items = blockAlignEntries,
+        selectedIndex = blockAlign.coerceIn(
+            SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP,
+            SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_MAIN
+        ),
+        onSelectedIndexChange = { index ->
+            scope.launch { settingsManager.setPlayerLyricBlockAlign(index) }
+        }
+    )
+    } // search-anchor:end
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_unsung_opacity) {
+    SettingsFloatSliderPreference(
+        title = stringResource(R.string.settings_player_lyric_unsung_opacity, previewUnsungOpacity),
+        summary = stringResource(R.string.settings_player_lyric_unsung_opacity_summary),
+        value = previewUnsungOpacity,
+        valueRange = 0f..100f,
+        steps = 0,
+        decimalPlaces = 1,
+        valueText = String.format(java.util.Locale.US, "%.1f%%", previewUnsungOpacity),
+        onValueChange = { value ->
+            previewUnsungOpacity = value
+            scope.launch { settingsManager.setPlayerLyricUnsungOpacity((value * 10f).roundToInt()) }
+        }
+    )
+    } // search-anchor:end
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_dimmed_opacity) {
+    SettingsFloatSliderPreference(
+        title = stringResource(R.string.settings_player_lyric_dimmed_opacity, previewDimmedOpacity),
+        summary = stringResource(R.string.settings_player_lyric_dimmed_opacity_summary),
+        value = previewDimmedOpacity,
+        valueRange = 0f..100f,
+        steps = 0,
+        decimalPlaces = 1,
+        valueText = String.format(java.util.Locale.US, "%.1f%%", previewDimmedOpacity),
+        onValueChange = { value ->
+            previewDimmedOpacity = value
+            scope.launch { settingsManager.setPlayerLyricDimmedOpacity((value * 10f).roundToInt()) }
+        }
+    )
+    } // search-anchor:end
+    // search-anchor:start
+    SettingsSearchAnchor(R.string.settings_player_lyric_faux_word_timing) {
+    SwitchPreference(
+        title = stringResource(R.string.settings_player_lyric_faux_word_timing),
+        summary = stringResource(R.string.settings_player_lyric_faux_word_timing_summary),
+        checked = fauxWordTiming,
+        onCheckedChange = { enabled ->
+            scope.launch { settingsManager.setPlayerLyricFauxWordTiming(enabled) }
+        }
+    )
+    } // search-anchor:end
+}
+
 @Composable
 internal fun SettingsPlayerMiniLyricControls() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val scale by settingsManager.playerMiniLyricScale.collectAsState(initial = 100)
-    val primarySize by settingsManager.playerMiniLyricPrimarySize.collectAsState(initial = 19)
-    val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsState(initial = 14)
-    val lineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsState(initial = 7)
-    val textAlign by settingsManager.playerMiniLyricTextAlign.collectAsState(initial = 0)
+    val scale by settingsManager.playerMiniLyricScale.collectAsStateSeeded(initial = 100)
+    val primarySize by settingsManager.playerMiniLyricPrimarySize.collectAsStateSeeded(initial = 19)
+    val secondarySize by settingsManager.playerMiniLyricSecondarySize.collectAsStateSeeded(initial = 14)
+    val lineSpacing by settingsManager.playerMiniLyricLineSpacing.collectAsStateSeeded(initial = 7)
+    val textAlign by settingsManager.playerMiniLyricTextAlign.collectAsStateSeeded(initial = 0)
     val alignLabels = listOf(
         stringResource(R.string.settings_status_align_left),
         stringResource(R.string.settings_status_align_center),
@@ -651,7 +777,7 @@ internal fun SettingsPlayerMiniLyricControls() {
     )
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = alignLabels.map { DropdownItem(title = it) },
@@ -717,7 +843,7 @@ private fun SettingsPlayerLyricAlignmentPreference() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val playerLyricTextAlign by settingsManager.playerLyricTextAlign.collectAsState(initial = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT)
+    val playerLyricTextAlign by settingsManager.playerLyricTextAlign.collectAsStateSeeded(initial = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT)
     val labels = listOf(
         stringResource(R.string.settings_status_align_left),
         stringResource(R.string.settings_status_align_center),
@@ -728,7 +854,7 @@ private fun SettingsPlayerLyricAlignmentPreference() {
     }
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_player_lyric_text_align) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_player_lyric_text_align),
         summary = stringResource(R.string.settings_player_lyric_text_align_summary),
         items = entries,

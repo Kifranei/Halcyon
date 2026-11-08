@@ -52,9 +52,9 @@ import top.yukonga.miuix.kmp.basic.VerticalSlider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
@@ -71,55 +71,55 @@ fun EqualizerScreen(
     val pageBackground = com.ella.music.ui.components.ellaPageBackground()
 
     val capabilities by AudioEffectState.capabilities.collectAsState()
-    val eqEnabled by settingsManager.eqEnabled.collectAsState(initial = false)
-    val eqPreset by settingsManager.eqPreset.collectAsState(initial = AudioEffectSettings.PRESET_CUSTOM)
-    val bandLevels by settingsManager.eqBandLevelsMb.collectAsState(initial = emptyList())
-    val masterGainEnabled by settingsManager.masterGainEnabled.collectAsState(initial = false)
-    val masterGainTenthsDb by settingsManager.masterGainTenthsDb.collectAsState(initial = 0)
-    val eqQ by settingsManager.eqQ.collectAsState(initial = AudioEffectSettings.EQ_Q_DEFAULT)
-    val toneBassDb by settingsManager.toneBassDb.collectAsState(initial = 0)
-    val toneTrebleDb by settingsManager.toneTrebleDb.collectAsState(initial = 0)
-    val compressorEnabled by settingsManager.compressorEnabled.collectAsState(initial = false)
-    val compressorThresholdDb by settingsManager.compressorThresholdDb.collectAsState(initial = -18)
-    val compressorRatio by settingsManager.compressorRatio.collectAsState(initial = 2)
-    val compressorMakeupDb by settingsManager.compressorMakeupDb.collectAsState(initial = 0)
-    val stereoWidth by settingsManager.stereoWidth.collectAsState(initial = 100)
-    val surround360Enabled by settingsManager.surround360Enabled.collectAsState(initial = false)
-    val surround360Intensity by settingsManager.surround360Intensity.collectAsState(initial = 50)
-    val surround360RotationSpeed by settingsManager.surround360RotationSpeed.collectAsState(initial = 30)
-    val panoramic360Enabled by settingsManager.panoramic360Enabled.collectAsState(initial = false)
-    val panoramic360Intensity by settingsManager.panoramic360Intensity.collectAsState(initial = 50)
-    val panoramic360AzimuthDegrees by settingsManager.panoramic360AzimuthDegrees.collectAsState(initial = 0)
-    val panoramic360ElevationDegrees by settingsManager.panoramic360ElevationDegrees.collectAsState(initial = 0)
-    val loudnessBalanceEnabled by settingsManager.loudnessBalanceEnabled.collectAsState(initial = false)
-    val loudnessPercent by settingsManager.loudnessPercent.collectAsState(initial = 35)
-    val channelBalance by settingsManager.channelBalance.collectAsState(initial = 0)
-    val crossfeedEnabled by settingsManager.crossfeedEnabled.collectAsState(initial = false)
-    val crossfeedLowCutHz by settingsManager.crossfeedLowCutHz.collectAsState(initial = 300)
-    val crossfeedHighCutHz by settingsManager.crossfeedHighCutHz.collectAsState(initial = 2_000)
-    val crossfeedAttenuationTenthsDb by settingsManager.crossfeedAttenuationTenthsDb.collectAsState(initial = 60)
-    val monoBassEnabled by settingsManager.monoBassEnabled.collectAsState(initial = false)
-    val monoBassCrossoverHz by settingsManager.monoBassCrossoverHz.collectAsState(initial = 120)
-    val monoBassAmount by settingsManager.monoBassAmount.collectAsState(initial = 100)
-    val speakerOutputEnabled by settingsManager.speakerOutputEnabled.collectAsState(initial = false)
-    val speakerOutputMode by settingsManager.speakerOutputMode.collectAsState(initial = AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY)
-    val speakerOutputStrength by settingsManager.speakerOutputStrength.collectAsState(initial = 82)
-    val dynamicEqEnabled by settingsManager.dynamicEqEnabled.collectAsState(initial = false)
-    val dynamicEqIntensity by settingsManager.dynamicEqIntensity.collectAsState(initial = 50)
-    val deEsserAmount by settingsManager.deEsserAmount.collectAsState(initial = 45)
-    val deEsserFrequencyHz by settingsManager.deEsserFrequencyHz.collectAsState(initial = 6_500)
-    val moogLadderEnabled by settingsManager.moogLadderEnabled.collectAsState(initial = false)
-    val moogLadderMode by settingsManager.moogLadderMode.collectAsState(initial = AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24)
-    val moogLadderCutoffHz by settingsManager.moogLadderCutoffHz.collectAsState(initial = 12_000)
-    val moogLadderResonance by settingsManager.moogLadderResonance.collectAsState(initial = 20)
-    val moogLadderDriveDb by settingsManager.moogLadderDriveDb.collectAsState(initial = 0)
-    val moogLadderMix by settingsManager.moogLadderMix.collectAsState(initial = 100)
-    val peakLimiterEnabled by settingsManager.peakLimiterEnabled.collectAsState(initial = true)
-    val platformSpatialRequested by settingsManager.platformSpatialAudioEnabled.collectAsState(initial = false)
+    val eqEnabled by settingsManager.eqEnabled.collectAsStateSeeded(initial = false)
+    val eqPreset by settingsManager.eqPreset.collectAsStateSeeded(initial = AudioEffectSettings.PRESET_CUSTOM)
+    val bandLevels by settingsManager.eqBandLevelsMb.collectAsStateSeeded(initial = emptyList())
+    val masterGainEnabled by settingsManager.masterGainEnabled.collectAsStateSeeded(initial = false)
+    val masterGainTenthsDb by settingsManager.masterGainTenthsDb.collectAsStateSeeded(initial = 0)
+    val eqQ by settingsManager.eqQ.collectAsStateSeeded(initial = AudioEffectSettings.EQ_Q_DEFAULT)
+    val toneBassDb by settingsManager.toneBassDb.collectAsStateSeeded(initial = 0)
+    val toneTrebleDb by settingsManager.toneTrebleDb.collectAsStateSeeded(initial = 0)
+    val compressorEnabled by settingsManager.compressorEnabled.collectAsStateSeeded(initial = false)
+    val compressorThresholdDb by settingsManager.compressorThresholdDb.collectAsStateSeeded(initial = -18)
+    val compressorRatio by settingsManager.compressorRatio.collectAsStateSeeded(initial = 2)
+    val compressorMakeupDb by settingsManager.compressorMakeupDb.collectAsStateSeeded(initial = 0)
+    val stereoWidth by settingsManager.stereoWidth.collectAsStateSeeded(initial = 100)
+    val surround360Enabled by settingsManager.surround360Enabled.collectAsStateSeeded(initial = false)
+    val surround360Intensity by settingsManager.surround360Intensity.collectAsStateSeeded(initial = 50)
+    val surround360RotationSpeed by settingsManager.surround360RotationSpeed.collectAsStateSeeded(initial = 30)
+    val panoramic360Enabled by settingsManager.panoramic360Enabled.collectAsStateSeeded(initial = false)
+    val panoramic360Intensity by settingsManager.panoramic360Intensity.collectAsStateSeeded(initial = 50)
+    val panoramic360AzimuthDegrees by settingsManager.panoramic360AzimuthDegrees.collectAsStateSeeded(initial = 0)
+    val panoramic360ElevationDegrees by settingsManager.panoramic360ElevationDegrees.collectAsStateSeeded(initial = 0)
+    val loudnessBalanceEnabled by settingsManager.loudnessBalanceEnabled.collectAsStateSeeded(initial = false)
+    val loudnessPercent by settingsManager.loudnessPercent.collectAsStateSeeded(initial = 35)
+    val channelBalance by settingsManager.channelBalance.collectAsStateSeeded(initial = 0)
+    val crossfeedEnabled by settingsManager.crossfeedEnabled.collectAsStateSeeded(initial = false)
+    val crossfeedLowCutHz by settingsManager.crossfeedLowCutHz.collectAsStateSeeded(initial = 300)
+    val crossfeedHighCutHz by settingsManager.crossfeedHighCutHz.collectAsStateSeeded(initial = 2_000)
+    val crossfeedAttenuationTenthsDb by settingsManager.crossfeedAttenuationTenthsDb.collectAsStateSeeded(initial = 60)
+    val monoBassEnabled by settingsManager.monoBassEnabled.collectAsStateSeeded(initial = false)
+    val monoBassCrossoverHz by settingsManager.monoBassCrossoverHz.collectAsStateSeeded(initial = 120)
+    val monoBassAmount by settingsManager.monoBassAmount.collectAsStateSeeded(initial = 100)
+    val speakerOutputEnabled by settingsManager.speakerOutputEnabled.collectAsStateSeeded(initial = false)
+    val speakerOutputMode by settingsManager.speakerOutputMode.collectAsStateSeeded(initial = AudioEffectSettings.SPEAKER_OUTPUT_MODE_ELASTICITY)
+    val speakerOutputStrength by settingsManager.speakerOutputStrength.collectAsStateSeeded(initial = 82)
+    val dynamicEqEnabled by settingsManager.dynamicEqEnabled.collectAsStateSeeded(initial = false)
+    val dynamicEqIntensity by settingsManager.dynamicEqIntensity.collectAsStateSeeded(initial = 50)
+    val deEsserAmount by settingsManager.deEsserAmount.collectAsStateSeeded(initial = 45)
+    val deEsserFrequencyHz by settingsManager.deEsserFrequencyHz.collectAsStateSeeded(initial = 6_500)
+    val moogLadderEnabled by settingsManager.moogLadderEnabled.collectAsStateSeeded(initial = false)
+    val moogLadderMode by settingsManager.moogLadderMode.collectAsStateSeeded(initial = AudioEffectSettings.MOOG_LADDER_MODE_LOW_PASS_24)
+    val moogLadderCutoffHz by settingsManager.moogLadderCutoffHz.collectAsStateSeeded(initial = 12_000)
+    val moogLadderResonance by settingsManager.moogLadderResonance.collectAsStateSeeded(initial = 20)
+    val moogLadderDriveDb by settingsManager.moogLadderDriveDb.collectAsStateSeeded(initial = 0)
+    val moogLadderMix by settingsManager.moogLadderMix.collectAsStateSeeded(initial = 100)
+    val peakLimiterEnabled by settingsManager.peakLimiterEnabled.collectAsStateSeeded(initial = true)
+    val platformSpatialRequested by settingsManager.platformSpatialAudioEnabled.collectAsStateSeeded(initial = false)
     val platformSpatialSnapshot = remember(platformSpatialRequested, surround360Enabled, panoramic360Enabled) {
         com.ella.music.player.AndroidSpatialAudio.snapshot(context)
     }
-    val reverbPreset by settingsManager.reverbPreset.collectAsState(initial = AudioEffectSettings.REVERB_PRESET_OFF)
+    val reverbPreset by settingsManager.reverbPreset.collectAsStateSeeded(initial = AudioEffectSettings.REVERB_PRESET_OFF)
 
     val accent = MiuixTheme.colorScheme.primary
 
@@ -128,18 +128,16 @@ fun EqualizerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
             backdrop = settingsBackdrop,
             modifier = Modifier.zIndex(1f),
-            defaultWindowInsetsPadding = false,
             title = stringResource(R.string.equalizer_screen_title),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -155,6 +153,7 @@ fun EqualizerScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp)
         ) {
+            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
             Spacer(modifier = Modifier.height(56.dp))
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -210,7 +209,7 @@ fun EqualizerScreen(
                         val selectedPresetIndex = if (eqPreset in caps.presetBandLevelsMb.indices) eqPreset + 1 else 0
                         // search-anchor:start
                         SettingsSearchAnchor(R.string.equalizer_preset) {
-                        WindowSpinnerPreference(
+                        EllaSpinnerPreference(
                             title = stringResource(R.string.equalizer_preset),
                             items = presetItems,
                             selectedIndex = selectedPresetIndex,
@@ -503,7 +502,7 @@ fun EqualizerScreen(
                         if (moogLadderEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.equalizer_moog_ladder_mode, R.string.equalizer_moog_ladder_cutoff, R.string.equalizer_moog_ladder_resonance, R.string.equalizer_moog_ladder_drive, R.string.equalizer_moog_ladder_mix)) {
                             // search-anchor:start
                             SettingsSearchAnchor(R.string.equalizer_moog_ladder_mode) {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.equalizer_moog_ladder_mode),
                                 items = moogLadderModeEntries(),
                                 selectedIndex = moogLadderMode,
@@ -896,7 +895,7 @@ fun EqualizerScreen(
                         if (speakerOutputEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.equalizer_speaker_mode, R.string.equalizer_speaker_strength)) {
                             // search-anchor:start
                             SettingsSearchAnchor(R.string.equalizer_speaker_mode) {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.equalizer_speaker_mode),
                                 items = speakerOutputModeEntries(),
                                 selectedIndex = speakerOutputMode,
@@ -934,7 +933,7 @@ fun EqualizerScreen(
                         .coerceAtLeast(0)
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.equalizer_reverb) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.equalizer_reverb),
                         items = reverbEntries.map { DropdownItem(title = it.second) },
                         selectedIndex = selectedReverbIndex,

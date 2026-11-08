@@ -3,8 +3,13 @@ package com.ella.music.ui.player
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
@@ -115,7 +120,27 @@ internal fun PlayerLandscapeOverlayHost(
                 musicVideoCustomFolders = musicVideoCustomFolders)?.takeUnless { it.failureKey == dynamicCoverFailedPath }
         }
     }
-    val landscapeDynamicCoverSource = if (useMusicVideoBackground) musicVideoSource else coverSource
+    // The portrait MV decoder is removed in the same frame this host appears. Wait until
+    // that player has released its codec before opening another one, otherwise the new
+    // surface fails and fullscreen shows only the lyric pane.
+    var previousDecoderReleased by remember(dynamicCoverSongKey, useMusicVideoBackground) {
+        mutableStateOf(!useMusicVideoBackground)
+    }
+    LaunchedEffect(dynamicCoverSongKey, useMusicVideoBackground) {
+        if (!useMusicVideoBackground) {
+            previousDecoderReleased = true
+        } else {
+            previousDecoderReleased = false
+            withFrameNanos { }
+            withFrameNanos { }
+            previousDecoderReleased = true
+        }
+    }
+    val landscapeDynamicCoverSource = when {
+        useMusicVideoBackground && !previousDecoderReleased -> null
+        useMusicVideoBackground -> musicVideoSource
+        else -> coverSource
+    }
     if (layoutStyle == SettingsManager.PLAYER_LANDSCAPE_STYLE_CLASSIC_SPLIT) {
         ClassicSplitLandscapePlayer(song, embeddedCover, paletteBitmap, beautifulLyricsBackground, landscapeDynamicCoverSource,
             isPlaying, currentPosition, palette, lyrics, currentLyricIndex,

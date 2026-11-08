@@ -43,6 +43,7 @@ import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.ScanRefreshIconButton
+import com.ella.music.ui.components.SettingsEditSheet
 import com.ella.music.ui.components.LocalSettingsCardFrosting
 import com.ella.music.ui.components.frostedCardColor
 import com.ella.music.ui.components.frostedCardModifier
@@ -51,9 +52,11 @@ import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Folder
@@ -507,14 +510,38 @@ internal fun BlockedFoldersDialog(
     folders: List<String>,
     onDismiss: () -> Unit,
     onRemove: (String) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onAdd: (String) -> Unit
 ) {
+    var addOpen by remember { mutableStateOf(false) }
     EllaMiuixBottomSheet(
         show = true,
         title = stringResource(R.string.folder_blocked_folders),
         onDismissRequest = onDismiss
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .combinedClickable(onClick = { addOpen = true })
+                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Add,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = stringResource(R.string.folder_blocked_add),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.primary
+                )
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -551,6 +578,28 @@ internal fun BlockedFoldersDialog(
                 ),
                 modifier = Modifier.padding(top = 12.dp)
             )
+        }
+    }
+    if (addOpen) {
+        var path by remember { mutableStateOf("") }
+        SettingsEditSheet(
+            show = true,
+            title = stringResource(R.string.folder_blocked_add),
+            saveEnabled = path.isNotBlank(),
+            onDismissRequest = { addOpen = false },
+            onSave = {
+                onAdd(path.trim())
+                addOpen = false
+            }
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                TextField(
+                    value = path,
+                    onValueChange = { path = it },
+                    label = stringResource(R.string.folder_blocked_add_hint),
+                    singleLine = true
+                )
+            }
         }
     }
 }

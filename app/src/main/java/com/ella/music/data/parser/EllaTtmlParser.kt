@@ -633,8 +633,8 @@ private fun Element.collectTimedPronunciationWords(fallbackEnd: Long?, clock: Tt
         .filter { candidate ->
             candidate.allElements().drop(1).none { it.timeAttr("begin", clock) != null }
         }
-    val candidates = if (timedSpans.isNotEmpty()) timedSpans else listOf(this)
-    return candidates.mapNotNull { span ->
+    if (timedSpans.isEmpty()) return emptyList()
+    return timedSpans.mapNotNull { span ->
         val value = span.textContent
             .orEmpty()
             .cleanLyricSecondaryText()

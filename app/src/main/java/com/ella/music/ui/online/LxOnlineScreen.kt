@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,6 +59,7 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.BasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -64,8 +67,10 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -299,19 +304,21 @@ fun LxOnlineScreen(
         return navidromeService.resolveDownloadableSong(item, sourceConfig)
     }
 
+    val pageBackground = ellaPageBackground()
+    val onlineBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = onlineBackdrop,
             title = titleOverride ?: selectedProvider.displayName(context),
-            color = Color.Transparent,
+            color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -333,33 +340,68 @@ fun LxOnlineScreen(
         val sourceCardColor = onlineSourceCardColor()
 
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-            Spacer(modifier = Modifier.height(8.dp))
-
             Card(
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier.padding(vertical = 2.dp),
                 colors = CardDefaults.defaultColors(color = sourceCardColor),
                 onClick = onNavigateToSourceSettings
             ) {
-                BasicComponent(
-                    title = when (selectedProvider) {
-                        RemoteMusicProvider.Lx -> selectedSource?.name ?: stringResource(R.string.lx_online_no_source_selected)
-                        RemoteMusicProvider.Navidrome -> stringResource(R.string.remote_source_navidrome)
-                        RemoteMusicProvider.OpenSubsonic -> stringResource(R.string.remote_source_opensubsonic)
-                        RemoteMusicProvider.Emby -> stringResource(R.string.remote_source_emby)
-                    },
-                    summary = when (selectedProvider) {
-                        RemoteMusicProvider.Lx -> selectedSource?.url ?: stringResource(R.string.lx_online_no_source_hint)
-                        RemoteMusicProvider.Navidrome -> navidromeConfig.baseUrl.ifBlank { stringResource(R.string.remote_source_not_configured) }
-                        RemoteMusicProvider.OpenSubsonic -> openSubsonicConfig.baseUrl.ifBlank { stringResource(R.string.remote_source_not_configured) }
-                        RemoteMusicProvider.Emby -> embyConfig.serverName.ifBlank { embyConfig.baseUrl }.ifBlank { stringResource(R.string.remote_source_not_configured) }
-                    },
-                )
+                if (selectedProvider == RemoteMusicProvider.Lx) {
+                    val hasSource = selectedSource != null
+                    OnlineSourceCardBody(
+                        title = selectedSource?.name ?: stringResource(R.string.lx_online_no_source_selected),
+                        showDot = hasSource,
+                        dotColor = when {
+                            platformDetectionError -> OnlineSourceErrorColor
+                            !hasSource || declaredPlatforms == null -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            else -> OnlineSourceOkColor
+                        },
+                        statusWord = when {
+                            !hasSource -> stringResource(R.string.lx_online_no_source_hint)
+                            platformDetectionError -> stringResource(R.string.lx_platform_detection_failed)
+                            declaredPlatforms == null -> stringResource(R.string.lx_source_processing)
+                            else -> stringResource(R.string.lx_source_status_running)
+                        },
+                        statusRest = if (hasSource && !platformDetectionError) {
+                            listOfNotNull(
+                                scriptCreditSummary(selectedSource.script),
+                                declaredPlatforms?.let { "${availablePlatforms.size}/${LxSearchPlatform.entries.size}" }
+                            ).joinToString(" · ")
+                        } else "",
+                        tags = if (declaredPlatforms != null) {
+                            availablePlatforms.map { it.displayName.substringBefore("（") }
+                        } else emptyList()
+                    )
+                } else {
+                    val sourceSummary = when (selectedProvider) {
+                        RemoteMusicProvider.Navidrome -> if (navidromeConfig.baseUrl.isBlank()) stringResource(R.string.remote_source_not_configured) else null
+                        RemoteMusicProvider.OpenSubsonic -> if (openSubsonicConfig.baseUrl.isBlank()) stringResource(R.string.remote_source_not_configured) else null
+                        RemoteMusicProvider.Emby -> when {
+                            embyConfig.serverName.isNotBlank() -> embyConfig.serverName
+                            embyConfig.baseUrl.isBlank() -> stringResource(R.string.remote_source_not_configured)
+                            else -> null
+                        }
+                        RemoteMusicProvider.Lx -> null
+                    }
+                    BasicComponent(
+                        title = when (selectedProvider) {
+                            RemoteMusicProvider.Navidrome -> stringResource(R.string.remote_source_navidrome)
+                            RemoteMusicProvider.OpenSubsonic -> stringResource(R.string.remote_source_opensubsonic)
+                            RemoteMusicProvider.Emby -> stringResource(R.string.remote_source_emby)
+                            RemoteMusicProvider.Lx -> ""
+                        },
+                        summary = sourceSummary,
+                        insideMargin = if (sourceSummary == null) {
+                            PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                        } else {
+                            BasicComponentDefaults.InsideMargin
+                        }
+                    )
+                }
             }
 
-            if (selectedProvider == RemoteMusicProvider.Lx && (unsupportedPlatforms.isNotEmpty() || platformDetectionError)) {
+            if (selectedProvider == RemoteMusicProvider.Lx && unsupportedPlatforms.isNotEmpty()) {
                 Text(
-                    text = if (platformDetectionError) stringResource(R.string.lx_platform_detection_failed)
-                    else stringResource(R.string.lx_platforms_unavailable, unsupportedPlatforms.joinToString(", ")),
+                    text = stringResource(R.string.lx_platforms_unavailable, unsupportedPlatforms.joinToString(", ")),
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
@@ -397,7 +439,7 @@ fun LxOnlineScreen(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
 
@@ -414,7 +456,7 @@ fun LxOnlineScreen(
                     )
                 }
             } else if (showingRemote) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.fillMaxSize().layerBackdrop(onlineBackdrop)) {
                     items(remoteResults, key = { it.song.id }) { item ->
                         SongItem(
                             song = item.song,
@@ -493,7 +535,7 @@ fun LxOnlineScreen(
                     state.isBusy || selectedSource == null || loadedSources == null) {
                     searchSelectedProvider(automatic = it, loadMore = true)
                 }
-                LazyColumn(state = resultsListState, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(state = resultsListState, modifier = Modifier.fillMaxSize().layerBackdrop(onlineBackdrop)) {
                     items(state.results, key = { it.song.id }) { item ->
                         SongItem(
                             song = item.song,
@@ -602,9 +644,45 @@ private suspend fun downloadLxSong(
 ) {
     val fileName = item.song.fileName.ifBlank { "${item.song.title}-${item.song.artist}.mp3" }
         .sanitizeExportFileName(fallback = "Halcyon.mp3", maxLength = 160)
-    val target = java.io.File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
-        "Halcyon/$fileName"
-    )
-    service.downloadWithMetadata(item, sourceScript, target)
+    val customFolder = com.ella.music.data.SettingsManager.getInstance(context)
+        .songDownloadLocation.first().takeIf { it != "default" }.orEmpty()
+    if (customFolder.isBlank()) {
+        val target = java.io.File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+            "Halcyon/$fileName"
+        )
+        service.downloadWithMetadata(item, sourceScript, target)
+        return
+    }
+    // A SAF/custom destination cannot be a direct File target: tag a staged file first, then
+    // publish it through MediaExportStorage like the NetEase download service does.
+    val staging = java.io.File(context.cacheDir, "lx-download-${java.util.UUID.randomUUID()}.part")
+    try {
+        val downloaded = service.downloadWithMetadata(item, sourceScript, staging)
+        val mime = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(downloaded.extension)
+            ?: item.song.mimeType.ifBlank { "audio/mpeg" }
+        try {
+            val uri = com.ella.music.data.MediaExportStorage.write(
+                context, downloaded.name, mime,
+                "${Environment.DIRECTORY_MUSIC}/Halcyon/", customFolder
+            ) { out -> downloaded.inputStream().use { it.copyTo(out) } }
+            if (!customFolder.startsWith("content://")) {
+                uri.path?.let {
+                    android.media.MediaScannerConnection.scanFile(context, arrayOf(it), arrayOf(mime), null)
+                }
+            }
+        } finally {
+            // downloadWithMetadata registered the staging path in MediaStore; drop that row so
+            // the library never sees a deleted cache file.
+            context.contentResolver.delete(
+                android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                android.provider.MediaStore.MediaColumns.DATA + " = ?",
+                arrayOf(downloaded.absolutePath)
+            )
+            downloaded.delete()
+        }
+    } finally {
+        staging.delete()
+    }
 }

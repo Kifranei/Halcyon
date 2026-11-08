@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -22,12 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.repository.MusicRepository
@@ -83,6 +86,9 @@ internal fun LyricsPlayerPage(
     onLineClick: (LyricLine) -> Unit,
     onLineDoubleClick: () -> Unit,
     onLineLongClick: (LyricLine) -> Unit,
+    /** #727: opening blank-lyric scrubs preview through the seek bar and commit on release. */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     onDismissLyrics: () -> Unit,
     onTogglePronunciation: () -> Unit,
     onToggleTranslation: () -> Unit,
@@ -95,6 +101,7 @@ internal fun LyricsPlayerPage(
     onLyricSourceMode: (Int) -> Unit,
     onLyricFormatPreference: (Boolean) -> Unit,
     onArtist: () -> Unit,
+    onOpenAlbum: () -> Unit = {},
     onPrimaryTextSize: (Float) -> Unit,
     onSecondaryTextSize: (Float) -> Unit,
     enableSwipeDismiss: Boolean,
@@ -109,6 +116,15 @@ internal fun LyricsPlayerPage(
     val activeAgentLabel = remember(lyrics, currentPosition) {
         lyrics.activeTtmlAgentLabel(currentPosition)
     }
+    // #781 当前行歌词位置: user-tunable focus anchor stored in ten-thousandths of the viewport.
+    val lyricFocusContext = LocalContext.current
+    val lyricFocusPosition by remember(lyricFocusContext) {
+        SettingsManager.getInstance(lyricFocusContext).playerLyricFocusPosition
+    }.collectAsState(
+        initial = LocalAppleMusicLyricsViewPreferences.current?.focusPosition
+            ?: SettingsManager.DEFAULT_PLAYER_LYRIC_FOCUS_POSITION
+    )
+    val lyricFocusRatio = lyricFocusPosition / 10_000f
 
     val swipeDismissModifier = if (enableSwipeDismiss) {
         Modifier.pointerInput(onDismissLyrics) {
@@ -170,6 +186,7 @@ internal fun LyricsPlayerPage(
                 isFavorite = isFavorite,
                 onDismissLyrics = onDismissLyrics,
                 onArtist = onArtist,
+                onOpenAlbum = onOpenAlbum,
                 onToggleFavorite = onToggleFavorite,
                 onShowMenu = { lyricMenuExpanded = true },
                 fontFamily = fontFamily,
@@ -221,11 +238,13 @@ internal fun LyricsPlayerPage(
                             onLineClick = onLineClick,
                             onLineDoubleClick = onLineDoubleClick,
                             onLineLongClick = onLineLongClick,
+                            onOpeningLyricPreview = onOpeningLyricPreview,
+                            onOpeningLyricCommit = onOpeningLyricCommit,
                             nonCurrentLineBlurEnabled = true,
                             topContentPadding = 72.dp,
                             bottomContentPadding = 72.dp,
                             useFocusLeadingPadding = false,
-                            focusOffsetRatio = resolveLyricPageFocusOffsetRatio(0.24f),
+                            focusOffsetRatio = resolveLyricPageFocusOffsetRatio(lyricFocusRatio),
                             modifier = Modifier.fillMaxSize()
                         )
                     }

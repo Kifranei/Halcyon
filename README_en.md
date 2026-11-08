@@ -104,6 +104,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Navidrome / Emby remote music libraries support paginated loading and whole-library caching; Navidrome libraries exceeding 500 tracks continue to load in batches.
 - Import user-supplied online source plugins (no sources are bundled) for online search, playback, cover/lyric retrieval, and local downloading.
 - Search sources are generated from the platforms each plugin declares; plugins can be imported from local files, links, or plugin repositories.
+- New account-source plugins (Source Plugin API v1): user-supplied JavaScript scripts run in a QuickJS sandbox with cookie, QR-code, or anonymous sign-in. Once signed in, a plugin acts as a full library source like the NetEase account — favorites and playlist sync, search, playback, lyrics, recent plays, daily recommendations, comments, and MVs. A documented contract template plus Kuwo, Kugou, QQ Music, Migu and Soda Music reference implementations live in `plugins/` (standalone repo: [halcyon-online-plugin](https://github.com/Kifranei/halcyon-online-plugin)).
 - Provides a local Web Music Service Beta to browse, play, and upload music via a browser within a trusted LAN. Currently unauthenticated; do not expose on public networks or forwarded ports.
 
 ### 🎚 Audio Effects, Decoding, Tags & Quality
@@ -117,12 +118,12 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Offers System, FFmpeg, and Auto decoding modes for broader ALAC / AAC / M4A compatibility.
 - Supports ReplayGain, shuffle-queue restoration, quality badges, and hi-res format detection up to 24-bit / 96 kHz.
 - Reads embedded source-info tags to extract song, album, artist, and MV identifiers, with navigation to the matching pages using web, app, or custom link templates.
-- Includes local audio tools for format conversion, multi-stream export, and CUE sheet splitting; built-in spectrum viewer integrates with Aspect Pro and Kaspek.
+- Includes local audio tools for format conversion, multi-stream export, and CUE sheet splitting; built-in spectrum viewer can generate spectrum images and can hand off to external spectrum apps such as Aspect Pro, Kaspek, or Salt Audio Analyzer according to the user-selected viewer.
 - Casting page unifies system audio output, Chromecast, and DLNA MediaRenderer; DLNA streams via an in-app local-network media service.
 
 ### 🎨 UI & Integrations
 
-- Built with Miuix 0.9.3 for a MIUI / HyperOS aesthetic, featuring a floating bottom navigation bar, MiniPlayer, blur / Liquid Glass effects, and unified dialog styling; bottom dock supports normal, floating, and iOS-style Liquid Glass, pages support swipe switching, and search bar can be merged into bottom dock custom entry while expanding mini-player to full-width lyric view; launch screen stays dark under dark system theme to prevent white flash.
+- Built with Miuix 0.9.5-beta04 for a MIUI / HyperOS aesthetic, with the 1.3.1 interface moving further toward HyperOS 4 / OS4: floating bottom navigation, a compact MiniPlayer, blur / Liquid Glass components, progressive-blur top bars, floating circular glass buttons, Liquid Glass dialogs, and neutral white glass filter pills; bottom dock supports normal, floating, and iOS-style Liquid Glass, pages support swipe switching, and search bar can be merged into bottom dock custom entry while expanding mini-player to full-width lyric view; launch screen stays dark under dark system theme to prevent white flash.
 - Supports 10 UI languages (newly added Turkish and Arabic with complete RTL mirrored layout adaptation), in-app language switching; global font and lyric Latin font default to Inter Bold, CJK fallback defaults to MiSans Bold; supports app font sizing, UI scaling, GitHub update page, app logging, full data backup/restore, and Prism Music history export; log export bundles device properties, `getprop`, and readable `build.prop`.
 - Backups include artist/album pin states and library display settings; WebDAV prompts when a newer cloud backup exists and allows preconfiguring categories for manual and auto restore.
 - Supports switching app icons, configuring long-press launcher shortcuts, pinning home-category shortcuts, and compact / expanded playback widgets. Widgets keep artwork across process restarts, use a blurred artwork-derived background, show live playback time and controls, and provide a compatibility-layout switch for launcher grids that crop the play-button outline.

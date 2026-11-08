@@ -60,7 +60,7 @@ import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
@@ -81,11 +81,13 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -121,12 +123,14 @@ fun ArtistScreen(
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val showArtistIntroduction by mainViewModel.settingsManager.showArtistIntroduction.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
+    val artistWordmarkFolderUri by mainViewModel.settingsManager.artistWordmarkFolderUri.collectAsState(initial = "")
+    val artistWordmarkUri = rememberArtistCoverUri(artistName, artistWordmarkFolderUri, mainViewModel)
     val dynamicCoverEnabled by mainViewModel.settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val dynamicCoverCustomFolders by mainViewModel.settingsManager.dynamicCoverCustomFolders.collectAsState(initial = emptyList())
     val musicVideoCustomFolders by mainViewModel.settingsManager.musicVideoCustomFolders.collectAsState(initial = emptyList())
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val sortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
     val sortMode = ArtistDetailSongSortMode.entries.getOrElse(sortIndex) { ArtistDetailSongSortMode.Title }
     val albumSortIndex by mainViewModel.settingsManager.artistDetailAlbumSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailAlbumSortIndex)
@@ -140,6 +144,7 @@ fun ArtistScreen(
     var playlistPickerSong by remember { mutableStateOf<Song?>(null) }
     var createPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
@@ -297,6 +302,9 @@ fun ArtistScreen(
     val hasLyricistCategory = remember(songs, artistName) {
         mainViewModel.hasMetadataCategory("lyricist", artistName)
     }
+    val hasProducerCategory = remember(songs, artistName) {
+        mainViewModel.hasMetadataCategory("producer", artistName)
+    }
     val neteaseArtistUrl by produceState<String?>(initialValue = null, artistName, songs) {
         value = mainViewModel.getNeteaseArtistUrlForArtist(artistName)
     }
@@ -316,13 +324,12 @@ fun ArtistScreen(
         }
     }
     val selectedArtistTab = selectedTabTarget.takeIf { it in tabs } ?: ArtistTab.Songs
-    val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
-    val hasArtistJumpActions = hasComposerCategory || hasArrangerCategory || hasLyricistCategory || !neteaseArtistUrl.isNullOrBlank()
+    val listState = com.ella.music.ui.components.rememberDetailListState(artistName)
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
+    val hasArtistJumpActions = hasComposerCategory || hasArrangerCategory || hasLyricistCategory || hasProducerCategory || !neteaseArtistUrl.isNullOrBlank()
     val artistDetailListBodyStartIndex = 3 + if (hasArtistJumpActions) 1 else 0
     val activeArtistListSize = when (selectedArtistTab) {
         ArtistTab.Songs -> sortedArtistSongs.size
@@ -588,13 +595,15 @@ fun ArtistScreen(
     }
 
     LaunchedEffect(scrollToTopRequest) {
-        if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+        if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
     }
 
+    val artistPageBackground = ellaPageBackground()
+    val artistBackdrop = rememberLayerBackdrop()
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
+            .background(artistPageBackground)
     ) {
         // While the library is still loading (remote source / cold start) the songs list can be
         // momentarily empty; show a spinner instead of flashing the empty/"not found" content.
@@ -607,13 +616,14 @@ fun ArtistScreen(
             EllaCenteredLoadingIndicator()
         } else {
         LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, currentSelectionIds, itemIdsByKey = remember(currentSelectionIds, sortedArtistMusicVideos) { currentSelectionIds.associate { (it as Any) to listOf(it) } + sortedArtistMusicVideos.associate { ("${it.song.id}:${it.source.failureKey}" as Any) to listOf(it.song.id) } }),
+            state = activeListState,
+            modifier = Modifier.fillMaxSize().layerBackdrop(artistBackdrop).dragSelectList(activeListState, selection, currentSelectionIds, itemIdsByKey = remember(currentSelectionIds, sortedArtistMusicVideos) { currentSelectionIds.associate { (it as Any) to listOf(it) } + sortedArtistMusicVideos.associate { ("${it.song.id}:${it.source.failureKey}" as Any) to listOf(it.song.id) } }),
             contentPadding = PaddingValues(bottom = 120.dp, end = if (showScrollIndicator) ScrollIndicatorListEndPadding else 0.dp)
         ) {
             item {
                 ArtistHeader(
                     artistName = artistName,
+                    wordmarkModel = artistWordmarkUri,
                     fallbackCoverModel = artistHeaderCoverModel,
                     customCoverAssets = customArtistCoverAssets,
                     dynamicCoverEnabled = dynamicCoverEnabled,
@@ -655,10 +665,12 @@ fun ArtistScreen(
                         hasComposerCategory = hasComposerCategory,
                         hasArrangerCategory = hasArrangerCategory,
                         hasLyricistCategory = hasLyricistCategory,
+                        hasProducerCategory = hasProducerCategory,
                         hasNeteaseArtist = !neteaseArtistUrl.isNullOrBlank(),
                         onComposerClick = { onMetadataCategoryClick("composer", artistName) },
                         onArrangerClick = { onMetadataCategoryClick("arranger", artistName) },
                         onLyricistClick = { onMetadataCategoryClick("lyricist", artistName) },
+                        onProducerClick = { onMetadataCategoryClick("producer", artistName) },
                         onNeteaseClick = { neteaseArtistUrl?.let { com.ella.music.data.netease.NeteaseLinks.openWebUrl(context, it) } },
                         // 艺人百科 follows 网易云歌手页, using the same artist id.
                         onNeteaseWikiClick = neteaseArtistUrl
@@ -968,7 +980,7 @@ fun ArtistScreen(
                     sortMode == ArtistDetailSongSortMode.FileNameDesc,
                 onLetterClick = { letter ->
                     songFastIndexData.firstOrNull { it.first == letter }?.second?.let { itemIndex ->
-                        scope.launch { listState.scrollToItem(itemIndex) }
+                        scope.launch { activeListState.scrollToItem(itemIndex) }
                     }
                 },
                 modifier = Modifier
@@ -977,7 +989,7 @@ fun ArtistScreen(
             )
         } else if (showScrollIndicator) {
             LazyListScrollIndicator(
-                state = listState,
+                state = activeListState,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(top = 88.dp, bottom = 118.dp)
@@ -986,7 +998,10 @@ fun ArtistScreen(
 
         EllaSmallTopAppBar(
             title = "",
-            color = Color.Transparent,
+            color = artistPageBackground,
+            backdrop = artistBackdrop,
+            enableProgressiveBlur = true,
+            titleEndPadding = if (selection.selectionMode) 192.dp else 128.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
@@ -994,9 +1009,9 @@ fun ArtistScreen(
             navigationIcon = {
                 IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
-                        tint = Color.White,
+                        tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(26.dp)
                     )
                 }
@@ -1018,17 +1033,24 @@ fun ArtistScreen(
                             Icon(
                                 imageVector = MiuixIcons.Regular.Share,
                                 contentDescription = stringResource(R.string.common_share),
-                                tint = Color.White,
+                                tint = MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
                         } else {
                             com.ella.music.ui.components.AddToPlaylistActionIcon(
                                 contentDescription = stringResource(R.string.player_add_to_playlist),
-                                tint = Color.White
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         }
                     }
                     if (selectedArtistTab != ArtistTab.MusicVideos) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(
+                            onClick = {
+                                val selected = selectedActionSongs()
+                                if (selected.isNotEmpty()) batchEditSongs = selected
+                            },
+                            tint = MiuixTheme.colorScheme.onSurface,
+                        )
                         IconButton(
                             onClick = {
                                 val selected = selectedActionSongs()
@@ -1040,7 +1062,7 @@ fun ArtistScreen(
                         ) {
                             com.ella.music.ui.components.PlayNextActionIcon(
                                 contentDescription = stringResource(R.string.song_more_play_next),
-                                tint = Color.White
+                                tint = MiuixTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -1071,7 +1093,7 @@ fun ArtistScreen(
                         Icon(
                             imageVector = MiuixIcons.Regular.SelectAll,
                             contentDescription = stringResource(R.string.common_multi_select),
-                            tint = Color.White,
+                            tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1082,7 +1104,7 @@ fun ArtistScreen(
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
                             contentDescription = stringResource(R.string.common_search),
-                            tint = Color.White,
+                            tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1204,7 +1226,7 @@ fun ArtistScreen(
                     )
                     }
                 }
-                    SortDropdownMenu(items = sortItems, tint = Color.White)
+                    SortDropdownMenu(items = sortItems, tint = MiuixTheme.colorScheme.onSurface)
                 }
             }
         )
@@ -1234,7 +1256,7 @@ fun ArtistScreen(
                 text = stringResource(R.string.library_selected_fraction, selection.selectedIds.size, currentSelectionIds.size),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MiuixTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.statusBars)
@@ -1243,7 +1265,7 @@ fun ArtistScreen(
         }
 
         LocateCurrentSongFloatingButton(
-            listState = listState,
+            listState = activeListState,
             currentItemIndex = currentSongItemIndex,
             locateRequest = locateCurrentSongRequest,
             modifier = Modifier
@@ -1262,6 +1284,7 @@ fun ArtistScreen(
                 .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
         )
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         ArtistScreenSurfaces(
             context = context,
             mainViewModel = mainViewModel,
@@ -1391,6 +1414,7 @@ fun ArtistScreen(
                     title = artistPreviewTitle,
                     saveName = artistName,
                     imageKind = com.ella.music.data.ExportImageKind.Artist,
+                    onSearchImage = { com.ella.music.ArtistImageSearchActivity.open(context, artistName) },
                     onDismiss = { artistCoverPreviewVisible = false }
                 )
             }

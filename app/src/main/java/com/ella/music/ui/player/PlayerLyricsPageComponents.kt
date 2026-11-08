@@ -32,7 +32,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -44,6 +44,7 @@ internal fun LyricsPlayerHeader(
     isFavorite: Boolean,
     onDismissLyrics: () -> Unit,
     onArtist: () -> Unit,
+    onOpenAlbum: (() -> Unit)? = null,
     onToggleFavorite: () -> Unit,
     onShowMenu: () -> Unit,
     fontFamily: FontFamily? = null,
@@ -52,6 +53,14 @@ internal fun LyricsPlayerHeader(
     artworkPainter: Painter? = null,
     useAppleIcons: Boolean = false
 ) {
+    // The lyrics header sits outside the player gesture host, so the switches are read here
+    // directly instead of relying on LocalPlayerQuickGestures (#755).
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager.getInstance(context) }
+    val showFavorite by settingsManager.playerShowFavoriteButton.collectAsState(initial = true)
+    val titleMarquee by settingsManager.playerTitleMarquee.collectAsState(initial = true)
+    val subtitleMarquee by settingsManager.playerSubtitleMarquee.collectAsState(initial = true)
+    val titleOpensAlbum by settingsManager.playerTitleOpensAlbum.collectAsState(initial = false)
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -80,17 +89,22 @@ internal fun LyricsPlayerHeader(
             contentColor = LocalPlayerContentColor.current,
             fontFamily = fontFamily,
             onArtistClick = onArtist,
+            onTitleClick = if (titleOpensAlbum) onOpenAlbum else null,
+            titleMarqueeEnabled = titleMarquee,
+            artistMarqueeEnabled = subtitleMarquee,
             modifier = Modifier
                 .weight(1f)
-                .widthIn(max = 230.dp)
+                .widthIn(max = if (showFavorite) 230.dp else androidx.compose.ui.unit.Dp.Unspecified)
         )
         Spacer(modifier = Modifier.width(20.dp))
-        PlayerHeaderAction(
-            kind = PlayerHeaderActionKind.Favorite,
-            selected = isFavorite,
-            useAppleIcons = useAppleIcons,
-            onClick = onToggleFavorite
-        )
+        if (showFavorite) {
+            PlayerHeaderAction(
+                kind = PlayerHeaderActionKind.Favorite,
+                selected = isFavorite,
+                useAppleIcons = useAppleIcons,
+                onClick = onToggleFavorite
+            )
+        }
         PlayerHeaderAction(
             kind = PlayerHeaderActionKind.More,
             useAppleIcons = useAppleIcons,
@@ -149,7 +163,7 @@ internal fun LyricsPlayerMenuSheet(
             {
                 IconButton(onClick = { page = LyricsPlayerMenuPage.Main }) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)

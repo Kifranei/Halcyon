@@ -3,6 +3,10 @@ package com.ella.music.data.netease
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.parser.EllaLyricsParser
+import com.ella.music.data.parser.cleanLyricText
+import com.ella.music.data.parser.hasMultipleSingableUnits
+import com.ella.music.data.parser.isIgnorableLyricText
+import com.ella.music.data.parser.stripWholeLineOnlyWordTiming
 import org.json.JSONObject
 import kotlin.math.abs
 
@@ -28,14 +32,34 @@ internal fun parseNeteaseYrc(raw: String): List<LyricLine> {
         val duration = header.groupValues[2].toLongOrNull() ?: return@mapNotNull null
         val content = header.groupValues[3]
         val markers = wordPattern.findAll(content).toList()
+        if (markers.isEmpty()) {
+            val plainText = content.cleanLyricText()
+            if (plainText.isIgnorableLyricText()) return@mapNotNull null
+            return@mapNotNull LyricLine(
+                timeMs = start,
+                text = plainText,
+                words = emptyList(),
+                hasExplicitWordTiming = false,
+                endMs = (start + duration).takeIf { duration > 0L }
+            )
+        }
         val words = markers.mapIndexedNotNull { index, marker ->
             val time = marker.groupValues[1].toLongOrNull() ?: return@mapIndexedNotNull null
             val length = marker.groupValues[2].toLongOrNull() ?: return@mapIndexedNotNull null
             val text = content.substring(marker.range.last + 1, markers.getOrNull(index + 1)?.range?.first ?: content.length)
             text.takeIf { it.isNotEmpty() }?.let { LyricWord(it, time, time + length) }
         }
-        if (words.isEmpty()) null else LyricLine(start, words.joinToString("") { it.text }, words = words, endMs = start + duration)
-    }.sortedBy { it.timeMs }.toList()
+        if (words.isEmpty()) return@mapNotNull null
+        val joinedText = words.joinToString("") { it.text }
+        val hasWordTiming = words.size > 1 || !joinedText.hasMultipleSingableUnits()
+        LyricLine(
+            timeMs = start,
+            text = joinedText,
+            words = if (hasWordTiming) words else emptyList(),
+            hasExplicitWordTiming = hasWordTiming,
+            endMs = maxOf(start + duration, words.last().endMs)
+        )
+    }.sortedBy { it.timeMs }.toList().stripWholeLineOnlyWordTiming()
 }
 
 internal fun mergeOnlineLyricCompanions(

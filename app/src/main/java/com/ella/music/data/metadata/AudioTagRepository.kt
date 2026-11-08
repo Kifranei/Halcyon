@@ -43,7 +43,11 @@ data class AudioTagInfo(
     val replayGainAlbumGain: String? = null,
     val replayGainAlbumPeak: String? = null,
     val replayGainReferenceLoudness: String? = null,
-    val customTags: Map<String, List<String>> = emptyMap()
+    val customTags: Map<String, List<String>> = emptyMap(),
+    val language: String? = null,
+    val producer: String? = null,
+    /** Stream duration in milliseconds; 0 when the reader could not determine it. */
+    val durationMs: Long = 0L
 )
 
 data class AudioCoverInfo(
@@ -245,11 +249,12 @@ class AudioTagRepository(
     }
 
     private fun AudioTagInfo.hasUsefulTagData(): Boolean =
-        listOf(title, artist, album, albumArtist, composer, arranger, lyricist, genre, year, comment, lyrics, ttmlLyrics, songwriters, copyright, neteaseKey)
+        listOf(title, artist, album, albumArtist, composer, arranger, lyricist, producer, genre, year, comment, lyrics, ttmlLyrics, songwriters, copyright, language, neteaseKey)
             .any { !it.isNullOrBlank() } ||
             trackNumber != null ||
             discNumber != null ||
             rating != null ||
+            durationMs > 0L ||
             customTags.isNotEmpty()
 
     private fun AudioTagInfo.mergeMissingFieldsFrom(other: AudioTagInfo): AudioTagInfo =
@@ -261,13 +266,17 @@ class AudioTagRepository(
             composer = composer.takeIf { !it.isNullOrBlank() } ?: other.composer,
             arranger = arranger.takeIf { !it.isNullOrBlank() } ?: other.arranger,
             lyricist = lyricist.takeIf { !it.isNullOrBlank() } ?: other.lyricist,
+            producer = producer.takeIf { !it.isNullOrBlank() } ?: other.producer,
+            language = language.takeIf { !it.isNullOrBlank() } ?: other.language,
+            copyright = copyright.takeIf { !it.isNullOrBlank() } ?: other.copyright,
             genre = genre.takeIf { !it.isNullOrBlank() } ?: other.genre,
             year = year.takeIf { !it.isNullOrBlank() } ?: other.year,
             trackNumber = trackNumber ?: other.trackNumber,
             discNumber = discNumber ?: other.discNumber,
             lyrics = lyrics.takeIf { !it.isNullOrBlank() } ?: other.lyrics,
             ttmlLyrics = ttmlLyrics.takeIf { !it.isNullOrBlank() } ?: other.ttmlLyrics,
-            songwriters = songwriters.takeIf { !it.isNullOrBlank() } ?: other.songwriters
+            songwriters = songwriters.takeIf { !it.isNullOrBlank() } ?: other.songwriters,
+            durationMs = durationMs.takeIf { it > 0L } ?: other.durationMs
         )
 
     private fun isWavFile(path: String): Boolean =
@@ -285,7 +294,8 @@ class AudioTagRepository(
             genre = genre,
             year = year,
             trackNumber = trackNumber,
-            discNumber = discNumber
+            discNumber = discNumber,
+            durationMs = durationMs
         )
 
     private fun WavMetadata.toAudioQualityInfo(): AudioQualityInfo =
@@ -331,6 +341,7 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
             "ARRANGEMENT",
             "ARRANGE"
         )
+        val resolvedProducer = raw.producerTagValue()
         val resolvedSongwriters = raw.firstTagValue(
             "SONGWRITERS",
             "SONGWRITER",
@@ -365,6 +376,8 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
             ttmlLyrics = resolvedTtml,
             songwriters = resolvedSongwriters,
             copyright = data.copyright,
+            language = data.language,
+            producer = resolvedProducer,
             neteaseKey = resolvedNeteaseKey,
             rating = data.rating,
             replayGainTrackGain = data.replayGainTrackGain,
@@ -372,7 +385,8 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
             replayGainAlbumGain = data.replayGainAlbumGain,
             replayGainAlbumPeak = data.replayGainAlbumPeak,
             replayGainReferenceLoudness = data.replayGainReferenceLoudness,
-            customTags = raw
+            customTags = raw,
+            durationMs = data.durationMilliseconds.toLong()
         )
     }
 
@@ -466,6 +480,9 @@ class LyricoAudioTagReaderWriter(context: Context? = null) : AudioTagReader, Aud
         composer?.let { put("COMPOSER", it) }
         arranger?.let { put("ARRANGER", it) }
         lyricist?.let { put("LYRICIST", it) }
+        producer?.let { put("PRODUCER", it) }
+        copyright?.let { put("COPYRIGHT", it) }
+        language?.let { put("LANGUAGE", it) }
         songwriters?.let {
             put("SONGWRITERS", it)
             put("SONGWRITER", it)
@@ -537,6 +554,44 @@ private fun Map<String, List<String>>.bestNeteaseKey(comment: String?): String? 
 
     return null
 }
+
+internal fun Map<String, List<String>>.producerTagValue(): String? = firstTagValue(
+    "PRODUCER",
+    "PRODUCED BY",
+    "PRODUCEDBY",
+    "TIPL",
+    "IPLS",
+    "©prd",
+    "\u00a9prd"
+)
+
+/** Tags already shown as their own song-info rows, plus frames that are not a custom field. */
+internal fun Map<String, List<String>>.songInfoCustomRows(): List<Pair<String, String>> =
+    entries
+        .mapNotNull { (key, values) ->
+            val value = values.joinToString("; ") { it.trim() }.trim().trim(';').trim()
+            if (value.isBlank() || key.isSongInfoDedicatedTag()) null else key to value
+        }
+        .sortedBy { it.first.uppercase() }
+
+private fun String.isSongInfoDedicatedTag(): Boolean {
+    if (com.lonx.audiotag.model.AudioTagKeys.isReserved(this)) return true
+    val normalized = uppercase().filter { it.isLetterOrDigit() }
+    if (normalized in SONG_INFO_DEDICATED_TAGS) return true
+    return contains("TTML", ignoreCase = true) ||
+        startsWith("REPLAYGAIN", ignoreCase = true) ||
+        normalized.contains("NETEASE") ||
+        normalized.contains("163KEY") ||
+        normalized == "APIC" ||
+        normalized == "COVERART"
+}
+
+private val SONG_INFO_DEDICATED_TAGS = setOf(
+    "ARRANGER", "ARRANGEDBY", "ARRANGEMENT", "ARRANGE",
+    "PRODUCER", "PRODUCEDBY", "TIPL", "IPLS",
+    "LANGUAGE", "TLAN",
+    "COPYRIGHT", "TCOP", "CPRO"
+)
 
 private fun Map<String, List<String>>.firstTagValue(vararg keys: String): String? {
     keys.forEach { requested ->

@@ -39,7 +39,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -226,7 +226,7 @@ internal fun HalfSheetTitle(title: String, onBack: () -> Unit) {
             modifier = Modifier.align(Alignment.CenterStart)
         ) {
             Icon(
-                imageVector = MiuixIcons.Regular.Back,
+                imageVector = GlassChevronBackwardIcon,
                 contentDescription = stringResource(R.string.common_back),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.size(24.dp)

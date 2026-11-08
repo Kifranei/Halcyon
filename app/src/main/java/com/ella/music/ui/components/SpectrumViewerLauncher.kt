@@ -14,7 +14,7 @@ internal object SpectrumViewerLauncher {
     const val ASK_EACH_TIME = "ask_each_time"
     const val ASPECT_PRO = "aspect_pro"
     const val KASPEK = "kaspek"
-    const val HEARUSY = "hearusy"
+    const val SALT = "salt"
     private const val EXTRA_SONG = "spectrum_song"
 
     fun createIntent(context: Context, song: Song): Intent = Intent(context, SpectrumViewerActivity::class.java)
@@ -30,7 +30,7 @@ internal object SpectrumViewerLauncher {
         intent.getStringExtra(EXTRA_SONG)?.let(::JSONObject)?.toSpectrumSong()
     }.getOrNull() ?: context.songFromExternalAudioToolIntent(intent)
 
-    val viewerIds = listOf(BUILTIN, ASPECT_PRO, KASPEK, HEARUSY)
+    val viewerIds = listOf(BUILTIN, ASPECT_PRO, KASPEK, SALT)
 
     suspend fun openSelected(context: Context, song: Song, onAskEachTime: (Song) -> Unit) {
         val selected = SettingsManager.getInstance(context).spectrumViewerId.first()
@@ -45,7 +45,7 @@ internal object SpectrumViewerLauncher {
         when (viewerId) {
             ASPECT_PRO -> openSongSpectrumWithAspectPro(context, song)
             KASPEK -> openSongSpectrumWithKaspek(context, song)
-            HEARUSY -> openSongSpectrumWithHearusy(context, song)
+            SALT -> openSongSpectrumWithSalt(context, song)
             else -> context.startActivity(createIntent(context, song))
         }
     }

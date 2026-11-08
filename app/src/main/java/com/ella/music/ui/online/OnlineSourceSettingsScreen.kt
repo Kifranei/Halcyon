@@ -58,9 +58,11 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Import
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -181,19 +183,21 @@ private fun SourceSettingsScaffold(
     onUrlImport: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val pageBackground = ellaPageBackground()
+    val settingsBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
             title = title,
-            color = Color.Transparent,
+            color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -205,6 +209,7 @@ private fun SourceSettingsScaffold(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .layerBackdrop(settingsBackdrop)
                 .verticalScroll(rememberScrollState())
             .padding(horizontal = 12.dp)
         ) {
@@ -261,7 +266,8 @@ private fun LxSourceManageRow(
 ) {
     SourceManageRow(
         title = source.name,
-        summary = source.url,
+        summary = listOfNotNull(scriptCreditSummary(source.script), source.url.ifBlank { null })
+            .joinToString(" · "),
         selected = selected,
         enabled = enabled,
         onSelect = onSelect,
@@ -442,7 +448,8 @@ private fun MusicFreePluginManageRow(
 ) {
     SourceManageRow(
         title = plugin.name,
-        summary = plugin.url,
+        summary = listOfNotNull(scriptCreditSummary(plugin.script), plugin.url.ifBlank { null })
+            .joinToString(" · "),
         selected = selected,
         enabled = enabled,
         onSelect = onSelect,

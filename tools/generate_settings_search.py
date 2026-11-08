@@ -82,7 +82,7 @@ def generate():
                 elif function == 'SettingsHomeCustomizeSection': target = 'HomeDisplay("")'
             if stem == 'SettingsHomeDisplay' and function == 'LyricSourcePriorityBlock': target = 'Lyrics("")'
             if stem == 'SettingsLyrics':
-                if function in ('SettingsPlayerLyricSizingControls','SettingsPlayerLyricAlignmentPreference'): sheet = 'sizing'
+                if function in ('SettingsPlayerLyricSizingControls','SettingsPlayerLyricAlignmentPreference','PlayerLyricDisplayPreferences'): sheet = 'sizing'
                 elif function == 'SettingsPlayerMiniLyricControls': sheet = 'mini'
             if stem == 'SettingsXiaomiSuperIsland': sheet = 'island'
             summary = re.search(r'\bsummary\s*=\s*stringResource\(\s*R\.string\.(\w+)', args)

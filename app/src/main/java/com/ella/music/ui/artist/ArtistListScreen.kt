@@ -72,7 +72,6 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
@@ -88,15 +87,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 
 private data class ArtistListAggregate(
     val artists: List<Artist> = emptyList(),
@@ -226,13 +228,15 @@ fun ArtistListScreen(
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     val selection = rememberLibrarySelectionState<String>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var artistMenuTarget by remember { mutableStateOf<Artist?>(null) }
+    var batchArtistTarget by remember { mutableStateOf<Artist?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val sortIndex by mainViewModel.settingsManager.artistListSortIndex.collectAsState(initial = LibrarySortUiState.artistListSortIndex)
     val detailSongSortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
@@ -352,6 +356,20 @@ fun ArtistListScreen(
                     }
                 }
         )
+    fun visibleArtistSongSources(): Map<String, String> =
+        playbackSourcesForSongs(
+            filteredArtists.map { artist ->
+                val artistKey = artist.name.tagIdentityKey()
+                CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
+                    val names = if (showAlbumArtists) {
+                        artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
+                    } else {
+                        artistNamesForSong(song, parseFeaturedArtists)
+                    }
+                    names.any { it.tagIdentityKey() == artistKey }
+                }
+            }
+        )
     val filteredArtistKeys = remember(filteredArtists) {
         filteredArtists.map { it.name.tagIdentityKey() }
     }
@@ -396,25 +414,25 @@ fun ArtistListScreen(
         if (selection.rangeTargetId !in visibleKeys) selection.rangeTargetId = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        Box {
+    val pageBackground = ellaPageBackground()
+    val artistBackdrop = rememberLayerBackdrop()
+    Scaffold(
+        containerColor = pageBackground,
+        topBar = {
             EllaSmallTopAppBar(
+                backdrop = artistBackdrop,
+                enableProgressiveBlur = true,
                 title = if (selection.selectionMode) {
                     stringResource(R.string.library_selected_fraction, selection.selectedIds.size, filteredArtists.size)
                 } else {
-                    stringResource(R.string.category_artist)
+                    "${stringResource(R.string.category_artist)} (${filteredArtists.size})"
                 },
-                color = ellaPageBackground(),
+                color = pageBackground,
                 navigationIcon = {
                     if (showBackButton || selection.selectionMode) {
                         IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                             Icon(
-                                imageVector = MiuixIcons.Regular.Back,
+                                imageVector = GlassChevronBackwardIcon,
                                 contentDescription = stringResource(R.string.common_back),
                                 tint = MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
@@ -423,7 +441,7 @@ fun ArtistListScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
+                titleEndPadding = if (selection.selectionMode) 328.dp else 128.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     if (selection.selectionMode) {
@@ -441,6 +459,10 @@ fun ArtistListScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedArtistSongs()
+                            if (selectedSongs.isNotEmpty()) batchEditSongs = selectedSongs
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedArtistSongs()
                             if (selectedSongs.isNotEmpty()) {
@@ -474,6 +496,22 @@ fun ArtistListScreen(
                             )
                         }
                     } else {
+                        if (randomArtistSongs.isNotEmpty()) {
+                            IconButton(onClick = {
+                                playerViewModel.setShuffledPlaylist(
+                                    randomArtistSongs,
+                                    0,
+                                    songSources = visibleArtistSongSources()
+                                )
+                            }) {
+                                Icon(
+                                    imageVector = com.ella.music.ui.home.HomeDailyShuffleIcon,
+                                    contentDescription = stringResource(R.string.shuffle),
+                                    tint = MiuixTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                         IconButton(onClick = {
                             selection.selectionMode = true
                             selection.selectedIds = emptySet()
@@ -553,65 +591,45 @@ fun ArtistListScreen(
                             )
                         )
                     }
+                },
+                bottomContent = {
+                    if (searchExpanded) {
+                        EllaSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { searchQuery = it },
+                            onSearch = { searchExpanded = false },
+                            placeholder = stringResource(R.string.artist_list_search_placeholder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             )
         }
-
-        AnimatedVisibility(
-            visible = sortExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(artistBackdrop)
+                .background(pageBackground)
         ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                ArtistSortMode.entries.forEach { mode ->
-                    Text(
-                        text = stringResource(mode.labelRes),
-                        fontSize = 14.sp,
-                        fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
-                        color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                LibrarySortUiState.artistListSortIndex = mode.ordinal
-                                scope.launch { mainViewModel.settingsManager.setArtistListSortIndex(mode.ordinal) }
-                                sortExpanded = false
-                            }
-                            .padding(vertical = 10.dp)
-                    )
-                }
-            }
-        }
-
-        if (searchExpanded) {
-            EllaSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
-                placeholder = stringResource(R.string.artist_list_search_placeholder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-        }
-
         if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
                 libraryCacheLoaded = libraryCacheLoaded,
                 contentResolved = aggregate != null,
                 isEmpty = filteredArtists.isEmpty()
             )
         ) {
-            EllaCenteredLoadingIndicator()
+            EllaCenteredLoadingIndicator(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()))
         } else if (filteredArtists.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()), contentAlignment = Alignment.Center) {
                 Text(text = stringResource(R.string.artist_list_empty), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
         } else {
             val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-            RestoreListScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                listState = listState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchListState = com.ella.music.ui.components.rememberSearchListState(searchExpanded, searchQuery)
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
                 if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
@@ -621,15 +639,17 @@ fun ArtistListScreen(
             }
             val fastIndexTargets = remember(fastIndexLetters) {
                 buildMap {
-                    fastIndexLetters.forEachIndexed { index, letter -> putIfAbsent(letter, index + 1) }
+                    fastIndexLetters.forEachIndexed { index, letter -> putIfAbsent(letter, index) }
                 }
             }
             val showArtistSideIndex = filteredArtists.size > 30
+            val activeListState = if (searchExpanded) searchListState else listState
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, filteredArtistKeys, itemIdsByKey = remember(filteredArtists) { filteredArtists.associate { (it.name as Any) to listOf(it.name.tagIdentityKey()) } }),
+                    state = activeListState,
+                    modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, filteredArtistKeys, itemIdsByKey = remember(filteredArtists) { filteredArtists.associate { (it.name as Any) to listOf(it.name.tagIdentityKey()) } }),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        top = paddingValues.calculateTopPadding() + 8.dp,
                         end = when {
                             !showArtistSideIndex -> 0.dp
                             sortMode in setOf(ArtistSortMode.Name, ArtistSortMode.NameDesc) -> SideIndexListEndPadding
@@ -638,39 +658,6 @@ fun ArtistListScreen(
                         bottom = 160.dp
                     )
                 ) {
-                    item {
-                        com.ella.music.ui.components.SortSummaryHeader(
-                            text = stringResource(
-                                R.string.artist_list_summary,
-                                filteredArtists.size,
-                                com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                            ),
-                            leadingContent = {
-                                ShuffleAllSummaryButton(
-                                    visible = !selection.selectionMode && randomArtistSongs.isNotEmpty(),
-                                    onClick = {
-                                        playerViewModel.setShuffledPlaylist(
-                                            randomArtistSongs,
-                                            0,
-                                            songSources = playbackSourcesForSongs(
-                                                filteredArtists.map { artist ->
-                                                    val artistKey = artist.name.tagIdentityKey()
-                                                    CategoryResumeKeys.artist(artist.name) to songs.filter { song ->
-                                                        val names = if (showAlbumArtists) {
-                                                            artistNamesForSong(song, parseFeaturedArtists) + splitArtistNames(song.albumArtist)
-                                                        } else {
-                                                            artistNamesForSong(song, parseFeaturedArtists)
-                                                        }
-                                                        names.any { it.tagIdentityKey() == artistKey }
-                                                    }
-                                                }
-                                            )
-                                        )
-                                    }
-                                )
-                            }
-                        )
-                    }
                     items(filteredArtists, key = { it.name }) { artist ->
                         val artistKey = artist.name.tagIdentityKey()
                         val selected = artistKey in selection.selectedIds
@@ -722,7 +709,7 @@ fun ArtistListScreen(
                     )
                 } else if (showArtistSideIndex) {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -741,8 +728,10 @@ fun ArtistListScreen(
                 )
             }
         }
+        }
     }
 
+    com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songsToAdd ->
         EllaMiuixBottomSheet(
             show = true,
@@ -830,11 +819,31 @@ fun ArtistListScreen(
                     ).show()
                     artistMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityActions.searchImage {
+                    com.ella.music.ArtistImageSearchActivity.open(context, artist.name)
+                    artistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchArtistTarget = artist; artistMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForArtist(artist.name)
                     artistMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchArtistTarget?.let { batchArtist ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "artist",
+            category = batchArtist.name,
+            songs = remember(batchArtist.name) { mainViewModel.getSongsForArtist(batchArtist.name) },
+            specs = com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchArtistTarget = null }
         )
     }
 

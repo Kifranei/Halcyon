@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,18 +31,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +58,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.CompositionLocalProvider
@@ -65,7 +69,11 @@ import com.ella.music.ui.components.LocalLibraryMorphLane
 import com.ella.music.ui.components.libraryMorphPart
 import com.ella.music.ui.components.libraryMorphSurface
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -93,7 +101,6 @@ import com.ella.music.ui.components.DirectionalSortField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.SongItem
@@ -102,6 +109,7 @@ import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.rememberSongArtworkState
+import com.ella.music.ui.components.SongRatingIndicator
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
 import com.ella.music.ui.components.ShuffleAllSummaryButton
@@ -114,12 +122,16 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.launchTagEditorOption
 import com.ella.music.ui.components.rememberLibrarySelectionState
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.listmodel.SortDirection
+import com.ella.music.ui.search.duplicateTitleAlbumSongs
 import com.ella.music.ui.search.searchPlaybackSelection
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -136,17 +148,24 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.icon.extended.Undo
 import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withTimeoutOrNull
 
+private const val LibraryListHeaderItemCount = 1
+private const val LibraryListHeaderKey = "library-list-header"
+
 @Composable
-fun LibraryScreen(
+internal fun LibraryScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
+    mainPageState: com.ella.music.MainPageState? = null,
     onNavigateToPlayer: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToSearch: () -> Unit,
@@ -182,6 +201,8 @@ fun LibraryScreen(
     }
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val context = LocalContext.current
+    val libraryFocusManager = LocalFocusManager.current
+    val libraryKeyboardController = LocalSoftwareKeyboardController.current
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
@@ -211,14 +232,15 @@ fun LibraryScreen(
     val pageBackground = ellaPageBackground()
     val wallpaperVisible = isAppWallpaperVisible()
     val libraryPageBackground = pageBackground
+    val libraryBackdrop = rememberLayerBackdrop()
     val searchBarColor = if (wallpaperVisible) {
         MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.74f)
     } else {
         MiuixTheme.colorScheme.surfaceContainerHigh
     }
 
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var ratingFilter by remember { mutableStateOf(HomeRatingFilterUiState.selection) }
     val sortIndex by settingsManager.librarySongSortIndex.collectAsState(initial = LibrarySortUiState.librarySongSortIndex)
     val sortMode = HomeSortMode.entries.getOrElse(sortIndex) { HomeSortMode.Title }
@@ -229,6 +251,7 @@ fun LibraryScreen(
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var artistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
@@ -251,6 +274,9 @@ fun LibraryScreen(
     }
 
     var scrollToTopRequest by remember { mutableStateOf(0) }
+    var libraryTopBarHeightPx by remember { mutableIntStateOf(0) }
+    val libraryDensity = LocalDensity.current
+    val libraryTopBarHeight = with(libraryDensity) { libraryTopBarHeightPx.toDp() }
     val scope = rememberCoroutineScope()
     fun applyHomeSortMode(mode: HomeSortMode) {
         LibrarySortUiState.librarySongSortIndex = mode.ordinal
@@ -276,6 +302,7 @@ fun LibraryScreen(
 
     var audioFiltersExpanded by remember { mutableStateOf(false) }
     var audioFilter by remember { mutableStateOf(LibraryAudioFilter()) }
+    var duplicatesOnly by remember { mutableStateOf(false) }
     val filterLibrarySource by settingsManager.librarySource.collectAsState(initial = SettingsManager.LIBRARY_SOURCE_LOCAL)
     val latestFilterSongs = rememberUpdatedState(songs)
     val effectiveRatingFilter = if (libraryShowRatingFilter) ratingFilter else HomeRatingFilterSelection()
@@ -283,19 +310,25 @@ fun LibraryScreen(
     val activeRatingRevision = if (effectiveRatingFilter.hasRatingConstraint()) ratingRevision else 0
     val filterProgress by produceState(
         initialValue = LibraryAudioFilterProgress(songs, songs.size, songs.size, true),
-        filterLibrarySource, searchQuery.trim(), effectiveRatingFilter, activeFavoriteSongKeys, activeRatingRevision, audioFilter
+        filterLibrarySource, searchQuery.trim(), effectiveRatingFilter, activeFavoriteSongKeys, activeRatingRevision, audioFilter, duplicatesOnly
     ) {
         val filterSnapshot = audioFilter
         val ratingSnapshot = effectiveRatingFilter
         val query = searchQuery.trim()
+        val duplicatesSnapshot = duplicatesOnly
         filterLibrarySnapshots(snapshotFlow { latestFilterSongs.value }) { songs -> kotlinx.coroutines.flow.flow {
-            if (filterSnapshot.isEmpty && ratingSnapshot.isUnfiltered() && query.isBlank()) {
+            val source = if (duplicatesSnapshot) {
+                withContext(Dispatchers.IO) { songs.duplicateTitleAlbumSongs() }
+            } else {
+                songs
+            }
+            if (filterSnapshot.isEmpty && ratingSnapshot.isUnfiltered() && query.isBlank() && !duplicatesSnapshot) {
                 emit(LibraryAudioFilterProgress(songs, songs.size, songs.size, true))
                 return@flow
             }
-            emit(LibraryAudioFilterProgress(emptyList(), 0, songs.size, false))
+            emit(LibraryAudioFilterProgress(emptyList(), 0, source.size, false))
             val base = withContext(Dispatchers.IO) {
-                if (ratingSnapshot.isUnfiltered()) songs else songs.filter { song ->
+                if (ratingSnapshot.isUnfiltered()) source else source.filter { song ->
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
                     ratingSnapshot.matches(
                         rating = mainViewModel.getSongRating(song),
@@ -308,6 +341,9 @@ fun LibraryScreen(
         }.flowOn(Dispatchers.IO) }.collect { value = it }
     }
     val filteredSongs = filterProgress.songs
+    val rememberHasUnratedSongs = remember(songs, ratingRevision) {
+        songs.any { mainViewModel.getSongRating(it) <= 0 }
+    }
     // Keep initialValue O(1) and avoid rendering the full unsorted list before the background
     // sort completes. Large libraries can otherwise allocate several 60k-entry helper
     // collections twice while switching into this screen.
@@ -368,176 +404,12 @@ fun LibraryScreen(
         if (selection.rangeTargetId !in visibleSongIds) selection.rangeTargetId = null
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(libraryPageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        Box {
-            EllaSmallTopAppBar(
-                title = if (!selection.selectionMode && !libraryShowRatingFilter) {
-                    stringResource(R.string.tab_library)
-                } else {
-                    ""
-                },
-                color = libraryPageBackground,
-                titleStartPadding = if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) 108.dp else 20.dp,
-                // Selection mode adds a download action on the left of the row. The old 144dp
-                // inset left that button under the double-tap overlay, so taps never arrived (#657).
-                titleEndPadding = if (selection.selectionMode) 216.dp else 192.dp,
-                navigationIcon = {
-                    if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) {
-                        RatingFilterMenu(
-                            selection = ratingFilter,
-                            onSelectionChange = {
-                                ratingFilter = it
-                                HomeRatingFilterUiState.selection = it
-                            }
-                        )
-                    }
-                },
-                actions = {
-                    if (selection.selectionMode) {
-                        IconButton(onClick = {
-                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
-                            val cacheable = selectedSongs.filter(RemoteAudioCache::isCacheableRemoteSong)
-                            if (cacheable.isEmpty()) {
-                                Toast.makeText(context, R.string.library_cache_nothing, Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.library_cache_started, cacheable.size),
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                mainViewModel.cacheSongsToLocal(cacheable)
-                            }
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Download,
-                                contentDescription = stringResource(R.string.library_cache_to_local),
-                                tint = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        IconButton(onClick = {
-                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
-                            if (selectedSongs.isEmpty()) {
-                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                            } else {
-                                playlistPickerSongs = selectedSongs
-                            }
-                        }) {
-                            com.ella.music.ui.components.AddToPlaylistActionIcon(
-                                contentDescription = stringResource(R.string.category_playlist),
-                                tint = MiuixTheme.colorScheme.primary
-                            )
-                        }
-                        IconButton(onClick = {
-                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
-                            if (selectedSongs.isEmpty()) {
-                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                            } else {
-                                pendingConfirmDeleteSongs = selectedSongs
-                            }
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Delete,
-                                contentDescription = stringResource(R.string.common_delete),
-                                tint = Color(0xFFE5484D),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        IconButton(onClick = {
-                            selection.finishSelectionMode()
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.Close,
-                                contentDescription = stringResource(R.string.common_exit_selection),
-                                tint = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    } else {
-                        IconButton(onClick = {
-                            audioFiltersExpanded = true
-                        }) {
-                            Icon(
-                                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_audio_filter),
-                                contentDescription = stringResource(R.string.library_audio_filter),
-                                tint = if (audioFiltersExpanded || !audioFilter.isEmpty) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        IconButton(onClick = {
-                            selection.selectionMode = true
-                            selection.selectedIds = emptySet()
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Regular.SelectAll,
-                                contentDescription = stringResource(R.string.common_select_all),
-                                tint = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        IconButton(onClick = {
-                            searchExpanded = !searchExpanded
-                            if (!searchExpanded) searchQuery = ""
-                        }) {
-                            Icon(
-                                imageVector = MiuixIcons.Basic.Search,
-                                contentDescription = stringResource(R.string.common_search),
-                                tint = MiuixTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        SortDropdownMenu(
-                            items = directionalSortDropdownItems(
-                                fields = HomeSortField.entries.filter { it != HomeSortField.Random }.map { field ->
-                                    DirectionalSortField(
-                                        field = field,
-                                        text = stringResource(field.labelRes),
-                                        defaultDirection = when (field) {
-                                            HomeSortField.DateAdded,
-                                            HomeSortField.DateModified,
-                                            HomeSortField.Duration,
-                                            HomeSortField.FileSize -> SortDirection.Descending
-                                            else -> SortDirection.Ascending
-                                        }
-                                    )
-                                },
-                                selectedField = sortMode.sortField(),
-                                selectedDirection = if (sortMode.isDescending()) {
-                                    SortDirection.Descending
-                                } else {
-                                    SortDirection.Ascending
-                                },
-                                ascendingSummary = stringResource(R.string.common_sort_ascending),
-                                descendingSummary = stringResource(R.string.common_sort_descending)
-                            ) { field, direction ->
-                                applyHomeSortMode(
-                                    field.toMode(direction == SortDirection.Descending)
-                                )
-                            } + listOf(
-                                com.ella.music.ui.components.randomSortDropdownItem(
-                                    selected = sortMode == HomeSortMode.Random,
-                                    onSelect = { applyHomeSortMode(HomeSortMode.Random) }
-                                )
-                            )
-                        )
-                    }
-                }
-            )
-            DoubleTapScrollOverlay(
-                onDoubleTap = { scrollToTopRequest++ },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
-                endPadding = if (selection.selectionMode) 216.dp else 188.dp
-            )
-        }
-
+        Column(modifier = Modifier.fillMaxSize()) {
         BackHandler(enabled = selection.selectionMode || searchExpanded || audioFiltersExpanded) {
             when {
                 selection.selectionMode -> {
@@ -554,21 +426,59 @@ fun LibraryScreen(
         com.ella.music.ui.components.EllaMiuixBottomSheet(
             show = audioFiltersExpanded,
             title = stringResource(R.string.library_audio_filter),
+            startAction = {
+                IconButton(onClick = { audioFilter = LibraryAudioFilter(); duplicatesOnly = false }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Undo,
+                        contentDescription = stringResource(R.string.common_reset),
+                        tint = MiuixTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            endAction = {
+                IconButton(onClick = { audioFiltersExpanded = false }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Ok,
+                        contentDescription = stringResource(R.string.common_done),
+                        tint = MiuixTheme.colorScheme.primary
+                    )
+                }
+            },
             onDismissRequest = { audioFiltersExpanded = false }
         ) {
             Column {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    com.ella.music.ui.components.EllaMiuixChip(
+                        text = stringResource(R.string.library_search_duplicates),
+                        selected = duplicatesOnly,
+                        onClick = { duplicatesOnly = !duplicatesOnly }
+                    )
+                    if (duplicatesOnly && filteredSongs.isNotEmpty()) {
+                        com.ella.music.ui.components.EllaMiuixChip(
+                            text = stringResource(R.string.library_dedupe_action),
+                            selected = false,
+                            onClick = {
+                                val seen = mutableSetOf<String>()
+                                val extras = mutableListOf<Song>()
+                                filteredSongs.forEach { song ->
+                                    val key = "${song.title.trim().lowercase()}|${song.album.trim().lowercase()}"
+                                    if (!seen.add(key)) extras += song
+                                }
+                                if (extras.isNotEmpty()) pendingConfirmDeleteSongs = extras
+                                audioFiltersExpanded = false
+                            }
+                        )
+                    }
+                }
                 LibraryAudioFilterPanel(audioFilter) { audioFilter = it }
                 Text(
                     text = if (filterProgress.complete) stringResource(R.string.library_audio_filter_count, filteredSongs.size)
                         else stringResource(R.string.library_audio_filter_progress, filterProgress.checked, filterProgress.total, filteredSongs.size),
                     fontSize = 13.sp, modifier = Modifier.padding(12.dp),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-                com.ella.music.ui.components.EllaMiuixSheetActions(
-                    cancelText = stringResource(R.string.common_reset),
-                    confirmText = stringResource(R.string.common_done),
-                    onCancel = { audioFilter = LibraryAudioFilter() },
-                    onConfirm = { audioFiltersExpanded = false }
                 )
             }
         }
@@ -577,19 +487,6 @@ fun LibraryScreen(
             color = MiuixTheme.colorScheme.primary, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
-        if (searchExpanded) {
-            EllaSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
-                placeholder = stringResource(R.string.library_search_placeholder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                containerColor = searchBarColor
-            )
-        }
-
         AnimatedVisibility(
             visible = isScanning && scanProgress > 0,
             enter = expandVertically(),
@@ -632,7 +529,12 @@ fun LibraryScreen(
             }
         } else if (filterProgress.complete && filteredSongs.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.library_search_no_results), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(
+                    stringResource(
+                        if (duplicatesOnly) R.string.library_search_no_duplicates else R.string.library_search_no_results
+                    ),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
             }
         } else if (sortedResult == null) {
             Box(
@@ -661,6 +563,13 @@ fun LibraryScreen(
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
             var pendingLayoutAnchor by remember { mutableStateOf<LibraryLayoutAnchor?>(null) }
             val libraryPinch = remember { LibraryPinchState(librarySongLayout) }
+            val pinchBlocksTabSwipe = libraryPinch.isPinching || libraryPinch.isTransitioning
+            LaunchedEffect(pinchBlocksTabSwipe, mainPageState) {
+                mainPageState?.contentGestureSwipeBlocked = pinchBlocksTabSwipe
+            }
+            DisposableEffect(mainPageState) {
+                onDispose { mainPageState?.contentGestureSwipeBlocked = false }
+            }
             var pinchTargetReady by remember { mutableStateOf(false) }
             val libraryMorph = remember(libraryPinch) {
                 LibraryMorphScene(
@@ -691,7 +600,7 @@ fun LibraryScreen(
                 if (nextLayout == librarySongLayout || sortedSongs.isEmpty()) return
                 pendingLayoutAnchor = LibraryLayoutAnchor(
                     songIndex = libraryLayoutAnchorSongIndex(
-                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                        firstVisibleItemIndex = (listState.firstVisibleItemIndex - LibraryListHeaderItemCount).coerceAtLeast(0),
                         columns = libraryLayoutColumnCount(
                             multiRow = librarySongMultiRow,
                             grid = librarySongGrid,
@@ -704,11 +613,10 @@ fun LibraryScreen(
                 libraryPinch.onExternalLayout(nextLayout)
                 scope.launch { settingsManager.setLibrarySongLayout(nextLayout) }
             }
-            RestoreListScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                listState = listState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+            val activeListState = if (searchExpanded) searchListState else listState
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             var handledLocateRequest by remember { mutableStateOf(locateCurrentSongRequest) }
             val currentSongKey = remember(currentSong) { currentSong?.playlistIdentityKey() }
@@ -754,11 +662,11 @@ fun LibraryScreen(
                     return@LaunchedEffect
                 }
                 handledLocateRequest = locateCurrentSongRequest
-                listState.animateScrollToItem(currentVisibleItemIndex)
+                listState.animateScrollToItem(currentVisibleItemIndex + LibraryListHeaderItemCount)
             }
 
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
             }
 
             LaunchedEffect(librarySongLayout, pendingLayoutAnchor, sortedSongs.size) {
@@ -781,7 +689,7 @@ fun LibraryScreen(
                     libraryLayoutItemIndexForSong(
                         songIndex = anchor.songIndex,
                         columns = columns
-                    ).coerceIn(0, lastItemIndex)
+                    ).coerceIn(0, lastItemIndex) + LibraryListHeaderItemCount
                 )
                 pendingLayoutAnchor = null
             }
@@ -806,12 +714,14 @@ fun LibraryScreen(
                         gridColumns = librarySongGridColumns
                     )
                     val focal = libraryPinch.focalPoint
-                    val sourceRow = listState.layoutInfo.visibleItemsInfo.minByOrNull {
-                        kotlin.math.abs(it.offset + it.size / 2f - focal.y)
-                    }
+                    val sourceRow = listState.layoutInfo.visibleItemsInfo
+                        .filter { it.key != LibraryListHeaderKey }
+                        .minByOrNull { kotlin.math.abs(it.offset + it.size / 2f - focal.y) }
                     val sourceColumn = (focal.x / listState.layoutInfo.viewportSize.width.coerceAtLeast(1) * sourceColumns)
                         .toInt().coerceIn(0, sourceColumns - 1)
-                    val songIndex = ((sourceRow?.index ?: listState.firstVisibleItemIndex) * sourceColumns + sourceColumn)
+                    val sourceRowIndex = ((sourceRow?.index ?: listState.firstVisibleItemIndex) - LibraryListHeaderItemCount)
+                        .coerceAtLeast(0)
+                    val songIndex = (sourceRowIndex * sourceColumns + sourceColumn)
                         .coerceIn(0, sortedSongs.lastIndex)
                     val lastTargetItemIndex = if (targetColumns > 1) {
                         sortedSongs.lastIndex / targetColumns
@@ -820,7 +730,7 @@ fun LibraryScreen(
                     }
                     pinchTargetListState.scrollToItem(
                         libraryLayoutItemIndexForSong(songIndex, targetColumns)
-                            .coerceIn(0, lastTargetItemIndex),
+                            .coerceIn(0, lastTargetItemIndex) + LibraryListHeaderItemCount,
                         -(sourceRow?.offset ?: 0)
                     )
                     pinchTargetReady = true
@@ -892,6 +802,76 @@ fun LibraryScreen(
                     else -> 0.dp
                 }
                 Column(modifier = Modifier.fillMaxSize()) {
+
+
+                    // Shared interaction handlers reused by every library layout below.
+                    val onLibrarySongClick: (Int) -> Unit = { index ->
+                        val playback = searchPlaybackSelection(
+                            resultSongs = sortedSongs,
+                            selectedIndex = index,
+                            excludeResultsFromPlaylist =
+                                searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
+                            playbackMode = if (searchQuery.isNotBlank()) {
+                                searchClickPlaybackMode
+                            } else {
+                                SettingsManager.SEARCH_CLICK_REPLACE
+                            },
+                            currentQueue = playerViewModel.playlist.value,
+                            currentSong = currentSong
+                        )
+                        if (sortMode == HomeSortMode.Random) {
+                            playerViewModel.setShuffledPlaylist(
+                                playback.songs,
+                                playback.startIndex,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME,
+                                preserveOrder = true
+                            )
+                        } else {
+                            playerViewModel.setPlaylist(
+                                playback.songs,
+                                playback.startIndex,
+                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
+                            )
+                        }
+                        if (openPlayerOnPlay) onNavigateToPlayer()
+                    }
+                    val onLibrarySongLongClick: (Song) -> Unit = { song ->
+                        selection.selectionMode = true
+                        if (song.id !in selection.selectedIds) {
+                            selection.selectedIds = selection.selectedIds + song.id
+                            selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
+                        }
+                    }
+                    val onLibrarySongPlayNext: (Song) -> Unit = { song ->
+                        playerViewModel.playNext(song)
+                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    }
+                    val onLibrarySongMore: (Song) -> Unit = { song ->
+                        actionSong = song
+                    }
+
+                    // Retain both measured endpoints, but let shared cover/text actors own
+                    // matching songs throughout the gesture (RawS VirtualList holder geometry).
+                    val pinchTransitionActive = libraryPinch.isTransitioning
+                    val pinchProgress = libraryPinch.transitionProgress.coerceIn(0f, 1f)
+                    val pinchOverpullScale = libraryPinch.transitionScaleFactor
+                    val pinchSourceAlpha = if (libraryMorph.active()) 1f - pinchProgress else 1f
+                    val pinchSurfaceScale = if (pinchTransitionActive) pinchOverpullScale else libraryPinch.boundaryElasticScale
+                    val pinchListContentPadding = PaddingValues(
+                        top = libraryTopBarHeight,
+                        end = listEndInset,
+                        bottom = 160.dp
+                    )
+                    val onPinchCommitted: () -> Unit = {
+                        // Swap the two list states so the freshly committed layout keeps the
+                        // target state's already-correct scroll position, then persist it.
+                        settledListStateUsesA = !settledListStateUsesA
+                        pinchTargetReady = false
+                        val committedLayout = libraryPinch.currentLayout
+                        scope.launch { settingsManager.setLibrarySongLayout(committedLayout) }
+                    }
+
+                    val libraryListHeaderContent: @Composable () -> Unit = {
                     if (selection.selectionMode) {
                         SongSelectionActionRow(
                             selectedCount = selectedVisibleCount,
@@ -915,6 +895,7 @@ fun LibraryScreen(
                                             sortMode.isDescending()
                                         ),
                                         ratingFilter.summaryLabel(context),
+                                        if (duplicatesOnly) stringResource(R.string.library_search_duplicates) else null,
                                 ).joinToString(" · ")
                                 ),
                             leadingContent = {
@@ -988,68 +969,6 @@ fun LibraryScreen(
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     )
-
-                    // Shared interaction handlers reused by every library layout below.
-                    val onLibrarySongClick: (Int) -> Unit = { index ->
-                        val playback = searchPlaybackSelection(
-                            resultSongs = sortedSongs,
-                            selectedIndex = index,
-                            excludeResultsFromPlaylist =
-                                searchQuery.isNotBlank() && excludeSearchResultsFromPlaylist,
-                            playbackMode = if (searchQuery.isNotBlank()) {
-                                searchClickPlaybackMode
-                            } else {
-                                SettingsManager.SEARCH_CLICK_REPLACE
-                            },
-                            currentQueue = playerViewModel.playlist.value,
-                            currentSong = currentSong
-                        )
-                        if (sortMode == HomeSortMode.Random) {
-                            playerViewModel.setShuffledPlaylist(
-                                playback.songs,
-                                playback.startIndex,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME,
-                                preserveOrder = true
-                            )
-                        } else {
-                            playerViewModel.setPlaylist(
-                                playback.songs,
-                                playback.startIndex,
-                                resumeCategoryKey = com.ella.music.data.CategoryResumeKeys.HOME
-                            )
-                        }
-                        if (openPlayerOnPlay) onNavigateToPlayer()
-                    }
-                    val onLibrarySongLongClick: (Song) -> Unit = { song ->
-                        selection.selectionMode = true
-                        if (song.id !in selection.selectedIds) {
-                            selection.selectedIds = selection.selectedIds + song.id
-                            selection.updateRangeAnchorsForManualSelection(song.id, selectedNow = true)
-                        }
-                    }
-                    val onLibrarySongPlayNext: (Song) -> Unit = { song ->
-                        playerViewModel.playNext(song)
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                    }
-                    val onLibrarySongMore: (Song) -> Unit = { song ->
-                        actionSong = song
-                    }
-
-                    // Retain both measured endpoints, but let shared cover/text actors own
-                    // matching songs throughout the gesture (RawS VirtualList holder geometry).
-                    val pinchTransitionActive = libraryPinch.isTransitioning
-                    val pinchProgress = libraryPinch.transitionProgress.coerceIn(0f, 1f)
-                    val pinchOverpullScale = libraryPinch.transitionScaleFactor
-                    val pinchSourceAlpha = if (libraryMorph.active()) 1f - pinchProgress else 1f
-                    val pinchSurfaceScale = if (pinchTransitionActive) pinchOverpullScale else libraryPinch.boundaryElasticScale
-                    val pinchListContentPadding = PaddingValues(end = listEndInset, bottom = 160.dp)
-                    val onPinchCommitted: () -> Unit = {
-                        // Swap the two list states so the freshly committed layout keeps the
-                        // target state's already-correct scroll position, then persist it.
-                        settledListStateUsesA = !settledListStateUsesA
-                        pinchTargetReady = false
-                        val committedLayout = libraryPinch.currentLayout
-                        scope.launch { settingsManager.setLibrarySongLayout(committedLayout) }
                     }
 
                     PullToRefresh(
@@ -1073,6 +992,7 @@ fun LibraryScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .layerBackdrop(libraryBackdrop)
                             .clipToBounds()
                             .graphicsLayer {
                                 scaleX = pinchSurfaceScale
@@ -1096,7 +1016,7 @@ fun LibraryScreen(
                                 LibrarySongsList(
                                     songs = sortedSongs,
                                     layout = laneLayout,
-                                    listState = if (usesA) listStateA else listStateB,
+                                    listState = if (isSettledLane && searchExpanded) searchListState else if (usesA) listStateA else listStateB,
                                     selection = selection,
                                     sortMode = sortMode,
                                     currentSongKey = currentSongKey,
@@ -1107,9 +1027,11 @@ fun LibraryScreen(
                                     libraryLandscape = libraryLandscape,
                                     gridColumns = librarySongGridColumns,
                                     ratingDisplayMode = librarySongRatingDisplayMode,
+                                    ratingRevision = ratingRevision,
                                     titleMarqueeEnabled = librarySongTitleMarqueeEnabled && !pinchTransitionActive,
                                     mainViewModel = mainViewModel,
                                     contentPadding = pinchListContentPadding,
+                                    headerContent = libraryListHeaderContent,
                                     userScrollEnabled = isSettledLane && !pinchTransitionActive && !libraryPinch.isPinching,
                                     // Pre-record target holders before transferring draw ownership.
                                     alpha = if (isSettledLane) pinchSourceAlpha else if (libraryMorph.active()) pinchProgress else if (pinchTransitionActive) 0.001f else 0f,
@@ -1144,14 +1066,14 @@ fun LibraryScreen(
                             if (index != null) {
                                 fastScrollJob?.cancel()
                                 fastScrollJob = scope.launch {
-                                    listState.scrollToItem(index)
+                                    activeListState.scrollToItem(index + LibraryListHeaderItemCount)
                                 }
                             }
                         }
                     )
                 } else if (showScrollIndicator) {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -1211,6 +1133,7 @@ fun LibraryScreen(
             }
         }
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,
@@ -1326,6 +1249,218 @@ fun LibraryScreen(
             )
         }
     }
+
+        Box(modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { libraryTopBarHeightPx = it.height }) {
+            EllaSmallTopAppBar(
+                title = if (!selection.selectionMode && !libraryShowRatingFilter) {
+                    stringResource(R.string.tab_library)
+                } else {
+                    ""
+                },
+                backdrop = libraryBackdrop,
+                color = libraryPageBackground,
+                titleStartPadding = if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) 108.dp else 20.dp,
+                // Selection mode adds a download action on the left of the row. The old 144dp
+                // inset left that button under the double-tap overlay, so taps never arrived (#657).
+                titleEndPadding = if (selection.selectionMode) 264.dp else 192.dp,
+                navigationIcon = {
+                    if (!selection.selectionMode && libraryShowRatingFilter && songs.isNotEmpty()) {
+                        RatingFilterMenu(
+                            selection = ratingFilter,
+                            onSelectionChange = {
+                                ratingFilter = it
+                                HomeRatingFilterUiState.selection = it
+                            },
+                            hasUnrated = rememberHasUnratedSongs
+                        )
+                    }
+                },
+                bottomContent = {
+                    if (searchExpanded) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            EllaSearchBar(
+                                query = searchQuery,
+                                onQueryChange = { searchQuery = it },
+                                onSearch = { searchExpanded = false },
+                                placeholder = stringResource(R.string.library_search_placeholder),
+                                modifier = Modifier.weight(1f),
+                                containerColor = searchBarColor
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            GlassIconButton(
+                                onClick = {
+                                    libraryFocusManager.clearFocus()
+                                    libraryKeyboardController?.hide()
+                                    searchExpanded = false
+                                    searchQuery = ""
+                                },
+                                backdrop = libraryBackdrop,
+                                inheritTopBarMaterial = false,
+                                size = 36.dp
+                            ) {
+                                Icon(
+                                    imageVector = MiuixIcons.Regular.Close,
+                                    contentDescription = stringResource(R.string.common_cancel),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                actions = {
+                    if (selection.selectionMode) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                batchEditSongs = selectedSongs
+                            }
+                        })
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            val cacheable = selectedSongs.filter(RemoteAudioCache::isCacheableRemoteSong)
+                            if (cacheable.isEmpty()) {
+                                Toast.makeText(context, R.string.library_cache_nothing, Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.library_cache_started, cacheable.size),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                mainViewModel.cacheSongsToLocal(cacheable)
+                            }
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Download,
+                                contentDescription = stringResource(R.string.library_cache_to_local),
+                                tint = MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                playlistPickerSongs = selectedSongs
+                            }
+                        }) {
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
+                                contentDescription = stringResource(R.string.category_playlist),
+                                tint = MiuixTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                pendingConfirmDeleteSongs = selectedSongs
+                            }
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Delete,
+                                contentDescription = stringResource(R.string.common_delete),
+                                tint = Color(0xFFE5484D),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            selection.finishSelectionMode()
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Close,
+                                contentDescription = stringResource(R.string.common_exit_selection),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            audioFiltersExpanded = true
+                        }) {
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_audio_filter),
+                                contentDescription = stringResource(R.string.library_audio_filter),
+                                tint = if (audioFiltersExpanded || !audioFilter.isEmpty || duplicatesOnly) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            selection.selectionMode = true
+                            selection.selectedIds = emptySet()
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.SelectAll,
+                                contentDescription = stringResource(R.string.common_select_all),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            searchExpanded = !searchExpanded
+                            if (!searchExpanded) searchQuery = ""
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.Search,
+                                contentDescription = stringResource(R.string.common_search),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        SortDropdownMenu(
+                            items = directionalSortDropdownItems(
+                                fields = HomeSortField.entries.filter { it != HomeSortField.Random }.map { field ->
+                                    DirectionalSortField(
+                                        field = field,
+                                        text = stringResource(field.labelRes),
+                                        defaultDirection = when (field) {
+                                            HomeSortField.DateAdded,
+                                            HomeSortField.DateModified,
+                                            HomeSortField.Duration,
+                                            HomeSortField.FileSize -> SortDirection.Descending
+                                            else -> SortDirection.Ascending
+                                        }
+                                    )
+                                },
+                                selectedField = sortMode.sortField(),
+                                selectedDirection = if (sortMode.isDescending()) {
+                                    SortDirection.Descending
+                                } else {
+                                    SortDirection.Ascending
+                                },
+                                ascendingSummary = stringResource(R.string.common_sort_ascending),
+                                descendingSummary = stringResource(R.string.common_sort_descending)
+                            ) { field, direction ->
+                                applyHomeSortMode(
+                                    field.toMode(direction == SortDirection.Descending)
+                                )
+                            } + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == HomeSortMode.Random,
+                                    onSelect = { applyHomeSortMode(HomeSortMode.Random) }
+                                )
+                            )
+                        )
+                    }
+                }
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                startPadding = if (!selection.selectionMode && songs.isNotEmpty()) 108.dp else 20.dp,
+                endPadding = if (selection.selectionMode) 264.dp else 188.dp
+            )
+        }
+    }
 }
 
 @Composable
@@ -1344,9 +1479,11 @@ private fun LibrarySongsList(
     libraryLandscape: Boolean,
     gridColumns: Int,
     ratingDisplayMode: Int,
+    ratingRevision: Int = 0,
     titleMarqueeEnabled: Boolean,
     mainViewModel: MainViewModel,
     contentPadding: PaddingValues,
+    headerContent: (@Composable () -> Unit)? = null,
     userScrollEnabled: Boolean,
     alpha: Float,
     scale: Float,
@@ -1380,6 +1517,9 @@ private fun LibrarySongsList(
         },
         contentPadding = contentPadding
     ) {
+        item(key = LibraryListHeaderKey) {
+            headerContent?.invoke()
+        }
         if (grid || multiRow) {
             val columnCount = libraryLayoutColumnCount(
                 multiRow = multiRow,
@@ -1441,6 +1581,9 @@ private fun LibrarySongsList(
                                 albumArtUri = albumArtUri,
                                 loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
                                 current = song.playlistIdentityKey() == currentSongKey,
+                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                                loadSongRating = mainViewModel::getSongRating,
+                                ratingRevision = ratingRevision,
                                 selectionMode = selection.selectionMode,
                                 selected = selected,
                                 onLongClick = { onSongLongClick(song) },
@@ -1516,6 +1659,9 @@ private fun LibrarySongGridCard(
     albumArtUri: Uri?,
     loadCoverArt: (Song) -> Bitmap?,
     current: Boolean,
+    isFavorite: Boolean = false,
+    loadSongRating: ((Song) -> Int)? = null,
+    ratingRevision: Int = 0,
     selectionMode: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -1530,6 +1676,10 @@ private fun LibrarySongGridCard(
         usage = ArtworkUsage.LibraryGrid,
         showDefaultWhenMissing = false
     )
+    val rating by produceState<Int>(initialValue = 0, song.id, song.dateModified, ratingRevision, loadSongRating) {
+        value = withContext(Dispatchers.IO) { loadSongRating?.invoke(song) ?: 0 }
+    }
+    val unknown = stringResource(R.string.common_unknown)
     Column(
         modifier = modifier
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -1588,6 +1738,37 @@ private fun LibrarySongGridCard(
                     )
                 }
             }
+            // Rating stars + favorite heart pinned to the cover's bottom-right corner in a
+            // fixed-size shadowed pill, readable over any artwork like the Hi-Res badge.
+            if (!selectionMode && (isFavorite || rating > 0)) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .shadow(4.dp, RoundedCornerShape(11.dp))
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isFavorite) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_notification_favorite_filled),
+                            contentDescription = stringResource(R.string.common_favorite),
+                            tint = Color(0xFFFF4D6D),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                    if (rating > 0) {
+                        if (isFavorite) Spacer(modifier = Modifier.width(3.dp))
+                        SongRatingIndicator(
+                            rating = rating,
+                            displayMode = SettingsManager.SONG_RATING_DISPLAY_STARS,
+                            iconSize = 11.dp
+                        )
+                    }
+                }
+            }
         }
         Text(
             text = title,
@@ -1599,7 +1780,9 @@ private fun LibrarySongGridCard(
                 .libraryMorphPart(song.playlistIdentityKey(), "title")
         )
         Text(
-            text = song.artist.ifBlank { stringResource(R.string.player_unknown_artist) },
+            text = listOf(song.artist, song.album)
+                .map { it.ifBlank { unknown } }
+                .joinToString(" · "),
             fontSize = 12.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,

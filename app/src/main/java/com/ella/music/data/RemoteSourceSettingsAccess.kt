@@ -44,6 +44,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_ENAB
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_AUTO_BACKUP_LAST_AT
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_RESTORE_DEFAULT_TYPES
+import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_UPLOAD_TYPES
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_RESTORE_LAST_SEEN_AT
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_PASSWORD
 import com.ella.music.data.SettingsManager.Companion.KEY_WEBDAV_BACKUP_PATH
@@ -103,6 +104,7 @@ interface RemoteSourceSettingsAccess {
     val webDavAutoBackupIntervalHours: Flow<Int>
     val webDavAutoBackupLastAt: Flow<Long>
     val webDavRestoreDefaultTypes: Flow<String>
+    val webDavUploadTypes: Flow<String>
     val webDavRestoreLastSeenAt: Flow<Long>
     val lxSources: Flow<List<LxSourceConfig>>
     val selectedLxSourceId: Flow<String>
@@ -150,6 +152,7 @@ interface RemoteSourceSettingsAccess {
     suspend fun setWebDavAutoBackupIntervalHours(hours: Int)
     suspend fun setWebDavAutoBackupLastAt(timestamp: Long)
     suspend fun setWebDavRestoreDefaultTypes(types: String)
+    suspend fun setWebDavUploadTypes(types: String)
     suspend fun setWebDavRestoreLastSeenAt(timestamp: Long)
     suspend fun deleteOpenSubsonicServer(id: String)
     suspend fun setActiveOpenSubsonicServer(id: String)
@@ -216,6 +219,9 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
     }
     override val webDavRestoreDefaultTypes: Flow<String> = context.dataStore.data.map {
         it[KEY_WEBDAV_RESTORE_DEFAULT_TYPES].orEmpty()
+    }
+    override val webDavUploadTypes: Flow<String> = context.dataStore.data.map {
+        it[KEY_WEBDAV_UPLOAD_TYPES].orEmpty()
     }
     override val webDavRestoreLastSeenAt: Flow<Long> = context.dataStore.data.map {
         it[KEY_WEBDAV_RESTORE_LAST_SEEN_AT]?.toLongOrNull() ?: 0L
@@ -517,6 +523,13 @@ internal class RemoteSourceSettingsAccessImpl(private val context: Context) : Re
         context.dataStore.edit { prefs ->
             if (types.isBlank()) prefs.remove(KEY_WEBDAV_RESTORE_DEFAULT_TYPES)
             else prefs[KEY_WEBDAV_RESTORE_DEFAULT_TYPES] = types
+        }
+    }
+
+    override suspend fun setWebDavUploadTypes(types: String) {
+        context.dataStore.edit { prefs ->
+            if (types.isBlank()) prefs.remove(KEY_WEBDAV_UPLOAD_TYPES)
+            else prefs[KEY_WEBDAV_UPLOAD_TYPES] = types
         }
     }
 

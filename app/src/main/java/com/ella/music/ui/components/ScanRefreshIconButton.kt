@@ -3,9 +3,11 @@ package com.ella.music.ui.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -26,6 +28,7 @@ fun ScanRefreshIconButton(
     Box(
         modifier = modifier
             .size(48.dp)
+            .clip(CircleShape)
             .clickable(enabled = enabled, onClick = onScan),
         contentAlignment = Alignment.Center
     ) {

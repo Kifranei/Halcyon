@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 
 @Composable
 internal fun PosterLyricTheaterScreen(playerViewModel: PlayerViewModel, onBack: () -> Unit) {
@@ -101,7 +101,7 @@ internal fun PosterLyricTheaterScreen(playerViewModel: PlayerViewModel, onBack: 
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
                 .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 PosterIconButton(stringResource(R.string.common_back), onBack) {
-                    Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back), tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Text(song?.title.orEmpty(), color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))

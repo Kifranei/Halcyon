@@ -3,6 +3,8 @@ package com.ella.music.plugin.source
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.data.parser.LrcParser
+import com.ella.music.data.parser.hasMultipleSingableUnits
+import com.ella.music.data.parser.stripWholeLineOnlyWordTiming
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -285,16 +287,20 @@ private fun PluginLyricsResult.toLyricLines(): List<LyricLine> {
         if (text.isBlank()) return@mapNotNull null
         val translation = translated.nearestLine(line.start)?.text?.trim()?.takeIf { it.isNotBlank() }
         val roman = romanization.nearestLine(line.start)
+        val rawWords = line.words.map { LyricWord(it.text, it.start, it.end) }
+        val hasWordTiming = rawWords.size > 1 ||
+            (rawWords.size == 1 && !text.hasMultipleSingableUnits())
         LyricLine(
             timeMs = line.start,
             text = text,
-            words = line.words.map { LyricWord(it.text, it.start, it.end) },
+            words = if (hasWordTiming) rawWords else emptyList(),
+            hasExplicitWordTiming = hasWordTiming,
             translation = translation,
             pronunciation = roman?.text?.trim()?.takeIf { it.isNotBlank() },
-            pronunciationWords = roman?.words.orEmpty().map { LyricWord(it.text, it.start, it.end) },
-            endMs = line.end
+            pronunciationWords = roman?.words.orEmpty().takeIf { it.size > 1 }?.map { LyricWord(it.text, it.start, it.end) }.orEmpty(),
+            endMs = line.end ?: rawWords.lastOrNull()?.endMs
         )
-    }
+    }.stripWholeLineOnlyWordTiming()
 }
 
 private fun List<LyricLine>.renderPlainLrc(

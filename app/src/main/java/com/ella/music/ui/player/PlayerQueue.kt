@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ella.music.R
-import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
+import sh.calvin.reorderable.DragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.CoverUsage
@@ -122,6 +123,16 @@ internal fun queueSnapshotKey(items: List<Song>): Long {
     return hash
 }
 
+internal object PlayerQueueScrollMemory {
+    @Volatile var index = 0
+    @Volatile var offset = 0
+    @Volatile var hasSaved = false
+    /** Snapshot key of the queue generation the position belongs to. A play-mode change or
+     * any other queue replacement makes a saved position stale; restoring it would pin the
+     * sheet to rows that no longer describe the queue (#781). */
+    @Volatile var queueKey = Long.MIN_VALUE
+}
+
 @Composable
 internal fun PlayerQueueMenu(
     playlist: List<Song>,
@@ -175,9 +186,35 @@ internal fun PlayerQueueMenu(
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val rememberQueueScroll by settingsManager.queueRememberScrollPosition.collectAsState(initial = false)
     // Compute from the rows on every recomposition: the upstream queue may mutate its backing
     // list in place, making remember(playlist) believe that nothing changed.
     val playlistSnapshotKey = queueSnapshotKey(playlist)
+    // The snapshot the consumed restore belongs to. Once the queue changes it no longer
+    // matches, so a stale position can never pin the sheet (#781).
+    var restoredQueueScrollSnapshot by remember { mutableStateOf<Long?>(null) }
+    // The republished order of a local drag commit is not a queue change: marking its
+    // snapshot key keeps the recenter effect from yanking the viewport after a move.
+    var localMoveSnapshotKey by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(rememberQueueScroll) {
+        if (rememberQueueScroll && restoredQueueScrollSnapshot == null &&
+            PlayerQueueScrollMemory.hasSaved &&
+            PlayerQueueScrollMemory.queueKey == playlistSnapshotKey
+        ) {
+            restoredQueueScrollSnapshot = playlistSnapshotKey
+            listState.scrollToItem(PlayerQueueScrollMemory.index, PlayerQueueScrollMemory.offset)
+        }
+    }
+    LaunchedEffect(rememberQueueScroll, playlistSnapshotKey) {
+        if (!rememberQueueScroll) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                PlayerQueueScrollMemory.index = index
+                PlayerQueueScrollMemory.offset = offset
+                PlayerQueueScrollMemory.queueKey = playlistSnapshotKey
+                PlayerQueueScrollMemory.hasSaved = true
+            }
+    }
     var manualPlaylist by remember(playlistSnapshotKey) {
         mutableStateOf(buildQueueEntries(playlist))
     }
@@ -235,8 +272,16 @@ internal fun PlayerQueueMenu(
     }
     // Moving rows changes the index without changing the playing occurrence. Recentring on
     // every index change fights edge scrolling and makes a drag jump through the queue.
-    LaunchedEffect(manualPlaylist.getOrNull(currentIndex)?.stableKey) {
-        if (currentIndex >= 0) {
+    // When the queue-scroll memory restored a position, keep it instead of re-centering,
+    // but only while that position still describes the current queue: after a play-mode
+    // change or another external queue update the sheet behaves like the setting is off —
+    // rows refresh and the viewport follows the current song again (#781).
+    LaunchedEffect(playlistSnapshotKey, manualPlaylist.getOrNull(currentIndex)?.stableKey) {
+        // Our own drag commit republishes the order already on screen; that is not a
+        // queue change and must not cancel the restored viewport.
+        if (playlistSnapshotKey == localMoveSnapshotKey) return@LaunchedEffect
+        val keepRestored = rememberQueueScroll && restoredQueueScrollSnapshot == playlistSnapshotKey
+        if (currentIndex >= 0 && !keepRestored) {
             listState.scrollToItem(currentIndex)
         }
     }
@@ -408,7 +453,7 @@ internal fun PlayerQueueMenu(
                             Modifier
                         } else {
                             Modifier.draggableHandle(
-                                dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
+                                dragGestureDetector = DragGestureDetector.LongPress,
                                 onDragStopped = {
                                     val move = resolveQueueMoveCommit(
                                         fromIndex = pendingMoveStart,
@@ -416,6 +461,11 @@ internal fun PlayerQueueMenu(
                                         queueSize = manualPlaylist.size
                                     )
                                     if (move != null) {
+                                        // The upcoming republish mirrors this local order;
+                                        // tag its snapshot so it is not mistaken for an
+                                        // external queue change (#781).
+                                        localMoveSnapshotKey =
+                                            queueSnapshotKey(manualPlaylist.map { it.song })
                                         onMoveSong(move.fromIndex, move.toIndex)
                                     }
                                     pendingMoveStart = null

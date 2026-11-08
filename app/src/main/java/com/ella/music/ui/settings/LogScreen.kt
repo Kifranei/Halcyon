@@ -40,10 +40,11 @@ import com.ella.music.ui.components.EllaMiuixDialog
 import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Share
-import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -172,7 +173,7 @@ fun LogScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back)
                         )
                     }
@@ -276,17 +277,19 @@ fun LogScreen(
 
             item("filters") {
                 DiagnosticsCard {
-                    WindowDropdownPreference(
+                    val levelLabels = listOf(allLabel) + EllaLogLevelFilter.entries.map { stringResource(it.labelRes) }
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.logs_level_filter),
-                        items = listOf(allLabel) + EllaLogLevelFilter.entries.map { stringResource(it.labelRes) },
+                        items = levelLabels.map { DropdownItem(title = it) },
                         selectedIndex = selectedLevel?.let { EllaLogLevelFilter.entries.indexOf(it) + 1 } ?: 0,
                         onSelectedIndexChange = { index ->
                             selectedLevel = if (index == 0) null else EllaLogLevelFilter.entries[index - 1]
                         }
                     )
-                    WindowDropdownPreference(
+                    val typeLabels = listOf(allLabel) + EllaLogTypeFilter.entries.map { stringResource(it.labelRes) }
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.logs_type_filter),
-                        items = listOf(allLabel) + EllaLogTypeFilter.entries.map { stringResource(it.labelRes) },
+                        items = typeLabels.map { DropdownItem(title = it) },
                         selectedIndex = selectedType?.let { EllaLogTypeFilter.entries.indexOf(it) + 1 } ?: 0,
                         onSelectedIndexChange = { index ->
                             selectedType = if (index == 0) null else EllaLogTypeFilter.entries[index - 1]

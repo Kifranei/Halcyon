@@ -12,14 +12,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,13 +26,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -55,7 +57,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.ScrollIndicatorListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -72,6 +74,8 @@ import com.ella.music.ui.settings.findComponentActivity
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.ella.music.ui.components.rememberEllaReorderableLazyListState
 
 @Composable
@@ -85,7 +89,8 @@ fun PlaylistScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val librarySource by mainViewModel.settingsManager.librarySource.collectAsState(initial = "")
-    val neteaseLibrary = librarySource == com.ella.music.data.SettingsManager.LIBRARY_SOURCE_NETEASE
+    val neteaseLibrary = librarySource == com.ella.music.data.SettingsManager.LIBRARY_SOURCE_NETEASE ||
+        com.ella.music.data.sourceplugin.isSourcePluginKey(librarySource)
     val librarySongs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
@@ -93,8 +98,8 @@ fun PlaylistScreen(
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     var showCreateDialog by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val persistedPlaylistSortIndex by mainViewModel.settingsManager.playlistListSortIndex.collectAsState(initial = LibrarySortUiState.playlistListSortIndex)
     val playlistCustomOrderIds by mainViewModel.settingsManager.playlistCustomOrder.collectAsState(
         initial = LibrarySortUiState.playlistCustomOrderIds
@@ -130,11 +135,10 @@ fun PlaylistScreen(
     var showExportFormatSheet by remember { mutableStateOf(false) }
     var pendingExportFormat by remember { mutableStateOf<PlaylistExportFormat?>(null) }
     val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val favorites = playlists.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
@@ -441,7 +445,7 @@ fun PlaylistScreen(
     }
     val playlistListHeaderCount = (if (showFavorites) 1 else 0) + (if (showFiveStar) 1 else 0) + 1
     val reorderableLazyListState = rememberEllaReorderableLazyListState(
-        lazyListState = listState,
+        lazyListState = activeListState,
         onMove = { from, to ->
             if (!reorderEnabled) return@rememberEllaReorderableLazyListState
             val fromIndex = from.index - playlistListHeaderCount
@@ -481,141 +485,16 @@ fun PlaylistScreen(
         if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
     }
 
+    val playlistBackdrop = rememberLayerBackdrop()
+    var playlistTopBarHeightPx by remember { mutableIntStateOf(0) }
+    val playlistDensity = LocalDensity.current
+    val playlistTopBarHeight = with(playlistDensity) { playlistTopBarHeightPx.toDp() }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-            PlaylistScreenTopBar(
-                onlineReadOnly = neteaseLibrary,
-                selectionMode = selection.selectionMode,
-                selectedCount = selection.selectedIds.size,
-                totalCount = displayedCustomPlaylists.size,
-                showBackButton = showBackButton,
-                sortItems = directionalSortModeDropdownItems(
-                    fields = listOf(
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_custom),
-                            ascendingMode = PlaylistSortMode.Custom,
-                            descendingMode = PlaylistSortMode.CustomDesc
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_updated_at),
-                            ascendingMode = PlaylistSortMode.UpdatedAtAsc,
-                            descendingMode = PlaylistSortMode.UpdatedAt
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_created_at),
-                            ascendingMode = PlaylistSortMode.CreatedAtAsc,
-                            descendingMode = PlaylistSortMode.CreatedAt
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_name),
-                            ascendingMode = PlaylistSortMode.Name,
-                            descendingMode = PlaylistSortMode.NameDesc
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_song_count),
-                            ascendingMode = PlaylistSortMode.SongCountAsc,
-                            descendingMode = PlaylistSortMode.SongCount
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_duration),
-                            ascendingMode = PlaylistSortMode.DurationAsc,
-                            descendingMode = PlaylistSortMode.Duration
-                        ),
-                        DirectionalSortModeField(
-                            text = stringResource(R.string.playlist_sort_play_count),
-                            ascendingMode = PlaylistSortMode.PlayCountAsc,
-                            descendingMode = PlaylistSortMode.PlayCount
-                        )
-                    ),
-                    selectedMode = playlistSortMode,
-                    onSelect = { mode ->
-                        LibrarySortUiState.pendingPlaylistListSortIndex = mode.ordinal
-                        LibrarySortUiState.playlistListSortIndex = mode.ordinal
-                        saveScope.launch { mainViewModel.settingsManager.setPlaylistListSortIndex(mode.ordinal) }
-                    }
-                ),
-            onBackClick = { if (selection.selectionMode) finishSelectionMode() else onBack() },
-            onPinSelectedClick = {
-                val keys = selection.selectedIdsInSelectionOrder()
-                if (keys.isNotEmpty()) {
-                    val orderedIds = keys + storedCustomPlaylists
-                        .map(UserPlaylist::id)
-                        .filterNot { it in keys }
-                    applyManualPlaylistOrder(orderedIds)
-                    finishSelectionMode()
-                }
-            },
-            onExportSelectedClick = {
-                val targets = selectedPlaylists()
-                if (targets.isEmpty()) {
-                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                } else {
-                    playlistsToExport = targets
-                    showExportFormatSheet = true
-                }
-            },
-            onPlayNextSelectedClick = {
-                val selectedSongs = selectedPlaylistSongs()
-                if (selectedSongs.isEmpty()) {
-                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                } else {
-                    playerViewModel.playNext(selectedSongs, selectedPlaylistSongSources())
-                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                    finishSelectionMode()
-                }
-            },
-            onAddSelectedToQueueClick = {
-                val selectedSongs = selectedPlaylistSongs()
-                if (selectedSongs.isEmpty()) {
-                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                } else {
-                    playerViewModel.addToPlaylist(selectedSongs, selectedPlaylistSongSources())
-                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                    finishSelectionMode()
-                }
-            },
-            onAddSelectedToPlaylistClick = {
-                val selectedSongs = selectedPlaylistSongs()
-                if (selectedSongs.isEmpty()) {
-                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
-                } else {
-                    playlistPickerSongs = selectedSongs
-                }
-            },
-            onDeleteSelectedClick = {
-                val targets = storedCustomPlaylists.filter { it.id in selection.selectedIds }
-                if (targets.isNotEmpty()) playlistsPendingDelete = targets
-            },
-            onSearchClick = {
-                searchExpanded = !searchExpanded
-                if (!searchExpanded) searchQuery = ""
-            },
-            onImportClick = {
-                importLauncher.launch(
-                    arrayOf(
-                        "audio/x-mpegurl",
-                        "audio/mpegurl",
-                        "application/vnd.apple.mpegurl",
-                        "text/plain",
-                        "application/octet-stream",
-                        "*/*"
-                    )
-                )
-            },
-            onExportAllClick = { showExportAllFormatSheet = true },
-            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } }
-        )
 
-        PlaylistSearchSection(
-            visible = searchExpanded,
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onSearch = { searchExpanded = false }
-        )
 
         PlaylistSortSection(
             visible = sortExpanded,
@@ -641,8 +520,8 @@ fun PlaylistScreen(
         }
         val showPlaylistSideIndex = reorderablePlaylists.size > 30
         LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, remember(reorderablePlaylists) { reorderablePlaylists.filterNot { it.isRemote }.map { it.id } }, excludedEndWidth = 112.dp),
+            state = activeListState,
+            modifier = Modifier.fillMaxSize().layerBackdrop(playlistBackdrop).dragSelectList(activeListState, selection, remember(reorderablePlaylists) { reorderablePlaylists.filterNot { it.isRemote }.map { it.id } }, excludedEndWidth = 112.dp),
             contentPadding = PaddingValues(
                 start = 12.dp,
                 end = when {
@@ -650,7 +529,7 @@ fun PlaylistScreen(
                     playlistSortMode == PlaylistSortMode.Name -> SideIndexListEndPadding
                     else -> ScrollIndicatorListEndPadding
                 },
-                top = 8.dp,
+                top = playlistTopBarHeight + 8.dp,
                 bottom = 8.dp
             )
         ) {
@@ -789,12 +668,12 @@ fun PlaylistScreen(
                         .fillMaxHeight(),
                     onLetterClick = { letter ->
                         val index = playlistFastIndexTargets[letter]
-                        if (index != null) scope.launch { listState.scrollToItem(index) }
+                        if (index != null) scope.launch { activeListState.scrollToItem(index) }
                     }
                 )
             } else if (showPlaylistSideIndex) {
                 LazyListScrollIndicator(
-                    state = listState,
+                    state = activeListState,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
                         .fillMaxHeight()
@@ -812,6 +691,145 @@ fun PlaylistScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = 22.dp, bottom = 176.dp)
             )
+            Box(modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { playlistTopBarHeightPx = it.height }) {
+            PlaylistScreenTopBar(
+                backdrop = playlistBackdrop,
+                onlineReadOnly = neteaseLibrary,
+                selectionMode = selection.selectionMode,
+                selectedCount = selection.selectedIds.size,
+                totalCount = displayedCustomPlaylists.size,
+                showBackButton = showBackButton,
+                sortItems = directionalSortModeDropdownItems(
+                    fields = listOf(
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_custom),
+                            ascendingMode = PlaylistSortMode.Custom,
+                            descendingMode = PlaylistSortMode.CustomDesc
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_updated_at),
+                            ascendingMode = PlaylistSortMode.UpdatedAtAsc,
+                            descendingMode = PlaylistSortMode.UpdatedAt
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_created_at),
+                            ascendingMode = PlaylistSortMode.CreatedAtAsc,
+                            descendingMode = PlaylistSortMode.CreatedAt
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_name),
+                            ascendingMode = PlaylistSortMode.Name,
+                            descendingMode = PlaylistSortMode.NameDesc
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_song_count),
+                            ascendingMode = PlaylistSortMode.SongCountAsc,
+                            descendingMode = PlaylistSortMode.SongCount
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_duration),
+                            ascendingMode = PlaylistSortMode.DurationAsc,
+                            descendingMode = PlaylistSortMode.Duration
+                        ),
+                        DirectionalSortModeField(
+                            text = stringResource(R.string.playlist_sort_play_count),
+                            ascendingMode = PlaylistSortMode.PlayCountAsc,
+                            descendingMode = PlaylistSortMode.PlayCount
+                        )
+                    ),
+                    selectedMode = playlistSortMode,
+                    onSelect = { mode ->
+                        LibrarySortUiState.pendingPlaylistListSortIndex = mode.ordinal
+                        LibrarySortUiState.playlistListSortIndex = mode.ordinal
+                        saveScope.launch { mainViewModel.settingsManager.setPlaylistListSortIndex(mode.ordinal) }
+                    }
+                ),
+            onBackClick = { if (selection.selectionMode) finishSelectionMode() else onBack() },
+            onPinSelectedClick = {
+                val keys = selection.selectedIdsInSelectionOrder()
+                if (keys.isNotEmpty()) {
+                    val orderedIds = keys + storedCustomPlaylists
+                        .map(UserPlaylist::id)
+                        .filterNot { it in keys }
+                    applyManualPlaylistOrder(orderedIds)
+                    finishSelectionMode()
+                }
+            },
+            onExportSelectedClick = {
+                val targets = selectedPlaylists()
+                if (targets.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playlistsToExport = targets
+                    showExportFormatSheet = true
+                }
+            },
+            onPlayNextSelectedClick = {
+                val selectedSongs = selectedPlaylistSongs()
+                if (selectedSongs.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playerViewModel.playNext(selectedSongs, selectedPlaylistSongSources())
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    finishSelectionMode()
+                }
+            },
+            onAddSelectedToQueueClick = {
+                val selectedSongs = selectedPlaylistSongs()
+                if (selectedSongs.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playerViewModel.addToPlaylist(selectedSongs, selectedPlaylistSongSources())
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    finishSelectionMode()
+                }
+            },
+            onAddSelectedToPlaylistClick = {
+                val selectedSongs = selectedPlaylistSongs()
+                if (selectedSongs.isEmpty()) {
+                    Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                } else {
+                    playlistPickerSongs = selectedSongs
+                }
+            },
+            onDeleteSelectedClick = {
+                val targets = storedCustomPlaylists.filter { it.id in selection.selectedIds }
+                if (targets.isNotEmpty()) playlistsPendingDelete = targets
+            },
+            onSearchClick = {
+                searchExpanded = !searchExpanded
+                if (!searchExpanded) searchQuery = ""
+            },
+            onImportClick = {
+                importLauncher.launch(
+                    arrayOf(
+                        "audio/x-mpegurl",
+                        "audio/mpegurl",
+                        "application/vnd.apple.mpegurl",
+                        "text/plain",
+                        "application/octet-stream",
+                        "*/*"
+                    )
+                )
+            },
+            onExportAllClick = { showExportAllFormatSheet = true },
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
+            bottomContent = {
+                PlaylistFloatingSearchBar(
+                    visible = searchExpanded,
+                    query = searchQuery,
+                    placeholderRes = R.string.playlist_search_placeholder,
+                    backdrop = playlistBackdrop,
+                    onQueryChange = { searchQuery = it },
+                    onSearch = { searchExpanded = false },
+                    onCancel = {
+                        searchExpanded = false
+                        searchQuery = ""
+                    }
+                )
+            }
+        )
+            }
         }
     }
 

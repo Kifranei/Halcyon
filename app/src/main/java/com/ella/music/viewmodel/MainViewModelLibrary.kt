@@ -75,7 +75,7 @@ internal fun buildMetadataCategoryItems(
         }
     }
     val albumArtistSongsByKey = linkedMapOf<String, MutableList<Song>>()
-    if (type in setOf("composer", "arranger", "lyricist")) {
+    if (type in setOf("composer", "arranger", "lyricist", "producer")) {
         songs.forEach { song ->
             splitArtistNames(song.albumArtist).forEach { name ->
                 albumArtistSongsByKey.getOrPut(name.tagIdentityKey()) { mutableListOf() } += song

@@ -81,6 +81,20 @@ data class LastFmPendingScrobble(
     val startedAt: Long
 )
 
+/** Per-scrobble verdict from track.scrobble; [ignoredCode]/[ignoredReason] mirror `ignoredMessage`. */
+data class LastFmScrobbleResult(
+    val accepted: Boolean,
+    val ignoredCode: Int = 0,
+    val ignoredReason: String = ""
+) {
+    /**
+     * Code 4 (timestamp newer than Last.fm's clock) and 5 (daily limit) resolve themselves by
+     * waiting: the timestamp ages into the past, and the limit resets the next day. The other
+     * codes are permanent rejections for that exact payload.
+     */
+    val isRetryableIgnore: Boolean get() = !accepted && (ignoredCode == 4 || ignoredCode == 5)
+}
+
 sealed interface LastFmSyncStatus {
     data object Idle : LastFmSyncStatus
     data class Syncing(

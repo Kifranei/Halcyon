@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -124,6 +127,9 @@ internal fun LandscapeCoverPlayerPage(
     onShowLyrics: () -> Unit,
     onLyricLineClick: (LyricLine) -> Unit,
     onLyricLineLongClick: (LyricLine) -> Unit,
+    /** #727: opening blank-lyric scrubs preview through the seek bar and commit on release. */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     onSeek: (Float) -> Unit,
     onCyclePlaybackMode: () -> Unit,
     onPrevious: () -> Unit,
@@ -164,6 +170,15 @@ internal fun LandscapeCoverPlayerPage(
         screenHeightDp = configuration.screenHeightDp
     )
     val compactPhoneLandscape = configuration.smallestScreenWidthDp < 600 && !ultraWideLandscape
+    // #781 当前行歌词位置: the landscape lyric pane follows the same focus anchor as portrait.
+    val lyricFocusContext = LocalContext.current
+    val lyricFocusPosition by remember(lyricFocusContext) {
+        SettingsManager.getInstance(lyricFocusContext).playerLyricFocusPosition
+    }.collectAsState(
+        initial = LocalAppleMusicLyricsViewPreferences.current?.focusPosition
+            ?: SettingsManager.DEFAULT_PLAYER_LYRIC_FOCUS_POSITION
+    )
+    val lyricFocusRatio = lyricFocusPosition / 10_000f
     val showHiResLogo = hiResLogoEnabled && audioInfo?.isHiResLogoTrack() == true
     val leftPaneWeight = if (showLyricsPane && ultraWideLandscape) 0.34f else 0.38f
     val rightPaneWeight = if (ultraWideLandscape) 0.66f else 0.62f
@@ -184,7 +199,8 @@ internal fun LandscapeCoverPlayerPage(
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
     val titleAboveCover = playerTitlePosition ==
         com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
 
     if (compactPhoneLandscape) {
         CompactPhoneLandscapeCoverPlayerPage(
@@ -242,6 +258,8 @@ internal fun LandscapeCoverPlayerPage(
             onNext = onNext,
             onLyricLineClick = onLyricLineClick,
             onLyricLineLongClick = onLyricLineLongClick,
+            onOpeningLyricPreview = onOpeningLyricPreview,
+            onOpeningLyricCommit = onOpeningLyricCommit,
             onShowLyrics = onShowLyrics,
             onArtist = onArtist,
             drawBackground = drawBackground,
@@ -250,8 +268,8 @@ internal fun LandscapeCoverPlayerPage(
         return
     }
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -365,7 +383,7 @@ internal fun LandscapeCoverPlayerPage(
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 14f
                             )
-                        } else {
+                        } else if (!canvasFillsPlayer) {
                             AlbumArtView(
                                 song = song,
                                 embeddedCover = embeddedCover,
@@ -474,10 +492,12 @@ internal fun LandscapeCoverPlayerPage(
                                 onLineClick = onLyricLineClick,
                                 onLineDoubleClick = onPlayPause,
                                 onLineLongClick = onLyricLineLongClick,
+                                onOpeningLyricPreview = onOpeningLyricPreview,
+                                onOpeningLyricCommit = onOpeningLyricCommit,
                                 topContentPadding = lyricTopPadding,
                                 bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
                                 lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
-                                focusOffsetRatio = if (ultraWideLandscape) 0.20f else 0.22f,
+                                focusOffsetRatio = lyricFocusRatio,
                                 // Perspective and blur are independent lyric-style controls. The
                                 // landscape page used to disable the configured non-current-line
                                 // blur whenever perspective was enabled, making the setting look
@@ -551,13 +571,27 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     onNext: () -> Unit,
     onLyricLineClick: (LyricLine) -> Unit,
     onLyricLineLongClick: (LyricLine) -> Unit,
+    /** #727: opening blank-lyric scrubs preview through the seek bar and commit on release. */
+    onOpeningLyricPreview: ((Long?) -> Unit)? = null,
+    onOpeningLyricCommit: ((Long) -> Unit)? = null,
     onShowLyrics: () -> Unit,
     onArtist: () -> Unit,
     drawBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var previewProgress by remember(song?.id, song?.path) { mutableStateOf<Float?>(null) }
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    var previewProgress by (LocalPlayerSeekPreviewOverride.current
+        ?: remember(song?.id, song?.path) { mutableStateOf<Float?>(null) })
+    // #781 当前行歌词位置: compact landscape follows the same focus anchor as the other panes.
+    val lyricFocusContext = LocalContext.current
+    val lyricFocusPosition by remember(lyricFocusContext) {
+        SettingsManager.getInstance(lyricFocusContext).playerLyricFocusPosition
+    }.collectAsState(
+        initial = LocalAppleMusicLyricsViewPreferences.current?.focusPosition
+            ?: SettingsManager.DEFAULT_PLAYER_LYRIC_FOCUS_POSITION
+    )
+    val lyricFocusRatio = lyricFocusPosition / 10_000f
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
     val coverGestureModifier = Modifier.playerCoverGestures(
         swipeEnabled = coverSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
@@ -568,8 +602,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         nextSongTitle = nextSongTitle
     )
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -625,7 +659,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                             modifier = Modifier.fillMaxSize(),
                             cornerRadiusDp = 22f
                         )
-                    } else {
+                    } else if (!canvasFillsPlayer) {
                         PhoneLandscapeCoverImage(
                             song = song,
                             embeddedCover = embeddedCover,
@@ -768,10 +802,15 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                                 onLineClick = onLyricLineClick,
                                 onLineDoubleClick = onPlayPause,
                                 onLineLongClick = onLyricLineLongClick,
+                                onOpeningLyricPreview = onOpeningLyricPreview,
+                                onOpeningLyricCommit = onOpeningLyricCommit,
                                 topContentPadding = 0.dp,
                                 bottomContentPadding = 28.dp,
                                 lineSpacing = 18.dp,
-                                focusOffsetRatio = 0.10f,
+                                focusOffsetRatio = lyricFocusRatio,
+                                // Compact landscape reserves a tall title/transport lane, so the shared
+                                // focus ratio otherwise lands visually low inside the remaining pane.
+                                focusOffsetNudgeDp = 24.dp,
                                 // Keep the same blur preference in the compact landscape layout;
                                 // perspective must not silently turn it off (#632).
                                 nonCurrentLineBlurEnabled = true,

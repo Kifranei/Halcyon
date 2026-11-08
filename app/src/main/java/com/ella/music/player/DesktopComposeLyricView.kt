@@ -1,6 +1,7 @@
 package com.ella.music.player
 
 import com.ella.music.data.parser.excludesPronunciationInference
+import com.ella.music.data.parser.needsPhoneticAnnotation
 
 import android.content.Context
 import android.graphics.Color as AndroidColor
@@ -11,10 +12,13 @@ import android.widget.FrameLayout
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -27,10 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -46,7 +54,19 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.ui.components.loadAndroidTypeface
+import com.ella.music.ui.player.AppleMusicLyricSecondaryRowSpacing
 import com.ella.music.ui.player.AppleMusicSingleLyricLine
+import com.ella.music.ui.player.LocalLyricSustainTailExtended
+import com.ella.music.ui.player.LocalReferenceLyricMotion
+import com.ella.music.ui.player.isInlineRubyPronunciation
+import kotlin.math.roundToInt
+
+/**
+ * #781 三.3: lead applied to the first timed word of a line when it opens at the line's own
+ * timestamp (the opening-metadata case). Matches the bridge's ~250 ms position-anchor
+ * cadence, so a sample landing just under the boundary still counts as inside the word.
+ */
+private const val OPENING_WORD_LEAD_MS = 250L
 
 /** Compose-backed renderer for the system overlay and status-bar lyric surfaces. */
 internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) {
@@ -76,12 +96,19 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
     private var statusBarPronunciationWords by mutableStateOf(emptyList<LyricWord>())
     private var statusBarTextAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT)
     private var statusBarVerticalAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP)
+    private var currentLinePosition by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER)
+    /** Tenths of a percent, or -1 to follow the shared lyric unsung opacity (#727). */
+    private var unsungOpacityTenths by mutableIntStateOf(-1)
+    /** Whether any line of the current lyric set carries pronunciation/translation (#727). */
+    private var songHasPronunciation by mutableStateOf(false)
+    private var songHasTranslation by mutableStateOf(false)
     private var lyricFontPath by mutableStateOf("")
     private var lyricFontWeight by mutableIntStateOf(800)
     private var lyricFontItalic by mutableStateOf(false)
     private var wordLiftEnabled by mutableStateOf(true)
     private var compactLayout by mutableStateOf(false)
     private var glowEnabled by mutableStateOf(false)
+    private var glowRadiusTenths by mutableStateOf(1000)
     private var outlineEnabled by mutableStateOf(false)
 
     init {
@@ -160,11 +187,14 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         statusBarMergeSecondary: Boolean = false,
         statusBarTextAlign: Int = SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT,
         statusBarVerticalAlign: Int = SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP,
+        currentLinePosition: Int = SettingsManager.DESKTOP_LYRIC_LINE_POSITION_CENTER,
+        unsungOpacityTenths: Int = -1,
         lyricFontPath: String = "",
         lyricFontWeight: Int = 800,
         lyricFontItalic: Boolean = false,
         wordLiftEnabled: Boolean = true,
         glowEnabled: Boolean = false,
+        glowRadiusTenths: Int = 1000,
         outlineEnabled: Boolean = false,
         backgroundMode: Int = 0,
         backgroundOpacity: Int = 58
@@ -180,11 +210,15 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         this.statusBarMergeSecondary = statusBarMergeSecondary
         this.statusBarTextAlign = statusBarTextAlign.coerceIn(0, 2)
         this.statusBarVerticalAlign = statusBarVerticalAlign.coerceIn(0, 2)
+        this.currentLinePosition =
+            currentLinePosition.coerceIn(0, SettingsManager.DESKTOP_LYRIC_LINE_POSITION_MAIN)
+        this.unsungOpacityTenths = unsungOpacityTenths.coerceIn(-1, 1000)
         this.lyricFontPath = lyricFontPath
         this.lyricFontWeight = lyricFontWeight.coerceIn(100, 900)
         this.lyricFontItalic = lyricFontItalic
         this.wordLiftEnabled = wordLiftEnabled
         this.glowEnabled = glowEnabled
+        this.glowRadiusTenths = glowRadiusTenths.coerceIn(0, 2000)
         this.outlineEnabled = outlineEnabled
         if (outlineChanged) refreshCurrentLyricRendering()
         background = when (backgroundMode.coerceIn(0, 2)) {
@@ -234,12 +268,16 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         backgroundWordStarts: LongArray,
         backgroundWordEnds: LongArray,
         interludeStartMs: Long = -1L,
-        interludeEndMs: Long = -1L
+        interludeEndMs: Long = -1L,
+        songHasPronunciation: Boolean = false,
+        songHasTranslation: Boolean = false
     ) {
+        this.songHasPronunciation = songHasPronunciation
+        this.songHasTranslation = songHasTranslation
         currentPositionMs = positionMs
         currentInterlude = if (interludeStartMs >= 0L && interludeEndMs > interludeStartMs)
             com.ella.music.ui.player.AppleMusicInterlude(interludeStartMs, interludeEndMs, 0) else null
-        val words = buildLyricWords(wordTexts, wordStarts, wordEnds)
+        val rawWords = buildLyricWords(wordTexts, wordStarts, wordEnds)
         val pronunciationWords = buildLyricWords(
             pronunciationWordTexts,
             pronunciationWordStarts,
@@ -252,12 +290,25 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         )
         val inferredStart = sequenceOf(
             lineStartMs.takeIf { it >= 0L },
-            words.minOfOrNull { it.startMs },
+            rawWords.minOfOrNull { it.startMs },
             pronunciationWords.minOfOrNull { it.startMs },
             backgroundStartMs,
             backgroundWords.minOfOrNull { it.startMs },
             positionMs
         ).filterNotNull().first()
+        // #781 三.3: an opening-metadata line's first timed word starts exactly at the line's
+        // own timestamp (word.startMs == line.timeMs). A sampled position sitting at — or a
+        // hair below — that timestamp left the word at the unsung alpha for its whole window:
+        // "the first word stays fully dark". Lead the first word's sweep window by one anchor
+        // interval so positions at `line.timeMs - epsilon` already count as inside it;
+        // progressive timing over the word's duration is unchanged.
+        val words = rawWords.mapIndexed { index, word ->
+            if (index == 0 && word.startMs - inferredStart <= OPENING_WORD_LEAD_MS) {
+                word.copy(startMs = minOf(word.startMs, inferredStart) - OPENING_WORD_LEAD_MS)
+            } else {
+                word
+            }
+        }
         val inferredEnd = sequenceOf(
             lineEndMs,
             words.maxOfOrNull { it.endMs },
@@ -325,6 +376,16 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
 
     @Composable
     private fun DesktopLyricContent() {
+        val context = LocalContext.current
+        // #781 三.1: mirror the player page's reference-motion provider so the overlay and
+        // status-bar lyric use the same gentle ~2dp spring word lift (and the reference
+        // feather/sustain treatment) instead of the legacy per-word bounce.
+        val sustainMotion by remember(context) {
+            SettingsManager.getInstance(context).lyricSustainMotion
+        }.collectAsState(initial = true)
+        val sustainTailMode by remember(context) {
+            SettingsManager.getInstance(context).appleMusicLyricsSustainTailMode
+        }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE)
         val line = currentLine
         val statusBarSecondaryText = when (statusBarSecondaryMode) {
             SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_TRANSLATION -> statusBarTranslationText
@@ -360,13 +421,65 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
             SettingsManager.PLAYER_LYRIC_ALIGN_CENTER
         }
         val verticalAlignment = when {
-            // Keep the first lyric baseline anchored at the top. Translation, pronunciation and
-            // wrapped rows then grow downward instead of moving the whole lyric block around.
-            !statusBarMode -> Alignment.TopCenter
+            // The floating lyric's current line sits at the configured vertical position inside
+            // its fixed-height window. Secondary rows are always reserved on both sides, so the
+            // primary text itself never shifts (#727).
+            !statusBarMode -> when (currentLinePosition) {
+                SettingsManager.DESKTOP_LYRIC_LINE_POSITION_TOP -> Alignment.TopCenter
+                SettingsManager.DESKTOP_LYRIC_LINE_POSITION_BOTTOM -> Alignment.BottomCenter
+                // DESKTOP_LYRIC_LINE_POSITION_MAIN also keeps the stack centered; the offset
+                // computed below then re-centers the primary row itself (#781 一.1).
+                else -> Alignment.Center
+            }
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_CENTER -> Alignment.Center
             statusBarVerticalAlign == SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_BOTTOM -> Alignment.BottomCenter
             else -> Alignment.TopCenter
         }
+        // #781 一.1: "main lyric anchor" — with the block centered, the primary row's center
+        // still sits `(above - below)/2` away from the window center. Shift the stack by the
+        // opposite half so the main lyric row itself lands on the window center even when only
+        // one secondary slot exists (e.g. a translation below without a pronunciation row).
+        val mainAnchorOffsetPx = if (!statusBarMode &&
+            currentLinePosition == SettingsManager.DESKTOP_LYRIC_LINE_POSITION_MAIN) {
+            val density = LocalDensity.current
+            // Mirror AppleMusicLyricLine's stacked layout: a secondary row measures its
+            // declared line-height (Trim.Both) plus the shared 5dp row gap; the
+            // background-vocal row adds a 4dp top pad and its translation a 2dp top pad.
+            val secondaryRowPx = with(density) {
+                (14f * fontScale * translationScale * 1.28f).sp.toPx()
+            }
+            val rowGapPx = with(density) { AppleMusicLyricSecondaryRowSpacing.toPx() }
+            val pronunciation = line.pronunciation.orEmpty()
+            val annotatableBase = line.text.ifBlank { line.backgroundText.orEmpty() }
+                .needsPhoneticAnnotation()
+            val timedKanaReading = line.pronunciationWords.any { it.endMs > it.startMs } &&
+                line.pronunciationWords.all { isInlineRubyPronunciation(it.text) }
+            val inlineRuby = pronunciation.isNotBlank() && (annotatableBase || timedKanaReading) &&
+                (line.pronunciationWords.isNotEmpty() || isInlineRubyPronunciation(pronunciation))
+            // Above the primary row: a visible pronunciation row, or the song-wide reserved
+            // slot (#727). An inline ruby annotation lives inside the word boxes and takes no
+            // stacked row of its own.
+            val aboveSlotPx = if (!inlineRuby &&
+                (pronunciation.isNotBlank() || songHasPronunciation)) {
+                secondaryRowPx + rowGapPx
+            } else 0f
+            // Below: the translation row (shown or reserved) plus an optional
+            // background-vocal stack.
+            var belowSlotPx = if (!line.translation.isNullOrBlank() || songHasTranslation) {
+                secondaryRowPx + rowGapPx
+            } else 0f
+            if (!line.backgroundText.isNullOrBlank() && line.text.isNotBlank()) {
+                belowSlotPx += secondaryRowPx + with(density) { 4.dp.toPx() }
+                if (!line.backgroundTranslation.isNullOrBlank()) {
+                    belowSlotPx += secondaryRowPx + with(density) { 2.dp.toPx() }
+                }
+            }
+            (belowSlotPx - aboveSlotPx) / 2f
+        } else 0f
+        CompositionLocalProvider(
+            LocalReferenceLyricMotion provides sustainMotion,
+            LocalLyricSustainTailExtended provides (sustainTailMode != SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_IMMEDIATE)
+        ) {
         Box(
             modifier = Modifier
                 .then(
@@ -404,7 +517,9 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                     secondaryFontScale = translationScale,
                     primaryTextSizeSp = if (statusBarMode) 12.5f else 24f,
                     secondaryTextSizeSp = if (statusBarMode) 9.5f else 14f,
-                    fontPaddingForTallGlyphs = true,
+                    // Same font-independent trimmed metric as the player page: line height must
+                    // not grow when a custom typeface draws past its declared ascent (#727).
+                    fontPaddingForTallGlyphs = false,
                     lyricTextAlign = effectiveAlign,
                     contentColor = Color(textColor).let { color ->
                         if (opacityPercent >= 100) color else color.copy(alpha = opacityPercent / 100f)
@@ -417,20 +532,39 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                     primaryGlowColor = if (glowEnabled && !statusBarMode) {
                         Color(textColor).copy(alpha = 0.70f)
                     } else null,
-                    primaryGlowRadius = 7f * resources.displayMetrics.density,
-                    singleLine = statusBarMode,
+                    primaryGlowRadius = 7f * resources.displayMetrics.density * (glowRadiusTenths / 1000f),
+                    // Floating lines never wrap either: they scroll horizontally in sync with
+                    // the line's timed duration instead (#727). A compact (locked) window wraps
+                    // the content itself, so there is no viewport to scroll inside.
+                    singleLine = true,
+                    lineProgressScroll = !statusBarMode && !compactLayout,
+                    unsungAlpha = unsungOpacityTenths.takeIf { it >= 0 }?.let { it / 1000f },
+                    reservePronunciationRow = !statusBarMode && songHasPronunciation,
+                    reserveTranslationRow = !statusBarMode && songHasTranslation,
+                    forcePronunciationAbove = !statusBarMode,
+                    // #781 三.2: the overlay window intercepts every touch itself (window drag
+                    // / double-tap controls), so the lyric row has no fraction-scrub path and
+                    // can never commit a premature seek mid-gesture.
+                    interactive = false,
                     inlineStaticSecondaryText = if (statusBarMode) statusBarSecondaryText else "",
                     inlineStaticSecondaryWords = if (statusBarMode) statusBarSecondaryWords else emptyList(),
                     mergeInlineSecondary = statusBarMode && statusBarMergeSecondary,
                     statusBarMarquee = statusBarMode,
                     secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
-                    modifier = if (compactLayout && !statusBarMode) {
+                    modifier = (if (compactLayout && !statusBarMode) {
                         Modifier.wrapContentWidth()
                     } else {
                         Modifier.fillMaxWidth()
-                    }
+                    }).then(
+                        if (mainAnchorOffsetPx != 0f) {
+                            Modifier.offset { IntOffset(0, mainAnchorOffsetPx.roundToInt()) }
+                        } else {
+                            Modifier
+                        }
+                    )
                 )
             }
+        }
         }
     }
 

@@ -67,6 +67,9 @@ internal fun PlayerActionMenu(
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
     sleepTimerStopAfterCurrent: Boolean,
+    sleepTimerSongKeys: Set<String> = emptySet(),
+    queueSongs: List<Song> = emptyList(),
+    currentQueueIndex: Int = -1,
     remoteStreamMaxBitRate: Int?,
     onCyclePlaybackMode: () -> Unit,
     abRepeatState: AbRepeatState,
@@ -76,6 +79,7 @@ internal fun PlayerActionMenu(
     onArtist: () -> Unit,
     onDownload: () -> Unit,
     onLandscape: () -> Unit,
+    onLyricTheater: () -> Unit,
     onSongInfo: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -95,6 +99,7 @@ internal fun PlayerActionMenu(
     onTimer: (Int) -> Unit,
     onCustomTimerMinutes: (Int) -> Unit,
     onCancelTimer: () -> Unit,
+    onToggleSleepSong: (String) -> Unit = {},
     onSpeed: (Float) -> Unit,
     onPitch: (Float) -> Unit,
     onLyricOffset: (Long) -> Unit,
@@ -232,6 +237,7 @@ internal fun PlayerActionMenu(
                                     ActionMenuIds.CASTING -> openSystemOutputSwitcher(context)
                                     ActionMenuIds.AB_REPEAT -> onAbRepeat()
                                     ActionMenuIds.LANDSCAPE -> onLandscape()
+                                    ActionMenuIds.LYRIC_THEATER -> onLyricTheater()
                                     ActionMenuIds.POSTER_WALL -> openPosterWall()
                                     ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) setPage(PlayerActionSheetPage.LyricDisplay)
                                     ActionMenuIds.MINI_LYRICS_STYLE -> setPage(PlayerActionSheetPage.MiniLyricStyle)
@@ -356,6 +362,11 @@ internal fun PlayerActionMenu(
                                 onLandscape,
                                 icon = icon
                             )
+                            ActionMenuIds.LYRIC_THEATER -> PlayerActionMenuItem(
+                                stringResource(R.string.poster_wall_fullscreen_player),
+                                onLyricTheater,
+                                icon = icon
+                            )
                             ActionMenuIds.LYRICS_DISPLAY -> if (showLyricsDisplayEntry) {
                                 PlayerActionMenuItem(
                                     text = stringResource(R.string.player_lyrics_display),
@@ -478,6 +489,10 @@ internal fun PlayerActionMenu(
                     },
                     onCustomTimerMinutes = onCustomTimerMinutes,
                     onCancelTimer = onCancelTimer,
+                    queueSongs = queueSongs,
+                    currentQueueIndex = currentQueueIndex,
+                    sleepTimerSongKeys = sleepTimerSongKeys,
+                    onToggleSleepSong = onToggleSleepSong,
                     showHeader = false
                 )
             }

@@ -31,11 +31,13 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
             "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 EllaMusic/1.0";
 
     private final OkHttpClient client;
+    private final Context context;
     private QuickJSContext jsContext;
     private String callResult;
 
     public MusicFreePluginRuntime(Context context, OkHttpClient client) {
         this.client = client;
+        this.context = context;
     }
 
     public JSONObject search(String script, String keyword, int page) throws Exception {
@@ -78,7 +80,8 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
                 + "author:(__mf_plugin&&__mf_plugin.author)||'',"
                 + "hasSearch:typeof(__mf_plugin&&__mf_plugin.search)==='function',"
                 + "hasMediaSource:typeof(__mf_plugin&&__mf_plugin.getMediaSource)==='function',"
-                + "hasImportMusicItem:typeof(__mf_plugin&&__mf_plugin.importMusicItem)==='function'"
+                + "hasImportMusicItem:typeof(__mf_plugin&&__mf_plugin.importMusicItem)==='function',"
+                + "hasLyric:typeof(__mf_plugin&&__mf_plugin.getLyric)==='function'"
                 + "})");
         return new JSONObject(String.valueOf(result));
     }
@@ -111,6 +114,7 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         });
         createEnv();
         jsContext.evaluate(prelude());
+        jsContext.evaluate(compat());
         jsContext.evaluate("(function(){\n" + script + "\n;globalThis.__mf_plugin=(module.exports&&module.exports.default)||module.exports||exports;})();");
         jsContext.evaluate(bridge());
     }
@@ -132,6 +136,100 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
                 safeString(() -> hexToText(String.valueOf(args[0]))));
         jsContext.getGlobalObject().setProperty("__mf_native_hmac", args ->
                 safeString(() -> hmac(String.valueOf(args[0]), String.valueOf(args[1]), String.valueOf(args[2]))));
+        jsContext.getGlobalObject().setProperty("__mf_native_cipher", args ->
+                safeString(() -> cipher(
+                        String.valueOf(args[0]), String.valueOf(args[1]), String.valueOf(args[2]),
+                        String.valueOf(args[3]), String.valueOf(args[4]))));
+        jsContext.getGlobalObject().setProperty("__mf_native_random_bytes", args ->
+                Base64.encodeToString(randomBytes(Integer.parseInt(String.valueOf(args[0]))), Base64.NO_WRAP));
+        jsContext.getGlobalObject().setProperty("__mf_native_hash_bin", args ->
+                safeString(() -> hashBytes(String.valueOf(args[0]), String.valueOf(args[1]))));
+        jsContext.getGlobalObject().setProperty("__mf_native_hmac_bin", args ->
+                safeString(() -> hmacBytes(String.valueOf(args[0]), String.valueOf(args[1]), String.valueOf(args[2]))));
+        jsContext.getGlobalObject().setProperty("__mf_native_latin1_of", args ->
+                latin1(Base64.decode(String.valueOf(args[0]), Base64.DEFAULT)));
+        jsContext.getGlobalObject().setProperty("__mf_native_b64_of_latin1", args ->
+                Base64.encodeToString(String.valueOf(args[0]).getBytes(StandardCharsets.ISO_8859_1), Base64.NO_WRAP));
+        jsContext.getGlobalObject().setProperty("__mf_native_sleep", args -> {
+            try {
+                Thread.sleep(Long.parseLong(String.valueOf(args[0])));
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            return null;
+        });
+        jsContext.getGlobalObject().setProperty("__mf_native_store_get", args -> {
+            if (context == null) return "";
+            String value = context.getSharedPreferences("musicfree_plugin_kv", Context.MODE_PRIVATE)
+                    .getString(String.valueOf(args[0]), null);
+            return value == null ? "" : value;
+        });
+        jsContext.getGlobalObject().setProperty("__mf_native_store_set", args -> {
+            if (context == null) return null;
+            context.getSharedPreferences("musicfree_plugin_kv", Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(String.valueOf(args[0]), String.valueOf(args[1]))
+                    .apply();
+            return null;
+        });
+        jsContext.getGlobalObject().setProperty("__mf_native_store_delete", args -> {
+            if (context == null) return null;
+            context.getSharedPreferences("musicfree_plugin_kv", Context.MODE_PRIVATE)
+                    .edit().remove(String.valueOf(args[0])).apply();
+            return null;
+        });
+    }
+
+    private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
+
+    private byte[] randomBytes(int count) {
+        byte[] bytes = new byte[Math.max(1, Math.min(count, 4096))];
+        SECURE_RANDOM.nextBytes(bytes);
+        return bytes;
+    }
+
+    private String latin1(byte[] bytes) {
+        return new String(bytes, StandardCharsets.ISO_8859_1);
+    }
+
+    private String hex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder();
+        for (byte b : bytes) builder.append(String.format(Locale.US, "%02x", b));
+        return builder.toString();
+    }
+
+    private String hashBytes(String algorithm, String dataB64) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance(algorithm.replace("-", ""));
+        return hex(digest.digest(Base64.decode(dataB64, Base64.DEFAULT)));
+    }
+
+    private String hmacBytes(String algorithm, String keyB64, String dataB64) throws Exception {
+        Mac mac = Mac.getInstance("Hmac" + algorithm.replace("-", ""));
+        mac.init(new SecretKeySpec(Base64.decode(keyB64, Base64.DEFAULT), mac.getAlgorithm()));
+        return hex(mac.doFinal(Base64.decode(dataB64, Base64.DEFAULT)));
+    }
+
+    private String cipher(String op, String algorithm, String mode, String keyB64, String restJson) throws Exception {
+        JSONObject rest = new JSONObject(restJson);
+        byte[] key = Base64.decode(keyB64, Base64.DEFAULT);
+        byte[] iv = rest.optString("iv").isEmpty() ? null : Base64.decode(rest.optString("iv"), Base64.DEFAULT);
+        byte[] data = Base64.decode(rest.optString("data"), Base64.DEFAULT);
+        String transform = "RC4".equals(algorithm) ? "RC4" : algorithm + "/" + mode + "/NoPadding";
+        javax.crypto.Cipher engine;
+        try {
+            engine = javax.crypto.Cipher.getInstance(transform);
+        } catch (Exception e) {
+            engine = javax.crypto.Cipher.getInstance("RC4".equals(algorithm) ? "ARCFOUR" : transform);
+        }
+        SecretKeySpec keySpec = new SecretKeySpec(key, algorithm);
+        if (iv == null) {
+            engine.init("encrypt".equals(op) ? javax.crypto.Cipher.ENCRYPT_MODE : javax.crypto.Cipher.DECRYPT_MODE, keySpec);
+        } else {
+            engine.init(
+                    "encrypt".equals(op) ? javax.crypto.Cipher.ENCRYPT_MODE : javax.crypto.Cipher.DECRYPT_MODE,
+                    keySpec, new javax.crypto.spec.IvParameterSpec(iv));
+        }
+        return Base64.encodeToString(engine.doFinal(data), Base64.NO_WRAP);
     }
 
     private JSONObject readResult(String fallback) throws Exception {
@@ -172,7 +270,12 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         if ("GET".equals(upperMethod)) builder.get();
         else builder.method(upperMethod, body != null ? body : RequestBody.create(new byte[0]));
 
-        try (okhttp3.Response response = client.newCall(builder.build()).execute()) {
+        // Plugins may opt out of redirect following (options.followRedirects === false) to read
+        // 3xx Location headers themselves — some platforms hand out stream URLs that way.
+        OkHttpClient callClient = options.has("followRedirects") && !options.optBoolean("followRedirects", true)
+                ? client.newBuilder().followRedirects(false).build()
+                : client;
+        try (okhttp3.Response response = callClient.newCall(builder.build()).execute()) {
             String bodyText = response.body() == null ? "" : response.body().string();
             Object dataValue = bodyText;
             try {
@@ -182,7 +285,22 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
             }
             JSONObject headersJson = new JSONObject();
             for (String name : response.headers().names()) {
-                headersJson.put(name, response.header(name));
+                if ("set-cookie".equalsIgnoreCase(name)) {
+                    // Flatten repeated Set-Cookie into a reusable "a=1; b=2" cookie string —
+                    // plugins pass it back as a Cookie header for login flows.
+                    java.util.List<String> cookies = response.headers(name);
+                    StringBuilder joined = new StringBuilder();
+                    for (String c : cookies) {
+                        int semi = c.indexOf(';');
+                        String pair = (semi >= 0 ? c.substring(0, semi) : c).trim();
+                        if (pair.isEmpty()) continue;
+                        if (joined.length() > 0) joined.append("; ");
+                        joined.append(pair);
+                    }
+                    headersJson.put(name, joined.toString());
+                } else {
+                    headersJson.put(name, response.header(name));
+                }
             }
             return new JSONObject()
                     .put("status", response.code())
@@ -251,6 +369,10 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
     private void waitFor(BooleanSupplier condition, long timeoutMs) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
+            try {
+                jsContext.evaluate("__mf_pump()");
+            } catch (Exception ignored) {
+            }
             Thread.sleep(8L);
         }
     }
@@ -268,78 +390,9 @@ public final class MusicFreePluginRuntime implements AutoCloseable {
         String get() throws Exception;
     }
 
-    private String prelude() {
-        return ""
-                + "var module={exports:{}}; var exports=module.exports; var global=globalThis;\n"
-                + "function setTimeout(fn){ if (typeof fn==='function') fn(); return 0; }\n"
-                + "function clearTimeout(){}\n"
-                + "function __mf_parse(v){ try{return JSON.parse(v)}catch(e){return v} }\n"
-                + "function __mf_qs_stringify(obj){if(!obj)return'';var parts=[];Object.keys(obj).forEach(function(k){var v=obj[k];if(v==null)return;if(Array.isArray(v)){v.forEach(function(x){parts.push(encodeURIComponent(k)+'='+encodeURIComponent(x==null?'':String(x)))})}else if(typeof v==='object'){parts.push(encodeURIComponent(k)+'='+encodeURIComponent(JSON.stringify(v)))}else parts.push(encodeURIComponent(k)+'='+encodeURIComponent(String(v)))});return parts.join('&')}\n"
-                + "function __mf_qs_parse(s){var out={};String(s||'').replace(/^\\?/,'').split('&').forEach(function(p){if(!p)return;var i=p.indexOf('=');var k=decodeURIComponent(i<0?p:p.slice(0,i));var v=decodeURIComponent(i<0?'':p.slice(i+1));if(out[k]!==undefined){if(!Array.isArray(out[k]))out[k]=[out[k]];out[k].push(v)}else out[k]=v});return out}\n"
-                + "var qs={stringify:__mf_qs_stringify,parse:__mf_qs_parse}; qs.default=qs;\n"
-                + "function __mf_apply_params_serializer(config){if(!config||!config.params)return config;try{if(typeof config.paramsSerializer==='function'){var q=config.paramsSerializer(config.params);if(q){config.url+=(String(config.url).indexOf('?')>=0?'&':'?')+q;delete config.params}}else if(config.paramsSerializer&&typeof config.paramsSerializer.serialize==='function'){var q2=config.paramsSerializer.serialize(config.params);if(q2){config.url+=(String(config.url).indexOf('?')>=0?'&':'?')+q2;delete config.params}}}catch(e){}return config}\n"
-                + "function __mf_http(method,url,options){ options=__mf_apply_params_serializer(options||{}); var r=__mf_parse(__mf_native_http(method,url,JSON.stringify(options||{}))); if(r&&r.headers&&!r.headers.get){r.headers.get=function(k){k=String(k);return this[k]||this[k.toLowerCase()]||this[k.toUpperCase()]||null};} return r; }\n"
-                + "var axios=function(config,maybeConfig){ if(typeof config==='string')config=Object.assign({},maybeConfig||{},{url:config}); config=config||{}; return Promise.resolve(__mf_http(config.method||'GET', config.url, config)); };\n"
-                + "axios.get=function(url,config){ config=Object.assign({},config||{},{url:url}); return Promise.resolve(__mf_http('GET',url,config)); };\n"
-                + "axios.post=function(url,data,config){ config=Object.assign({},config||{},{url:url,data:data}); return Promise.resolve(__mf_http('POST',url,config)); };\n"
-                + "axios.request=axios; axios.create=function(defaults){var inst=function(config){return axios(Object.assign({},defaults||{},config||{}))};Object.keys(axios).forEach(function(k){inst[k]=axios[k]});inst.defaults=Object.assign({},axios.defaults,defaults||{});return inst}; axios.defaults={headers:{common:{}}};\n"
-                + "axios.default=axios;\n"
-                + "var request=function(url,options){ return axios(Object.assign({}, options||{}, {url:url})); };\n"
-                + "request.get=axios.get; request.post=axios.post; request.default=request;\n"
-                + "var __mf_memory_store={};\n"
-                + "var AsyncStorage={"
-                + "getItem:function(k){return Promise.resolve(Object.prototype.hasOwnProperty.call(__mf_memory_store,k)?__mf_memory_store[k]:null)},"
-                + "setItem:function(k,v){__mf_memory_store[k]=String(v);return Promise.resolve()},"
-                + "removeItem:function(k){delete __mf_memory_store[k];return Promise.resolve()},"
-                + "multiGet:function(keys){return Promise.resolve((keys||[]).map(function(k){return [k,Object.prototype.hasOwnProperty.call(__mf_memory_store,k)?__mf_memory_store[k]:null]}))},"
-                + "multiSet:function(items){(items||[]).forEach(function(it){__mf_memory_store[it[0]]=String(it[1])});return Promise.resolve()},"
-                + "clear:function(){__mf_memory_store={};return Promise.resolve()}"
-                + "}; AsyncStorage.default=AsyncStorage;\n"
-                + "var Dimensions={get:function(){return {width:1080,height:1920,scale:1,fontScale:1}}};\n"
-                + "var Platform={OS:'android',Version:35,select:function(v){return v&&((v.android!==undefined?v.android:v.default))}};\n"
-                + "function __mf_word(text){return {__text:String(text==null?'':text),toString:function(enc){if(enc===CryptoJS.enc.Base64)return __mf_native_b64(this.__text);if(enc===CryptoJS.enc.Hex){var h='';for(var i=0;i<this.__text.length;i++)h+=('0'+this.__text.charCodeAt(i).toString(16)).slice(-2);return h}return this.__text}}}\n"
-                + "function __mf_to_text(v){return v&&v.__text!==undefined?v.__text:String(v==null?'':v)}\n"
-                + "function __mf_digest(algo,v){return {toString:function(enc){var hex=__mf_native_hash(algo,__mf_to_text(v));return enc===CryptoJS.enc.Utf8?__mf_native_hex_to_text(hex):hex}}}\n"
-                + "var CryptoJS={enc:{Utf8:{parse:function(v){return __mf_word(v)},stringify:function(v){return __mf_to_text(v)}},Hex:{parse:function(v){return __mf_word(__mf_native_hex_to_text(String(v)))},stringify:function(v){return __mf_word(v).toString(CryptoJS.enc.Hex)}},Base64:{parse:function(v){return __mf_word(__mf_native_b64_decode(String(v)))},stringify:function(v){return __mf_native_b64(__mf_to_text(v))}}},"
-                + "MD5:function(v){return __mf_digest('MD5',v)},"
-                + "SHA1:function(v){return __mf_digest('SHA-1',v)},"
-                + "SHA256:function(v){return __mf_digest('SHA-256',v)},"
-                + "HmacMD5:function(v,k){return {toString:function(){return __mf_native_hmac('MD5',__mf_to_text(k),__mf_to_text(v))}}},"
-                + "HmacSHA1:function(v,k){return {toString:function(){return __mf_native_hmac('SHA-1',__mf_to_text(k),__mf_to_text(v))}}},"
-                + "HmacSHA256:function(v,k){return {toString:function(){return __mf_native_hmac('SHA-256',__mf_to_text(k),__mf_to_text(v))}}}};\n"
-                + "CryptoJS.default=CryptoJS;\n"
-                + "var env={appVersion:'1.0.0',os:'android',lang:'zh-CN',getUserVariables:function(){return {}},get userVariables(){return this.getUserVariables()}};\n"
-                + "var process={platform:'android',version:'1.0.0',env:{}};\n"
-                + "function __mf_decode_html(s){return String(s==null?'':s).replace(/&#(\\d+);/g,function(_,n){return String.fromCharCode(parseInt(n,10))}).replace(/&#x([0-9a-fA-F]+);/g,function(_,n){return String.fromCharCode(parseInt(n,16))}).replace(/&quot;/g,'\\\"').replace(/&apos;/g,\"'\").replace(/&#39;/g,\"'\").replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')}\n"
-                + "function __mf_encode_html(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\\\"/g,'&quot;').replace(/'/g,'&#39;')}\n"
-                + "var he={decode:__mf_decode_html,encode:__mf_encode_html}; he.default=he;\n"
-                + "function __mf_strip_tags(s){return __mf_decode_html(String(s||'').replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').replace(/<[^>]+>/g,''));}\n"
-                + "function __mf_has_class(node,c){var m=String(node||'').match(/class=[\\\"']([^\\\"']*)/i);return !!(m&&(' '+m[1]+' ').indexOf(' '+c+' ')>=0);}\n"
-                + "function __mf_find_nodes(html,selector){html=String(html||'');selector=String(selector||'').trim();if(!selector)return [html];var m=selector.match(/^([a-zA-Z][\\w-]*)(?:\\.([\\w-]+))?$/);var tag=m&&m[1];var cls=m&&m[2];var out=[];if(tag){var re=new RegExp('<'+tag+'\\\\b[^>]*>[\\\\s\\\\S]*?<\\\\/'+tag+'>','gi');var x;while((x=re.exec(html))){if(!cls||__mf_has_class(x[0],cls))out.push(x[0]);}}else if(selector.charAt(0)==='.') {var c=selector.slice(1);var re2=/<([a-zA-Z][\\w-]*)\\b[^>]*>[\\s\\S]*?<\\/\\1>/gi;var y;while((y=re2.exec(html))){if(__mf_has_class(y[0],c))out.push(y[0]);}}return out.length?out:[html];}\n"
-                + "function __mf_collection(nodes){nodes=nodes||[];return {length:nodes.length,text:function(){return nodes.map(__mf_strip_tags).join('')},html:function(){return nodes[0]||''},attr:function(name){var attrs=String(nodes[0]||'').match(/[\\w:-]+=[\\\"'][^\\\"']*[\\\"']/g)||[];for(var i=0;i<attrs.length;i++){var p=attrs[i].match(/^([\\w:-]+)=[\\\"']([^\\\"']*)/);if(p&&p[1]===String(name))return __mf_decode_html(p[2]);}return undefined},each:function(fn){nodes.forEach(function(n,i){fn&&fn.call(__mf_collection([n]),i,__mf_collection([n]))});return this},map:function(fn){var arr=nodes.map(function(n,i){return fn&&fn.call(__mf_collection([n]),i,__mf_collection([n]))});return {get:function(){return arr},toArray:function(){return arr}}},get:function(i){return i==null?nodes:nodes[i]},toArray:function(){return nodes}}}\n"
-                + "var cheerio={load:function(html){var root=String(html||'');var $=function(selector){return __mf_collection(__mf_find_nodes(root,selector))};$.root=function(){return __mf_collection([root])};return $;}}; cheerio.default=cheerio;\n"
-                + "var dayjs=function(v){var d=v?new Date(v):new Date();return {format:function(){return d.toISOString()},unix:function(){return Math.floor(d.getTime()/1000)},valueOf:function(){return d.getTime()},toDate:function(){return d}}}; dayjs.default=dayjs;\n"
-                + "function bigInt(v){var n=BigInt(String(v||0));return {value:n,toString:function(radix){return n.toString(radix||10)},add:function(x){return bigInt(n+BigInt(String(x&&x.value!==undefined?x.value:x)))},minus:function(x){return bigInt(n-BigInt(String(x&&x.value!==undefined?x.value:x)))},subtract:function(x){return this.minus(x)},multiply:function(x){return bigInt(n*BigInt(String(x&&x.value!==undefined?x.value:x)))},divide:function(x){return bigInt(n/BigInt(String(x&&x.value!==undefined?x.value:x)))},mod:function(x){return bigInt(n%BigInt(String(x&&x.value!==undefined?x.value:x)))},pow:function(x){return bigInt(n**BigInt(String(x&&x.value!==undefined?x.value:x)))},equals:function(x){return n===BigInt(String(x&&x.value!==undefined?x.value:x))}}}; bigInt.default=bigInt;\n"
-                + "var CookieManager={get:function(){return Promise.resolve({})},set:function(){return Promise.resolve(true)},clearAll:function(){return Promise.resolve(true)},flush:function(){return Promise.resolve()}}; CookieManager.default=CookieManager;\n"
-                + "var webdav={createClient:function(){return {getDirectoryContents:function(){return Promise.resolve([])},getFileContents:function(){return Promise.resolve('')},putFileContents:function(){return Promise.resolve(true)},deleteFile:function(){return Promise.resolve(true)},exists:function(){return Promise.resolve(false)}}}}; webdav.default=webdav;\n"
-                + "function require(name){"
-                + "if(name==='axios')return axios;"
-                + "if(name==='request')return request;"
-                + "if(name==='crypto-js')return CryptoJS;"
-                + "if(name==='qs'||name==='querystring')return qs;"
-                + "if(name==='he')return he;"
-                + "if(name==='cheerio')return cheerio;"
-                + "if(name==='dayjs')return dayjs;"
-                + "if(name==='big-integer')return bigInt;"
-                + "if(name==='@react-native-cookies/cookies')return CookieManager;"
-                + "if(name==='webdav')return webdav;"
-                + "if(name==='@react-native-async-storage/async-storage')return AsyncStorage;"
-                + "if(name==='@react-native-async-storage/react-native')return AsyncStorage;"
-                + "if(name==='react-native')return {Dimensions:Dimensions,Platform:Platform};"
-                + "throw new Error('暂不支持插件依赖: '+name);"
-                + "}\n"
-                + "var __musicfree_require=require;\n";
-    }
+    private String prelude() { return PluginJsShared.prelude(); }
+
+    private String compat() { return PluginJsShared.compat(); }
 
     private String bridge() {
         return ""

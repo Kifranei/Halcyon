@@ -96,6 +96,18 @@ internal fun AppleMusicSingleLyricLine(
     mergeInlineSecondary: Boolean = false,
     statusBarMarquee: Boolean = false,
     followWordFocus: Boolean = false,
+    /** Duration-synced horizontal scroll for overflowing floating desktop lines (#727). */
+    lineProgressScroll: Boolean = false,
+    /**
+     * Reserve an empty secondary slot when this line lacks pronunciation/translation but other
+     * lines in the same lyric set have them, so the primary row never shifts vertically (#727).
+     */
+    reservePronunciationRow: Boolean = false,
+    reserveTranslationRow: Boolean = false,
+    /** Desktop overlay override for the unsung-word dim alpha; null follows the shared setting. */
+    unsungAlpha: Float? = null,
+    /** Force the pronunciation row above the original regardless of the shared below-setting. */
+    forcePronunciationAbove: Boolean = false,
     secondaryAlpha: Float = 0.74f,
     interactive: Boolean = true,
     showBackgroundText: Boolean = true,
@@ -107,8 +119,9 @@ internal fun AppleMusicSingleLyricLine(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
+    val pronunciationBelowSetting by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
         .collectAsState(initial = LocalAppleMusicLyricsViewPreferences.current?.pronunciationBelow ?: false)
+    val pronunciationBelow = pronunciationBelowSetting && !forcePronunciationAbove
     val sustainThresholdMs by remember(context) {
         SettingsManager.getInstance(context).appleMusicLyricsSustainThresholdMs
     }.collectAsState(initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS)
@@ -148,6 +161,10 @@ internal fun AppleMusicSingleLyricLine(
         mergeInlineSecondary = mergeInlineSecondary,
         statusBarMarquee = statusBarMarquee,
         followWordFocus = followWordFocus,
+        lineProgressScroll = lineProgressScroll,
+        reservePronunciationRow = reservePronunciationRow,
+        reserveTranslationRow = reserveTranslationRow,
+        unsungAlpha = unsungAlpha,
         secondaryAlpha = secondaryAlpha,
         showBackgroundText = showBackgroundText,
         interactive = interactive,
@@ -196,6 +213,20 @@ internal fun AppleMusicLyricLine(
     mergeInlineSecondary: Boolean = false,
     statusBarMarquee: Boolean = false,
     followWordFocus: Boolean = false,
+    /** Duration-synced horizontal scroll for an overflowing single-line lyric (#727). */
+    lineProgressScroll: Boolean = false,
+    /** Reserve empty secondary slots so the primary row keeps a fixed vertical position (#727). */
+    reservePronunciationRow: Boolean = false,
+    reserveTranslationRow: Boolean = false,
+    /** Desktop override for the unsung-word dim alpha; null follows the shared lyric setting. */
+    unsungAlpha: Float? = null,
+    /**
+     * #781: whole-line alpha for the active line when it carries no explicit word timing —
+     * the dim/bright state of a line-timed current row. 1f keeps the original full brightness.
+     */
+    untimedLineAlpha: Float = 1f,
+    /** Base alpha for inactive lines; 0.24f reproduces the original appearance. */
+    inactiveOpacityBase: Float = 0.24f,
     secondaryAlpha: Float = 0.74f,
     reserveExtraLyricSpace: Boolean = false,
     interactive: Boolean = true,
@@ -205,6 +236,11 @@ internal fun AppleMusicLyricLine(
     onLongClick: () -> Unit,
     onWordClick: ((Long) -> Unit)? = null,
     onTapFraction: ((Float) -> Unit)? = null,
+    /**
+     * #727: fired once when a fraction scrub ends — on the release after a horizontal drag,
+     * and immediately after a tap's fraction emission so taps keep their instant seek.
+     */
+    onDragEnd: (() -> Unit)? = null,
     touchFeedbackEnabled: Boolean = false,
     showPrimaryText: Boolean = true,
     primaryOutlineColor: Color? = null,
@@ -234,10 +270,19 @@ internal fun AppleMusicLyricLine(
         animationSpec = tween(durationMillis = if (referenceMotion) 450 else 140, easing = if (referenceMotion) ReferenceLyricEasing else FastOutSlowInEasing),
         label = "appleLyricsScale"
     )
+    val inactiveBase = inactiveOpacityBase.coerceIn(0f, 1f)
     val lineAlpha = animateFloatAsState(
         targetValue = when {
-            active || paused -> 1f
-            else -> (0.24f - abs(distance) * 0.025f).coerceAtLeast(0.13f)
+            // A paused reveal keeps every row readable regardless of the unsung override.
+            paused -> 1f
+            // #781: a line-timed current line has no karaoke reveal of its own, so its whole
+            // row takes the configured unsung opacity; word-timed rows stay at full brightness.
+            active && !line.hasExplicitWordTiming -> untimedLineAlpha.coerceIn(0f, 1f)
+            active -> 1f
+            // The original curve was `0.24 - |distance| * 0.025`, floored at 0.13. Scale the
+            // base, decay and floor together so custom opacities keep the same fade shape.
+            else -> (inactiveBase * (1f - abs(distance) * (0.025f / 0.24f)))
+                .coerceAtLeast(inactiveBase * (0.13f / 0.24f))
         },
         animationSpec = tween(durationMillis = if (referenceMotion) 450 else 120, easing = if (referenceMotion) ReferenceLyricEasing else FastOutSlowInEasing),
         label = "appleLyricsAlpha"
@@ -339,9 +384,13 @@ internal fun AppleMusicLyricLine(
                                 onClick()
                             } else {
                                 fractionHandler((offset.x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
+                                // A tap previews and immediately commits the touched fraction —
+                                // the same instant seek the opening row always performed.
+                                onDragEnd?.invoke()
                             }
                         },
                         onDragFraction = onTapFraction,
+                        onDragEnd = onDragEnd,
                         onDoubleTap = onDoubleClick,
                         onLongPress = onLongClick
                     )
@@ -378,9 +427,16 @@ internal fun AppleMusicLyricLine(
                     .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = true))
                     .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
+        } else if (
+            reservePronunciationRow && showPronunciation && !pronunciationBelow &&
+            pronunciation.isBlank() && !inlineRuby
+        ) {
+            // Another line in this set carries pronunciation; hold the slot so the original
+            // text does not bounce up into it on lines without one (#727).
+            ReservedSecondaryRow(secondaryStyle = secondaryStyle, aboveOriginal = true)
         }
         val primaryText = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } }
-        val primaryWords = if (inlineRuby && line.pronunciationWords.isNotEmpty() && line.words.isEmpty() && primaryText.isNotBlank()) {
+        val primaryWords = if (inlineRuby && line.pronunciationWords.size > 1 && line.words.isEmpty() && primaryText.isNotBlank()) {
             listOf(
                 LyricWord(
                     text = primaryText,
@@ -444,6 +500,12 @@ internal fun AppleMusicLyricLine(
                 singleLine = singleLine,
                 statusBarMarquee = statusBarMarquee,
                 followWordFocus = followWordFocus,
+                unsungAlpha = unsungAlpha,
+                lineProgressScroll = lineProgressScroll,
+                lineStartMs = line.timeMs,
+                lineEndMs = line.endMs
+                    ?: line.words.maxOfOrNull { it.endMs }
+                    ?: (line.timeMs + 4_000L),
                 pronunciation = if (inlineRuby) pronunciation else "",
                 pronunciationWords = if (inlineRuby) line.pronunciationWords else emptyList(),
                 rubyStyle = if (inlineRuby) rubyStyle else null,
@@ -470,10 +532,16 @@ internal fun AppleMusicLyricLine(
                     .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = false))
                     .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
+        } else if (
+            reservePronunciationRow && showPronunciation && pronunciationBelow &&
+            pronunciation.isBlank() && !inlineRuby
+        ) {
+            ReservedSecondaryRow(secondaryStyle = secondaryStyle, aboveOriginal = false)
         }
-        line.translation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
+        val translationText = line.translation?.takeIf { showTranslation && it.isNotBlank() }
+        if (translationText != null) {
             BasicText(
-                text = translation,
+                text = translationText,
                 style = secondaryStyle,
                 maxLines = if (singleLine) 1 else Int.MAX_VALUE,
                 softWrap = !singleLine,
@@ -483,6 +551,10 @@ internal fun AppleMusicLyricLine(
                     .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = false))
                     .then(if (singleLine) Modifier.basicMarquee() else Modifier)
             )
+        } else if (reserveTranslationRow && showTranslation) {
+            // The song has translations elsewhere; keep this line's translation slot occupied
+            // so its original text stays at the same height as on translated lines (#727).
+            ReservedSecondaryRow(secondaryStyle = secondaryStyle, aboveOriginal = false)
         }
         val showBackground = showBackgroundText && active
         line.backgroundText?.trim()?.takeIf {
@@ -501,6 +573,7 @@ internal fun AppleMusicLyricLine(
                     sustainThresholdMs = sustainThresholdMs,
                     wordLiftScale = wordLiftScale,
                     sustainGlowScale = sustainGlowScale,
+                    unsungAlpha = unsungAlpha,
                     outlineColor = primaryOutlineColor,
                     outlineWidth = primaryOutlineWidth,
                     singleLine = singleLine,
@@ -520,6 +593,26 @@ internal fun AppleMusicLyricLine(
     }
 }
 
+/**
+ * An invisible row with the exact metrics of a stacked secondary line. The floating desktop
+ * lyric renders it on lines that lack pronunciation/translation while other lines in the same
+ * song have them, so the original text keeps a fixed vertical position across lines (#727).
+ */
+@Composable
+private fun ReservedSecondaryRow(secondaryStyle: TextStyle, aboveOriginal: Boolean) {
+    BasicText(
+        text = " ",
+        style = secondaryStyle,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(appleMusicLyricStackedSecondaryPadding(aboveOriginal = aboveOriginal))
+            .alpha(0f)
+    )
+}
+
 @Composable
 internal fun Modifier.appleMusicTouchRipple(
     key: Any?,
@@ -527,6 +620,7 @@ internal fun Modifier.appleMusicTouchRipple(
     feedbackEnabled: Boolean,
     onTap: (Offset, Float) -> Unit,
     onDragFraction: ((Float) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
     onDoubleTap: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null
 ): Modifier {
@@ -549,7 +643,7 @@ internal fun Modifier.appleMusicTouchRipple(
             }
         }
         drawContent()
-    }.pointerInput(key, feedbackEnabled, onTap, onDragFraction, onDoubleTap, onLongPress) {
+    }.pointerInput(key, feedbackEnabled, onTap, onDragFraction, onDragEnd, onDoubleTap, onLongPress) {
         if (onDragFraction == null) {
             detectTapGestures(
                 onPress = { offset ->
@@ -589,6 +683,8 @@ internal fun Modifier.appleMusicTouchRipple(
             }
             var dragging = false
             var longPressed = false
+            // Lets the finally-block skip a second release callback after a normal drag-up.
+            var dragReleased = false
             val width = size.width.toFloat().coerceAtLeast(1f)
             val longPressJob = onLongPress?.let { callback ->
                 scope.launch {
@@ -602,23 +698,38 @@ internal fun Modifier.appleMusicTouchRipple(
             fun emitFraction(x: Float) {
                 fractionHandler((x / width).coerceIn(0f, 1f))
             }
-            while (true) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) {
-                    longPressJob?.cancel()
-                    if (!dragging && !longPressed) onTap(change.position, width)
-                    break
+            try {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) {
+                        longPressJob?.cancel()
+                        if (!dragging && !longPressed) {
+                            onTap(change.position, width)
+                        } else if (dragging) {
+                            // #727: one last scrub sample at the release position, then the
+                            // caller commits a single seek instead of live-seeking every move.
+                            emitFraction(change.position.x)
+                            dragReleased = true
+                            onDragEnd?.invoke()
+                        }
+                        break
+                    }
+                    val dx = change.position.x - down.position.x
+                    if (!dragging && abs(dx) >= touchSlop) {
+                        dragging = true
+                        longPressJob?.cancel()
+                    }
+                    if (dragging) {
+                        emitFraction(change.position.x)
+                        change.consume()
+                    }
                 }
-                val dx = change.position.x - down.position.x
-                if (!dragging && abs(dx) >= touchSlop) {
-                    dragging = true
-                    longPressJob?.cancel()
-                }
-                if (dragging) {
-                    emitFraction(change.position.x)
-                    change.consume()
-                }
+            } finally {
+                // If the gesture is torn down mid-drag (recomposition restart, lost pointer
+                // capture) the preview must still end at the last reported position instead
+                // of sticking on the seek bar.
+                if (dragging && !dragReleased) onDragEnd?.invoke()
             }
         }
     }

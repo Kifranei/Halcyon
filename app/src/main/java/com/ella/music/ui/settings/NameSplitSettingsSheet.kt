@@ -17,10 +17,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun NameSplitSettingsSheet(show: Boolean, values: List<String>, onDismissRequest: () -> Unit, onSave: (List<String>) -> Unit) {
     if (!show) return
-    var artists by rememberSaveable { mutableStateOf(values[0]) }
-    var artistNames by rememberSaveable { mutableStateOf(values[1]) }
-    var genres by rememberSaveable { mutableStateOf(values[2]) }
-    var genreNames by rememberSaveable { mutableStateOf(values[3]) }
+    // The player sheet opens on the DataStore flow's initial value, then the saved separators
+    // arrive a frame later. Key the fields on that snapshot so the sheet shows the settings (#770).
+    val seed = values.take(4).joinToString("\u0001")
+    var artists by rememberSaveable(seed) { mutableStateOf(values.getOrElse(0) { "" }) }
+    var artistNames by rememberSaveable(seed) { mutableStateOf(values.getOrElse(1) { "" }) }
+    var genres by rememberSaveable(seed) { mutableStateOf(values.getOrElse(2) { "" }) }
+    var genreNames by rememberSaveable(seed) { mutableStateOf(values.getOrElse(3) { "" }) }
     SettingsEditSheet(true, stringResource(R.string.settings_artist_separators),
         onDismissRequest = onDismissRequest, onSave = { onSave(listOf(artists, artistNames, genres, genreNames)); onDismissRequest() }) {
         Column(Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),

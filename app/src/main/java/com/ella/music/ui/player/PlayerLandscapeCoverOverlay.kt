@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
@@ -70,7 +69,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Mic
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 
 @Composable
 internal fun LandscapeCoverPlaybackOverlay(
@@ -237,6 +236,9 @@ internal fun LandscapeCoverPlaybackOverlay(
             customBackgroundOpacity = 1f,
             customBackgroundDim = 0.26f,
             beautifulLyricsBackground = beautifulLyricsBackground,
+            // The portrait fullscreen button is asking for the MV itself. A dim scrim only
+            // stays while KTV lyrics are drawn on top of that video.
+            videoDimAlpha = if (dynamicCoverSource?.preferLandscapeBackground == true && !ktvLyricsEnabled) 0f else 0.24f,
             modifier = Modifier.fillMaxSize()
         )
         if (ktvLyricsEnabled) {
@@ -290,43 +292,10 @@ internal fun LandscapeCoverPlaybackOverlay(
             ) {
                 when {
                     ktvLyricsEnabled -> Unit
-                    hideNeighborCovers -> {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxWidth(0.52f)
-                                .fillMaxHeight()
-                                .padding(end = 30.dp)
-                        ) {
-                        if (lyrics.isNotEmpty()) {
-                            AppleMusicLyricsView(
-                                lyrics = lyrics,
-                                currentIndex = currentLyricIndex,
-                                currentPositionMs = currentPosition,
-                                isPlaying = isPlaying,
-                                showTranslation = showTranslation,
-                                showPronunciation = showPronunciation,
-                                fontFamily = fontFamily,
-                                translationFontFamily = translationFontFamily,
-                                fontWeight = fontWeight,
-                                fontScale = fontScale,
-                                secondaryFontScale = secondaryFontScale,
-                                primaryTextSizeSp = primaryTextSizeSp,
-                                secondaryTextSizeSp = secondaryTextSizeSp,
-                                lyricTextAlign = 0,
-                                 contentColor = LocalPlayerContentColor.current,
-                                 onLineClick = onLyricLineClick,
-                                 onLineDoubleClick = onPlayPause,
-                                onLineLongClick = onLyricLineLongClick,
-                                topContentPadding = 24.dp,
-                                bottomContentPadding = 24.dp,
-                                lineSpacing = 16.dp,
-                                focusOffsetRatio = 0.28f,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            }
-                        }
-                    }
+                    // Fullscreen from the portrait MV page used to replace the picture with
+                    // the side lyric pane. Keep the resolved video full-bleed; the mic button
+                    // still turns KTV lyrics on over that video.
+                    hideNeighborCovers -> Unit
                     else -> {
                         LandscapeCoverStack(
                             currentSong = song,
@@ -385,7 +354,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 58.dp)
+                        .heightIn(min = 96.dp)
                         .padding(horizontal = 34.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -416,7 +385,7 @@ internal fun LandscapeCoverPlaybackOverlay(
             ) {
                 if (showBackButton) {
                     LandscapeOverlayIconButton(
-                        icon = MiuixIcons.Regular.Back,
+                        icon = GlassChevronBackwardIcon,
                         description = stringResource(R.string.common_back),
                         selected = false,
                         onClick = onDismiss
@@ -448,7 +417,7 @@ internal fun LandscapeCoverPlaybackOverlay(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
+                    imageVector = GlassChevronBackwardIcon,
                     contentDescription = stringResource(R.string.common_back),
                     tint = LocalPlayerContentColor.current.copy(alpha = 0.92f),
                     modifier = Modifier.size(23.dp)

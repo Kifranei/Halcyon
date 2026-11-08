@@ -58,7 +58,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Play
@@ -310,7 +310,7 @@ private fun LyricShareHeader(
     ) {
         IconButton(onClick = onDismiss) {
             Icon(
-                imageVector = MiuixIcons.Regular.Back,
+                imageVector = GlassChevronBackwardIcon,
                 contentDescription = stringResource(R.string.common_back),
                 tint = contentColor
             )

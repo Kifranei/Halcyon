@@ -26,6 +26,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -802,22 +803,35 @@ internal fun RankingCard(
     title: String,
     emptyText: String,
     stats: List<SongPlaybackStats>,
-    libraryById: Map<Long, Song>,
-    libraryByStatsKey: Map<String, Song>,
+    resolveSong: (SongPlaybackStats) -> Song?,
     mainViewModel: MainViewModel,
-    valueText: (SongPlaybackStats) -> String
+    valueText: (SongPlaybackStats) -> String,
+    onSongClick: ((Song) -> Unit)? = null,
+    onHeaderClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = analyticsWallpaperCardColors()
+        colors = analyticsWallpaperCardColors(),
+        onClick = onHeaderClick ?: {}
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                if (onHeaderClick != null) {
+                    Icon(
+                        imageVector = MiuixIcons.Basic.ArrowRight,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(10.dp))
             if (stats.isEmpty()) {
                 Text(
@@ -830,9 +844,9 @@ internal fun RankingCard(
                         index = index + 1,
                         stat = stat,
                         value = valueText(stat),
-                        song = libraryByStatsKey[stat.analyticsStatsKey()]
-                            ?: libraryById[stat.songId],
-                        mainViewModel = mainViewModel
+                        song = resolveSong(stat),
+                        mainViewModel = mainViewModel,
+                        onClick = onSongClick
                     )
                 }
             }
@@ -841,16 +855,20 @@ internal fun RankingCard(
 }
 
 @Composable
-private fun RankingRow(
+internal fun RankingRow(
     index: Int,
     stat: SongPlaybackStats,
     value: String,
     song: Song?,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    onClick: ((Song) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = song != null && onClick != null) {
+                song?.let { onClick?.invoke(it) }
+            }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

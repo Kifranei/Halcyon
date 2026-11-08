@@ -509,7 +509,7 @@ private fun packArtistImages(
     zip: ZipOutputStream,
     selectedTypes: Set<BackupType>
 ) {
-    if (BackupType.LibraryAndScan !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    if (BackupType.WallpapersAndImages !in selectedTypes) return
     val dir = com.ella.music.data.ArtistImageRepository.downloadDirectory(context)
     dir.listFiles()
         ?.asSequence()
@@ -533,7 +533,7 @@ private fun restoreArtistImagesFromArchive(
     root: JSONObject,
     selectedTypes: Set<BackupType>
 ) {
-    if (BackupType.LibraryAndScan !in selectedTypes && BackupType.WallpapersAndImages !in selectedTypes) return
+    if (BackupType.WallpapersAndImages !in selectedTypes) return
     val extractionDirPath = root.optString(EXTRACTED_ASSET_DIR_FIELD, "")
     if (extractionDirPath.isBlank()) return
     val imagesExtractedDir = File(extractionDirPath, ARTIST_IMAGES_DIR_EXTRACTED)

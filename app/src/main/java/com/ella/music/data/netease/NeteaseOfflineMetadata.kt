@@ -40,6 +40,7 @@ internal fun offlineNeteaseTags(detail: JSONObject, song: Song, lyrics: NeteaseL
         year = published.takeIf { it > 0 }?.let { java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).year.toString() },
         composer = detail.optString("composer").takeIf { it.isNotBlank() },
         lyricist = detail.optString("lyricist").takeIf { it.isNotBlank() },
+        producer = detail.optString("producer").takeIf { it.isNotBlank() },
         comment = key, neteaseKey = key, lyrics = lyrics.original,
         ttmlLyrics = offlineNeteaseTtml(lyrics),
         customTags = buildMap {

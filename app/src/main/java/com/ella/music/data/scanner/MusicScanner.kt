@@ -435,6 +435,7 @@ class MusicScanner(private val context: Context) {
                     var composer = ""
                     var arranger = ""
                     var lyricist = ""
+                    var producer = ""
                     var duration = 0L
                     var trackNumber = 0
                     var discNumber = 0
@@ -490,7 +491,8 @@ class MusicScanner(private val context: Context) {
                                 year = year,
                                 composer = composer,
                                 arranger = arranger,
-                                lyricist = lyricist
+                                lyricist = lyricist,
+                                producer = producer
                             )
                         )
                         onProgress?.invoke(songs.size)

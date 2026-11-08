@@ -48,6 +48,4 @@ internal fun resolvePosterQueueIndex(queue: List<Song>, song: Song, hint: Int): 
     return queue.indexOfFirst(::matches)
 }
 
-/** A stale player emission must not replace a card the user has just swiped to. */
-internal fun posterPlaybackConfirmed(pending: Pair<String, Int>?, identity: String, queueIndex: Int): Boolean =
-    pending == null || (pending.first == identity && (pending.second < 0 || pending.second == queueIndex))
+

@@ -50,15 +50,16 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.MusicFreeOnlineViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -84,6 +85,18 @@ fun MusicFreeOnlineScreen(
     val selectedPluginId by settingsManager.selectedMusicFreePluginId.collectAsState(initial = "")
     val selectedPlugin = remember(plugins, selectedPluginId) {
         plugins.firstOrNull { it.id == selectedPluginId } ?: plugins.firstOrNull()
+    }
+    var pluginInfo by remember(selectedPlugin?.script) { mutableStateOf<org.json.JSONObject?>(null) }
+    var pluginInspectError by remember(selectedPlugin?.script) { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedPlugin?.script) {
+        val script = selectedPlugin?.script ?: return@LaunchedEffect
+        try {
+            pluginInfo = service.inspectPlugin(script)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            pluginInspectError = error.localizedMessage
+        }
     }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
@@ -166,19 +179,21 @@ fun MusicFreeOnlineScreen(
         return service.resolvePlayableSong(item, selectedPlugin)
     }
 
+    val pageBackground = ellaPageBackground()
+    val onlineBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = onlineBackdrop,
             title = "MusicFree",
-            color = Color.Transparent,
+            color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -202,16 +217,39 @@ fun MusicFreeOnlineScreen(
                 .fillMaxSize()
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
             Card(
-                modifier = Modifier.padding(vertical = 4.dp),
+                modifier = Modifier.padding(vertical = 2.dp),
                 colors = CardDefaults.defaultColors(color = onlineSourceCardColor()),
                 onClick = onNavigateToPluginSettings
             ) {
-                BasicComponent(
+                val hasPlugin = selectedPlugin != null
+                OnlineSourceCardBody(
                     title = selectedPlugin?.name ?: stringResource(R.string.musicfree_online_no_source_selected),
-                    summary = selectedPlugin?.url ?: stringResource(R.string.musicfree_online_no_source_hint)
+                    showDot = hasPlugin,
+                    dotColor = when {
+                        pluginInspectError != null -> OnlineSourceErrorColor
+                        !hasPlugin || pluginInfo == null -> MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        else -> OnlineSourceOkColor
+                    },
+                    statusWord = when {
+                        !hasPlugin -> stringResource(R.string.musicfree_online_no_source_hint)
+                        pluginInspectError != null -> stringResource(R.string.musicfree_plugin_inspect_failed)
+                        pluginInfo == null -> stringResource(R.string.lx_source_processing)
+                        else -> stringResource(R.string.lx_source_status_running)
+                    },
+                    statusRest = when {
+                        pluginInspectError != null -> pluginInspectError.orEmpty().lineSequence().firstOrNull().orEmpty()
+                        hasPlugin -> scriptCreditSummary(selectedPlugin.script).orEmpty()
+                        else -> ""
+                    },
+                    tags = pluginInfo?.let { info ->
+                        listOfNotNull(
+                            stringResource(R.string.musicfree_cap_search).takeIf { info.optBoolean("hasSearch") },
+                            stringResource(R.string.musicfree_cap_play).takeIf { info.optBoolean("hasMediaSource") },
+                            stringResource(R.string.musicfree_cap_import).takeIf { info.optBoolean("hasImportMusicItem") },
+                            stringResource(R.string.musicfree_cap_lyric).takeIf { info.optBoolean("hasLyric") }
+                        )
+                    }.orEmpty()
                 )
             }
 
@@ -240,7 +278,7 @@ fun MusicFreeOnlineScreen(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
 
@@ -260,7 +298,7 @@ fun MusicFreeOnlineScreen(
                     state.isBusy || selectedPlugin == null || loadedPlugins == null) {
                     searchSelectedPlugin(automatic = it, loadMore = true)
                 }
-                LazyColumn(state = resultsListState, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(state = resultsListState, modifier = Modifier.fillMaxSize().layerBackdrop(onlineBackdrop)) {
                 items(state.results, key = { it.song.id }) { item ->
                     SongItem(
                         song = item.song,

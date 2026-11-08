@@ -173,18 +173,38 @@ class LastFmHistoryStore private constructor(private val context: Context) {
         while (remaining.isNotEmpty()) {
             val next = remaining.first()
             try {
-                val accepted = api.scrobble(credentials, next)
-                remaining = remaining.drop(1)
-                _pendingScrobbles.value = remaining
-                saveOutbox(remaining)
-                if (accepted) {
-                    appendSuccessfulScrobble(next)
-                } else {
-                    AppLogStore.warn(
-                        context,
-                        "LastFmScrobble",
-                        "Last.fm ignored scrobble for ${next.track}; it will not be added to the local cache"
-                    )
+                val result = api.scrobble(credentials, next)
+                when {
+                    result.accepted -> {
+                        remaining = remaining.drop(1)
+                        _pendingScrobbles.value = remaining
+                        saveOutbox(remaining)
+                        appendSuccessfulScrobble(next)
+                    }
+                    result.isRetryableIgnore -> {
+                        AppLogStore.warn(
+                            context,
+                            "LastFmScrobble",
+                            "Last.fm ignored scrobble for ${next.track} " +
+                                "(code ${result.ignoredCode}: ${result.ignoredReason}); " +
+                                "keeping it queued for a later retry"
+                        )
+                        // Stop here so a future-timestamp or rate-limited head does not
+                        // drop every subsequent entry on the same condition.
+                        return
+                    }
+                    else -> {
+                        remaining = remaining.drop(1)
+                        _pendingScrobbles.value = remaining
+                        saveOutbox(remaining)
+                        AppLogStore.warn(
+                            context,
+                            "LastFmScrobble",
+                            "Last.fm ignored scrobble for ${next.track} " +
+                                "(code ${result.ignoredCode}: ${result.ignoredReason}); " +
+                                "it will not be added to the local cache"
+                        )
+                    }
                 }
             } catch (error: LastFmApiException) {
                 if (error.requiresReauthentication) {

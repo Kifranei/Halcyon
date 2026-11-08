@@ -5,6 +5,41 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class UpdateReleaseTest {
+    @Test fun sixtyFourBitDevicePrefersArm64WhenTheAbiListStartsWithV7a() {
+        val assets = halcyonApks()
+        val matched = matchAssetForDevice(
+            assets,
+            supportedAbis = arrayOf("armeabi-v7a", "arm64-v8a"),
+            supported64BitAbis = arrayOf("arm64-v8a")
+        )
+        assertTrue(matched!!.name.contains("arm64-v8a"))
+    }
+
+    @Test fun sixtyFourBitDevicePrefersUniversalWhenNoArm64PackageExists() {
+        val assets = halcyonApks().filterNot { it.name.contains("arm64-v8a") }
+        val matched = matchAssetForDevice(
+            assets,
+            supportedAbis = arrayOf("armeabi-v7a", "arm64-v8a"),
+            supported64BitAbis = arrayOf("arm64-v8a")
+        )
+        assertTrue(matched!!.name.contains("universal"))
+    }
+
+    @Test fun thirtyTwoBitDeviceStillSelectsTheV7aPackage() {
+        val matched = matchAssetForDevice(
+            halcyonApks(),
+            supportedAbis = arrayOf("armeabi-v7a", "armeabi"),
+            supported64BitAbis = emptyArray()
+        )
+        assertTrue(matched!!.name.contains("armeabi-v7a"))
+    }
+
+    private fun halcyonApks() = listOf(
+        ReleaseApkAsset("Halcyon-1.3.0-be9dd1-armeabi-v7a-release.APK", "https://example/v7a", 1),
+        ReleaseApkAsset("Halcyon-1.3.0-f90f05-arm64-v8a-release.APK", "https://example/arm64", 1),
+        ReleaseApkAsset("Halcyon-1.3.0-dc35c5-universal-release.APK", "https://example/universal", 1)
+    )
+
     @Test fun stableChannelRejectsMislabeledBetaRelease() {
         val releases = JSONArray("""[
             {"tag_name":"1.2.9-beta3","prerelease":false},

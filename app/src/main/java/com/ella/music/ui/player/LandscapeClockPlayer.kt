@@ -47,7 +47,7 @@ import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -221,7 +221,7 @@ internal fun LandscapeClockContent(
             if (controlsVisible && showBackButton) {
                 Box(Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing)) {
                     PlayerTransportIconButton(onClick = onDismiss, buttonSize = 48.dp) {
-                        Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = tint)
+                        Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back), tint = tint)
                     }
                 }
             }

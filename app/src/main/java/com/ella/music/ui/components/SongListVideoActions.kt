@@ -66,10 +66,18 @@ internal fun rememberSongListVideoActions(
                     )
                 } else null
                 val onlineUrl = if (localSource == null && showOnline) {
-                    (song.onlineMvId.takeIf { song.onlineSource == "netease" && it.isNotBlank() }
-                        ?: decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())?.mvId)
-                        ?.takeIf { it.toLongOrNull()?.let { id -> id > 0L } == true }
-                        ?.let(::neteaseMvUrl)
+                    val pluginId = com.ella.music.data.sourceplugin.sourcePluginKeyOf(song.onlineSource)
+                    when {
+                        pluginId.isNotBlank() && song.onlineMvId.isNotBlank() ->
+                            com.ella.music.data.sourceplugin.SourcePluginRegistry.config(context, pluginId)
+                                ?.takeIf { it.hasCapability("mv") }
+                                ?.let { "halcyon-plugin-mv://$pluginId/${android.net.Uri.encode(song.onlineMvId)}" }
+                        else ->
+                            (song.onlineMvId.takeIf { song.onlineSource == "netease" && it.isNotBlank() }
+                                ?: decodeNeteaseKey(loadSongTagInfo?.invoke(song)?.neteaseKey.orEmpty())?.mvId)
+                                ?.takeIf { it.toLongOrNull()?.let { id -> id > 0L } == true }
+                                ?.let(::neteaseMvUrl)
+                    }
                 } else null
                 SongListVideoActions(localSource, onlineUrl)
             }

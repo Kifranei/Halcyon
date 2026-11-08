@@ -26,6 +26,7 @@ import com.ella.music.data.SettingsManager.Companion.normalizeLyricSourcePriorit
 import com.ella.music.data.SettingsManager.Companion.PLAYER_LYRIC_ALIGN_LEFT
 import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_WORD_LIFT
 import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+import com.ella.music.data.SettingsManager.Companion.KEY_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_RAINBOW_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SUSTAIN_MOTION
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_HDR_HIGHLIGHT_ENABLED
@@ -56,9 +57,16 @@ import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_ORIGINAL_WESTERN_FONT_PATH
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_KEEP_SCREEN_ON
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PAGE_TRANSLATION
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_INACTIVE_OPACITY
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRIC_BLOCK_ALIGN
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRIC_DIMMED_OPACITY
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRIC_FAUX_WORD_TIMING
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRIC_FOCUS_POSITION
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_LYRIC_UNSUNG_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_EFFECT
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PERSPECTIVE_Y_ANGLE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_PRONUNCIATION_BELOW
+import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_UNSUNG_OPACITY
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SECONDARY_FONT_SCALE
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_CUSTOM_INFO
 import com.ella.music.data.SettingsManager.Companion.KEY_LYRIC_SHARE_EXPORT_FOLDER_URI
@@ -105,10 +113,36 @@ interface LyricSettingsAccess {
     val lyricOffsetOverrides: Flow<Map<String, Long>>
     val playerLyricTextAlign: Flow<Int>
     val lyricPronunciationBelow: Flow<Boolean>
+    /** Base opacity (percent) applied to non-current lyric rows before the distance falloff. */
+    val lyricInactiveOpacity: Flow<Int>
+    /** Opacity (percent) of not-yet-sung words inside the current karaoke line. */
+    val lyricUnsungOpacity: Flow<Int>
+    /**
+     * #781: current-line focus anchor in ten-thousandths of the lyric viewport height
+     * (0 = top edge, 10000 = bottom edge).
+     */
+    val playerLyricFocusPosition: Flow<Int>
+    /** #781: which point of the current row-block sits on the focus anchor (0..3). */
+    val playerLyricBlockAlign: Flow<Int>
+    /**
+     * #781: whole-line opacity in tenths of a percent for the current line when it carries
+     * no explicit word timing (the unsung/bright state of a line-timed row).
+     */
+    val playerLyricUnsungOpacity: Flow<Int>
+    /**
+     * #781: base opacity in tenths of a percent applied to non-current lyric rows before the
+     * distance falloff. Migrates from the percent-precision [lyricInactiveOpacity] while the
+     * new key is unset.
+     */
+    val playerLyricDimmedOpacity: Flow<Int>
+    /** #781: synthesize per-word karaoke timings for line-timed lyrics. */
+    val playerLyricFauxWordTiming: Flow<Boolean>
     val lyricPageTranslation: Flow<Boolean>
     val lyricPageKeepScreenOn: Flow<Boolean>
     val appleMusicLyricsWordLift: Flow<Boolean>
     val appleMusicLyricsSustainThresholdMs: Flow<Int>
+    /** Held-note tail transition: extended soft release vs immediate cut at endTimeMs. */
+    val appleMusicLyricsSustainTailMode: Flow<Int>
     val lyricRainbowEnabled: Flow<Boolean>
     val lyricSustainMotion: Flow<Boolean>
     val lyricHdrHighlightEnabled: Flow<Boolean>
@@ -151,6 +185,13 @@ interface LyricSettingsAccess {
     val lyricPerspectiveYAngle: Flow<Int>
     suspend fun setPlayerLyricTextAlign(align: Int)
     suspend fun setLyricPronunciationBelow(below: Boolean)
+    suspend fun setLyricInactiveOpacity(percent: Int)
+    suspend fun setLyricUnsungOpacity(percent: Int)
+    suspend fun setPlayerLyricFocusPosition(position: Int)
+    suspend fun setPlayerLyricBlockAlign(align: Int)
+    suspend fun setPlayerLyricUnsungOpacity(tenths: Int)
+    suspend fun setPlayerLyricDimmedOpacity(tenths: Int)
+    suspend fun setPlayerLyricFauxWordTiming(enabled: Boolean)
     suspend fun setLyricLineBlacklist(lines: List<String>)
     suspend fun setIgnoreLyricHeaderTags(enabled: Boolean)
     suspend fun setHideLyricExtraInfo(enabled: Boolean)
@@ -163,6 +204,7 @@ interface LyricSettingsAccess {
     suspend fun setLyricPageKeepScreenOn(enabled: Boolean)
     suspend fun setAppleMusicLyricsWordLift(enabled: Boolean)
     suspend fun setAppleMusicLyricsSustainThresholdMs(thresholdMs: Int)
+    suspend fun setAppleMusicLyricsSustainTailMode(mode: Int)
     suspend fun setLyricRainbowEnabled(enabled: Boolean)
     suspend fun setLyricSustainMotion(enabled: Boolean)
     suspend fun setLyricHdrHighlightEnabled(enabled: Boolean)
@@ -229,6 +271,38 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
     // instead of above it. Default false = above.
     override val lyricPronunciationBelow: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PRONUNCIATION_BELOW] ?: false }
+    override val lyricInactiveOpacity: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_LYRIC_INACTIVE_OPACITY] ?: 24).coerceIn(5, 100) }
+    override val lyricUnsungOpacity: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_LYRIC_UNSUNG_OPACITY] ?: 36).coerceIn(0, 100) }
+    override val playerLyricFocusPosition: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_LYRIC_FOCUS_POSITION] ?: SettingsManager.DEFAULT_PLAYER_LYRIC_FOCUS_POSITION)
+                .coerceIn(0, SettingsManager.PLAYER_LYRIC_FOCUS_POSITION_MAX)
+        }
+    override val playerLyricBlockAlign: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_LYRIC_BLOCK_ALIGN] ?: SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP)
+                .coerceIn(
+                    SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP,
+                    SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_MAIN
+                )
+        }
+    override val playerLyricUnsungOpacity: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_LYRIC_UNSUNG_OPACITY] ?: SettingsManager.DEFAULT_PLAYER_LYRIC_UNSUNG_OPACITY)
+                .coerceIn(0, SettingsManager.PLAYER_LYRIC_OPACITY_TENTHS_MAX)
+        }
+    // The player-side dimmed opacity stores tenths of a percent. While the key is unset it
+    // adopts the shared percent-precision inactive opacity so existing users keep their level.
+    override val playerLyricDimmedOpacity: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_PLAYER_LYRIC_DIMMED_OPACITY]
+                ?: ((it[KEY_LYRIC_INACTIVE_OPACITY] ?: 24).coerceIn(0, 100) * 10))
+                .coerceIn(0, SettingsManager.PLAYER_LYRIC_OPACITY_TENTHS_MAX)
+        }
+    override val playerLyricFauxWordTiming: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PLAYER_LYRIC_FAUX_WORD_TIMING] ?: false }
     override val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     override val lyricPageKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
@@ -241,6 +315,15 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
                 .coerceIn(
                     SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
                     SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+                )
+        }
+    override val appleMusicLyricsSustainTailMode: Flow<Int> =
+        context.dataStore.data.map {
+            (it[KEY_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE]
+                ?: SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE)
+                .coerceIn(
+                    SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_EXTENDED,
+                    SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_IMMEDIATE
                 )
         }
     override val lyricRainbowEnabled: Flow<Boolean> =
@@ -324,6 +407,48 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
         context.dataStore.edit { it[KEY_LYRIC_PRONUNCIATION_BELOW] = below }
     }
 
+    override suspend fun setLyricInactiveOpacity(percent: Int) {
+        context.dataStore.edit { it[KEY_LYRIC_INACTIVE_OPACITY] = percent.coerceIn(5, 100) }
+    }
+
+    override suspend fun setLyricUnsungOpacity(percent: Int) {
+        context.dataStore.edit { it[KEY_LYRIC_UNSUNG_OPACITY] = percent.coerceIn(0, 100) }
+    }
+
+    override suspend fun setPlayerLyricFocusPosition(position: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_LYRIC_FOCUS_POSITION] =
+                position.coerceIn(0, SettingsManager.PLAYER_LYRIC_FOCUS_POSITION_MAX)
+        }
+    }
+
+    override suspend fun setPlayerLyricBlockAlign(align: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_LYRIC_BLOCK_ALIGN] = align.coerceIn(
+                SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_TOP,
+                SettingsManager.PLAYER_LYRIC_BLOCK_ALIGN_MAIN
+            )
+        }
+    }
+
+    override suspend fun setPlayerLyricUnsungOpacity(tenths: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_LYRIC_UNSUNG_OPACITY] =
+                tenths.coerceIn(0, SettingsManager.PLAYER_LYRIC_OPACITY_TENTHS_MAX)
+        }
+    }
+
+    override suspend fun setPlayerLyricDimmedOpacity(tenths: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_LYRIC_DIMMED_OPACITY] =
+                tenths.coerceIn(0, SettingsManager.PLAYER_LYRIC_OPACITY_TENTHS_MAX)
+        }
+    }
+
+    override suspend fun setPlayerLyricFauxWordTiming(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_LYRIC_FAUX_WORD_TIMING] = enabled }
+    }
+
     override suspend fun setLyricLineBlacklist(lines: List<String>) {
         val normalized = normalizeLyricLineBlacklist(lines.asSequence())
         context.dataStore.edit { prefs ->
@@ -396,6 +521,15 @@ internal class LyricSettingsAccessImpl(private val context: Context) : LyricSett
             it[KEY_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS] = thresholdMs.coerceIn(
                 SettingsManager.MIN_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS,
                 SettingsManager.MAX_APPLE_MUSIC_LYRICS_SUSTAIN_THRESHOLD_MS
+            )
+        }
+    }
+
+    override suspend fun setAppleMusicLyricsSustainTailMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE] = mode.coerceIn(
+                SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_EXTENDED,
+                SettingsManager.APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_IMMEDIATE
             )
         }
     }

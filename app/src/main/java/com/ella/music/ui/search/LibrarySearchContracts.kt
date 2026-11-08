@@ -18,6 +18,7 @@ internal fun SearchFilter.labelRes(): Int = when (this) {
     SearchFilter.Composers -> R.string.library_search_composers
     SearchFilter.Arrangers -> R.string.library_search_arrangers
     SearchFilter.Lyricists -> R.string.library_search_lyricists
+    SearchFilter.Producers -> R.string.library_search_producers
     SearchFilter.Lyrics -> R.string.library_search_lyrics
     SearchFilter.Genres -> R.string.library_search_genres
     SearchFilter.Years -> R.string.library_search_years
@@ -29,6 +30,7 @@ internal fun String.searchLabelRes(): Int = when (this) {
     "composer" -> R.string.library_search_composers
     "arranger" -> R.string.library_search_arrangers
     "lyricist" -> R.string.library_search_lyricists
+    "producer" -> R.string.library_search_producers
     "genre" -> R.string.library_search_genres
     "year" -> R.string.library_search_years
     else -> R.string.library_search_all

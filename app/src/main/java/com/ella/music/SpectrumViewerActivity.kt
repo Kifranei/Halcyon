@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -128,18 +128,15 @@ private fun SpectrumViewerScreen(song: Song, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(MiuixTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.song_more_view_spectrum),
             color = Color.Transparent,
             titleColor = MiuixTheme.colorScheme.onSurface,
-            defaultWindowInsetsPadding = false,
-            titleWindowInsetsPadding = false,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        MiuixIcons.Regular.Back,
+                        GlassChevronBackwardIcon,
                         stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )

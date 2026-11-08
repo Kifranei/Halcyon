@@ -87,9 +87,9 @@ internal fun rememberArtistCoverResolution(
     if (!coversEnabled) return ArtistCoverResolution(null)
     val context = LocalContext.current
     val settingsManager = mainViewModel.settingsManager
-    val artistImageDownload by settingsManager.artistImageDownload.collectAsState(
-        initial = SettingsManager.DEFAULT_ARTIST_IMAGE_DOWNLOAD
-    )
+    // Null until DataStore emits — never default to an allowed mode, otherwise the first
+    // composition on wifi silently downloads once even when the user picked 从不 (#758).
+    val artistImageDownload by settingsManager.artistImageDownload.collectAsState(initial = null)
     val artistImageSourceOrder by settingsManager.artistImageSourceOrder.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_IMAGE_SOURCES
     )
@@ -129,8 +129,12 @@ internal fun rememberArtistCoverResolution(
         mainViewModel = mainViewModel
     )
     val librarySource by settingsManager.librarySource.collectAsState(initial = "")
-    val neteaseArtistImage by produceState<String?>(initialValue = null, artistName, librarySource) {
-        value = if (librarySource == SettingsManager.LIBRARY_SOURCE_NETEASE && artistName.isNotBlank()) {
+    val neteaseArtistImage by produceState<String?>(
+        initialValue = null, artistName, librarySource, networkDownloadAllowed
+    ) {
+        // The NetEase library lookup is still an automatic artist image fetch, so it must
+        // obey the same download-mode switch as the other sources (#753).
+        value = if (librarySource == SettingsManager.LIBRARY_SOURCE_NETEASE && artistName.isNotBlank() && networkDownloadAllowed) {
             neteaseArtistImageCache[artistName] ?: com.ella.music.data.lastfm.fetchNeteaseArtistImage(artistName)
                 ?.replaceFirst("http://", "https://")
                 ?.also { neteaseArtistImageCache[artistName] = it }

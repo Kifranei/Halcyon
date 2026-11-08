@@ -22,7 +22,7 @@ import com.ella.music.ui.components.EllaMiuixBottomSheet
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -62,6 +62,9 @@ internal fun PlayerCoverActionSheet(
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
     sleepTimerStopAfterCurrent: Boolean,
+    sleepTimerSongKeys: Set<String> = emptySet(),
+    queueSongs: List<Song> = emptyList(),
+    currentQueueIndex: Int = -1,
     remoteStreamMaxBitRate: Int?,
     onCyclePlaybackMode: () -> Unit,
     abRepeatState: AbRepeatState,
@@ -71,6 +74,7 @@ internal fun PlayerCoverActionSheet(
     onArtist: () -> Unit,
     onDownload: () -> Unit,
     onLandscape: () -> Unit,
+    onLyricTheater: () -> Unit,
     onSongInfo: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -90,6 +94,7 @@ internal fun PlayerCoverActionSheet(
     onTimer: (Int) -> Unit,
     onCustomTimerMinutes: (Int) -> Unit,
     onCancelTimer: () -> Unit,
+    onToggleSleepSong: (String) -> Unit = {},
     onSpeed: (Float) -> Unit,
     onPitch: (Float) -> Unit,
     onLyricOffset: (Long) -> Unit,
@@ -140,7 +145,7 @@ internal fun PlayerCoverActionSheet(
                 }
             ) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
+                    imageVector = GlassChevronBackwardIcon,
                     contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
@@ -199,6 +204,9 @@ internal fun PlayerCoverActionSheet(
             stopAfterCurrentEnabled = stopAfterCurrentEnabled,
             sleepTimerCustomMinutes = sleepTimerCustomMinutes,
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
+            sleepTimerSongKeys = sleepTimerSongKeys,
+            queueSongs = queueSongs,
+            currentQueueIndex = currentQueueIndex,
             remoteStreamMaxBitRate = remoteStreamMaxBitRate,
             onCyclePlaybackMode = onCyclePlaybackMode,
             abRepeatState = abRepeatState,
@@ -208,6 +216,7 @@ internal fun PlayerCoverActionSheet(
             onArtist = onArtist,
             onDownload = onDownload,
             onLandscape = onLandscape,
+            onLyricTheater = onLyricTheater,
             onSongInfo = onSongInfo,
             onAddToPlaylist = onAddToPlaylist,
             onAddToQueue = onAddToQueue,
@@ -227,6 +236,7 @@ internal fun PlayerCoverActionSheet(
             onTimer = onTimer,
             onCustomTimerMinutes = onCustomTimerMinutes,
             onCancelTimer = onCancelTimer,
+            onToggleSleepSong = onToggleSleepSong,
             onSpeed = onSpeed,
             onPitch = onPitch,
             onLyricOffset = onLyricOffset,

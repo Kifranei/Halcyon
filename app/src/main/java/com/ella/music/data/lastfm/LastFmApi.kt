@@ -101,8 +101,13 @@ class LastFmApi {
         )
     }
 
-    /** Returns false when Last.fm accepted the request but filtered this individual play. */
-    suspend fun scrobble(credentials: LastFmCredentials, track: LastFmPendingScrobble): Boolean {
+    /**
+     * Returns the per-scrobble verdict. Last.fm accepts the request as a whole but can filter
+     * an individual play; when it does, `scrobble.ignoredMessage` carries a code and reason:
+     * 1 artist filtered, 2 track filtered, 3 timestamp too old, 4 timestamp too new
+     * (the sender's clock ran ahead of Last.fm's), 5 daily scrobble limit reached.
+     */
+    suspend fun scrobble(credentials: LastFmCredentials, track: LastFmPendingScrobble): LastFmScrobbleResult {
         require(credentials.isAuthorized) { "Last.fm is not authorized" }
         val response = signedPost(
             credentials = credentials,
@@ -123,7 +128,15 @@ class LastFmApi {
             ?.optInt("accepted", scrobbles.optInt("accepted", 1))
             ?: scrobbles?.optInt("accepted", 1)
             ?: 1
-        return accepted > 0
+        if (accepted > 0) return LastFmScrobbleResult(accepted = true)
+        // One scrobble per request keeps this a single object rather than an array.
+        val ignoredMessage = (scrobbles?.opt("scrobble") as? JSONObject)
+            ?.optJSONObject("ignoredMessage")
+        return LastFmScrobbleResult(
+            accepted = false,
+            ignoredCode = ignoredMessage?.optString("code")?.toIntOrNull() ?: 0,
+            ignoredReason = ignoredMessage?.optString("#text").orEmpty()
+        )
     }
 
     private fun trackFromJson(raw: JSONObject): LastFmTrack? {

@@ -53,9 +53,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -217,19 +219,21 @@ fun WebDavScreen(
 
 
 
+    val pageBackground = ellaPageBackground()
+    val folderBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = folderBackdrop,
             title = stringResource(R.string.webdav_library_title),
-            color = ellaPageBackground(),
+            color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
@@ -335,7 +339,7 @@ fun WebDavScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().layerBackdrop(folderBackdrop),
                 contentPadding = PaddingValues(bottom = 160.dp)
             ) {
                 item {

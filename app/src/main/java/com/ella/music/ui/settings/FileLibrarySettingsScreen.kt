@@ -26,9 +26,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -38,7 +40,7 @@ internal fun FileLibrarySettingsScreen(source: String, mainViewModel: MainViewMo
     val context = LocalContext.current
     val settings = mainViewModel.settingsManager
     val scope = rememberCoroutineScope()
-    val activeSource by settings.librarySource.collectAsState(initial = "")
+    val activeSource by settings.librarySource.collectAsStateSeeded(initial = "")
     val songs by mainViewModel.songs.collectAsState()
     val scanning by mainViewModel.isScanning.collectAsState()
     var loaded by remember(source) { mutableStateOf(false) }
@@ -95,11 +97,12 @@ internal fun FileLibrarySettingsScreen(source: String, mainViewModel: MainViewMo
         }
     }
     val background = ellaPageBackground()
-    Column(Modifier.fillMaxSize().background(background).windowInsetsPadding(WindowInsets.statusBars)) {
-        EllaSmallTopAppBar(title = title, color = background, navigationIcon = {
-            IconButton(onClick = onBack) { Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back)) }
+    val settingsBackdrop = rememberLayerBackdrop()
+    Column(Modifier.fillMaxSize().background(background)) {
+        EllaSmallTopAppBar(title = title, color = background, backdrop = settingsBackdrop, navigationIcon = {
+            IconButton(onClick = onBack) { Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back)) }
         })
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)
+        Column(Modifier.weight(1f).layerBackdrop(settingsBackdrop).verticalScroll(rememberScrollState()).padding(16.dp)
             .navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.file_library_summary), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             SettingsCardGroup {
@@ -113,7 +116,7 @@ internal fun FileLibrarySettingsScreen(source: String, mainViewModel: MainViewMo
                 WebDavTextField(stringResource(R.string.webdav_password), password, { password = it },
                     visualTransformation = PasswordVisualTransformation())
                 WebDavTextField(stringResource(R.string.smb_domain), domain, { domain = it })
-                WindowSpinnerPreference(title = stringResource(R.string.smb_protocol),
+                EllaSpinnerPreference(title = stringResource(R.string.smb_protocol),
                     items = listOf(DropdownItem(stringResource(R.string.smb_protocol_auto)), DropdownItem("SMB 2"), DropdownItem("SMB 3")),
                     selectedIndex = SmbProtocol.entries.indexOf(protocol), onSelectedIndexChange = { protocol = SmbProtocol.entries[it] })
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

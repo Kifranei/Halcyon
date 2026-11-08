@@ -1,15 +1,21 @@
 package com.ella.music.ui.player
 
 import android.os.SystemClock
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,13 +26,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.ellaOverlayCardColor
 import com.ella.music.ui.settings.SettingsNumberInputDialog
@@ -95,6 +106,10 @@ internal fun TimerSheetContent(
     onTimer: (Int) -> Unit,
     onCustomTimerMinutes: (Int) -> Unit,
     onCancelTimer: () -> Unit,
+    queueSongs: List<Song> = emptyList(),
+    currentQueueIndex: Int = -1,
+    sleepTimerSongKeys: Set<String> = emptySet(),
+    onToggleSleepSong: (String) -> Unit = {},
     showHeader: Boolean = true
 ) {
     val initial = remember(sleepTimerCustomMinutes) { splitSleepTimerMinutes(sleepTimerCustomMinutes) }
@@ -149,75 +164,92 @@ internal fun TimerSheetContent(
             Spacer(modifier = Modifier.height(12.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Card(
+        // Custom duration keeps the left half; the right half is a mini queue picker whose
+        // tapped songs arm the "stop after these songs" timer.
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            insideMargin = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            colors = CardDefaults.defaultColors(
-                color = ellaOverlayCardColor()
-            )
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = stringResource(R.string.player_custom_duration),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MiuixTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth().clickable { showDurationInput = true }
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NumberPicker(
-                    value = customHours.coerceIn(0, SLEEP_TIMER_MAX_HOURS),
-                    onValueChange = { persistCustom(it, customMinutePart) },
-                    range = 0..SLEEP_TIMER_MAX_HOURS,
-                    modifier = Modifier.width(88.dp)
-                )
-                Text(
-                    text = stringResource(R.string.player_hours_unit),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 2.dp, end = 12.dp)
-                )
-                NumberPicker(
-                    value = customMinutePart.coerceIn(sleepTimerMinuteRange(customHours)),
-                    onValueChange = { persistCustom(customHours, it) },
-                    range = sleepTimerMinuteRange(customHours),
-                    modifier = Modifier.width(88.dp)
-                )
-                Text(
-                    text = stringResource(R.string.player_minutes_unit),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 2.dp, end = 4.dp)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(
-            onClick = { onTimer(customTotalMinutes) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                color = MiuixTheme.colorScheme.primary,
-                contentColor = MiuixTheme.colorScheme.onPrimary
-            )
-        ) {
-            Text(
-                text = if (customHours > 0) {
-                    stringResource(
-                        R.string.player_start_timer_hours_minutes,
-                        customHours,
-                        customMinutePart
+            Column(modifier = Modifier.weight(1f)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    insideMargin = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    colors = CardDefaults.defaultColors(
+                        color = ellaOverlayCardColor()
                     )
-                } else {
-                    stringResource(R.string.player_start_timer_minutes, customMinutePart)
+                ) {
+                    Text(
+                        text = stringResource(R.string.player_custom_duration),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth().clickable { showDurationInput = true }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NumberPicker(
+                            value = customHours.coerceIn(0, SLEEP_TIMER_MAX_HOURS),
+                            onValueChange = { persistCustom(it, customMinutePart) },
+                            range = 0..SLEEP_TIMER_MAX_HOURS,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = stringResource(R.string.player_hours_unit),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 2.dp, end = 6.dp)
+                        )
+                        NumberPicker(
+                            value = customMinutePart.coerceIn(sleepTimerMinuteRange(customHours)),
+                            onValueChange = { persistCustom(customHours, it) },
+                            range = sleepTimerMinuteRange(customHours),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = stringResource(R.string.player_minutes_unit),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = { onTimer(customTotalMinutes) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        color = MiuixTheme.colorScheme.primary,
+                        contentColor = MiuixTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(
+                        text = if (customHours > 0) {
+                            stringResource(
+                                R.string.player_start_timer_hours_minutes,
+                                customHours,
+                                customMinutePart
+                            )
+                        } else {
+                            stringResource(R.string.player_start_timer_minutes, customMinutePart)
+                        },
+                        maxLines = 2
+                    )
+                }
+            }
+            SleepTimerQueueCard(
+                queueSongs = queueSongs,
+                currentQueueIndex = currentQueueIndex,
+                selectedKeys = sleepTimerSongKeys,
+                onToggle = onToggleSleepSong,
+                modifier = Modifier.weight(1f)
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
@@ -227,7 +259,7 @@ internal fun TimerSheetContent(
         checked = stopAfterCurrentEnabled || sleepTimerStopAfterCurrent,
         onCheckedChange = onStopAfterCurrent
     )
-    if (timerActive) {
+    if (timerActive || sleepTimerSongKeys.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onCancelTimer,
@@ -246,6 +278,112 @@ internal fun TimerSheetContent(
             persistCustom(hours, minutes)
         }
     )
+}
+
+/**
+ * Mini now-playing queue. Tap toggles a song into the song-boundary sleep timer: playback
+ * pauses once every highlighted song has finished. The scroll viewport is fixed-height so it
+ * can live inside the bottom sheet's scrollable column beside the custom-duration card.
+ */
+@Composable
+private fun SleepTimerQueueCard(
+    queueSongs: List<Song>,
+    currentQueueIndex: Int,
+    selectedKeys: Set<String>,
+    onToggle: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberScrollState()
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        insideMargin = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+        colors = CardDefaults.defaultColors(
+            color = ellaOverlayCardColor()
+        )
+    ) {
+        Text(
+            text = stringResource(R.string.player_queue_title),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = if (selectedKeys.isEmpty()) {
+                stringResource(R.string.player_sleep_timer_pick_song_hint)
+            } else {
+                stringResource(R.string.player_sleep_timer_after_songs_summary, selectedKeys.size)
+            },
+            fontSize = 11.sp,
+            color = if (selectedKeys.isEmpty()) {
+                MiuixTheme.colorScheme.onSurfaceVariantSummary
+            } else {
+                MiuixTheme.colorScheme.primary
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 288.dp)
+                .verticalScroll(scrollState)
+        ) {
+            queueSongs.forEachIndexed { index, queueSong ->
+                val key = queueSong.playlistIdentityKey()
+                val selected = key in selectedKeys
+                val isPlayingRow = index == currentQueueIndex
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(
+                            if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+                            else Color.Transparent
+                        )
+                        .clickable { onToggle(key) }
+                        .padding(horizontal = 6.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = queueSong.title.ifBlank { queueSong.fileName },
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isPlayingRow || selected) FontWeight.Bold else null,
+                            color = when {
+                                isPlayingRow -> MiuixTheme.colorScheme.primary
+                                else -> MiuixTheme.colorScheme.onSurface
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = queueSong.artist.ifBlank {
+                                stringResource(R.string.player_unknown_artist)
+                            },
+                            fontSize = 10.5.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (selected) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        SelectionCheck(
+                            selected = true,
+                            size = 17.dp,
+                            unselectedColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.18f)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

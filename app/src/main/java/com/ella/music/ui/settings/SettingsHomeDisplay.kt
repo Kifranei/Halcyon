@@ -19,7 +19,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import java.util.Locale
 
 internal data class HomePreferenceItem(
@@ -67,7 +67,7 @@ internal fun HomeDisplaySettingsPage(
     val styleContext = androidx.compose.ui.platform.LocalContext.current
     val styleSettings = remember(styleContext) { SettingsManager.getInstance(styleContext) }
     val styleScope = androidx.compose.runtime.rememberCoroutineScope()
-    val featureStyle by styleSettings.homeFeatureStyle.collectAsState(initial = 0)
+    val featureStyle by styleSettings.homeFeatureStyle.collectAsStateSeeded(initial = 0)
     val featureStyleLabels = listOf(
         stringResource(R.string.home_feature_style_default),
         stringResource(R.string.home_feature_style_transparent),
@@ -76,7 +76,7 @@ internal fun HomeDisplaySettingsPage(
     SettingsCardGroup {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_home_feature_style) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_home_feature_style),
             items = featureStyleLabels.map { DropdownItem(title = it) },
             selectedIndex = featureStyle,
@@ -143,7 +143,7 @@ internal fun HomeDisplaySettingsPage(
     SettingsCardGroup(highlight = highlightKey == "home_recent_section_mode") {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_home_recent_content) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_home_recent_content),
             summary = stringResource(R.string.settings_home_recent_content_summary),
             items = listOf(
@@ -159,7 +159,7 @@ internal fun HomeDisplaySettingsPage(
         } // search-anchor:end
 
     }
-    val customCategories by styleSettings.customMetadataCategories.collectAsState(initial = emptyList())
+    val customCategories by styleSettings.customMetadataCategories.collectAsStateSeeded(initial = emptyList())
     CustomCategorySettings(styleSettings)
     HomeTileEditors(tileItems + customCategories.map { HomePreferenceItem(it.type, it.name, it.tagKey) }, highlightKey)
     SmallTitle(text = stringResource(R.string.settings_home_online_grid_title))
@@ -406,8 +406,8 @@ private fun HomeTileEditors(items: List<HomePreferenceItem>, highlightKey: Strin
     val context = androidx.compose.ui.platform.LocalContext.current
     val settings = remember(context) { SettingsManager.getInstance(context) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val shortcuts by settings.homeShortcutItems.collectAsState(initial = "artist,album,recent_playback,folder")
-    val features by settings.homeFeatureItems.collectAsState(initial = "folder_tree,folder_playlist,playlist,genre,year,composer,arranger,lyricist")
+    val shortcuts by settings.homeShortcutItems.collectAsStateSeeded(initial = "artist,album,recent_playback,folder")
+    val features by settings.homeFeatureItems.collectAsStateSeeded(initial = "folder_tree,folder_playlist,playlist,genre,year,composer,arranger,lyricist,producer")
     listOf(true, false).forEach { shortcut ->
         val selected = if (shortcut) shortcuts else features
         val ids = selected.split(',').filter { it.isNotBlank() }

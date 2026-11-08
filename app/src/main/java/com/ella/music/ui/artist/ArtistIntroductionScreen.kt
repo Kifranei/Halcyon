@@ -68,7 +68,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -136,7 +136,7 @@ internal fun ArtistIntroductionScreen(
         ) {
             IconButton(onClick = ::leavePage) {
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
+                    imageVector = GlassChevronBackwardIcon,
                     contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onSurface
                 )

@@ -94,6 +94,39 @@ internal enum class NeteaseCommentResource(val prefix: String) {
         return prefix + id
     }
 }
+
+/**
+ * Comment-thread backend shared by the NetEase account client and account-source plugins:
+ * the comments UI only talks to this surface. `resource` is NetEase-shaped; plugin providers
+ * may ignore it and key threads off their own song item.
+ */
+internal interface OnlineCommentsProvider {
+    /** Signed-in (userId, nickname) when the backend can write; null for read-only/anonymous. */
+    val signedInUser: Pair<Long, String>?
+    suspend fun songComments(
+        songId: String,
+        sortType: Int,
+        pageNo: Int,
+        cursor: String,
+        pageSize: Int,
+        resource: NeteaseCommentResource
+    ): NeteaseCommentPage
+    suspend fun commentFloor(
+        songId: String,
+        parentCommentId: Long,
+        time: Long,
+        limit: Int,
+        resource: NeteaseCommentResource
+    ): NeteaseFloorPage
+    suspend fun likeComment(songId: String, commentId: Long, like: Boolean, resource: NeteaseCommentResource)
+    suspend fun postComment(
+        songId: String,
+        content: String,
+        replyToCommentId: Long,
+        parentCommentId: Long,
+        resource: NeteaseCommentResource
+    ): NeteaseComment?
+}
 internal data class NeteaseCommentTarget(val id: String, val resource: NeteaseCommentResource)
 internal fun NeteaseLinkKind.commentResource(): NeteaseCommentResource? = when (this) {
     NeteaseLinkKind.Comment -> NeteaseCommentResource.Song

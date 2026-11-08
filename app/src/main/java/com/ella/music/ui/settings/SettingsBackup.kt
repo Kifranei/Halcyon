@@ -57,7 +57,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -75,7 +75,7 @@ fun BackupSettingsScreen(
     val backupScope = remember(context, scope) { context.findComponentActivity()?.lifecycleScope ?: scope }
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
-    val librarySongs by mainViewModel?.songs?.collectAsState(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
+    val librarySongs by mainViewModel?.songs?.collectAsStateSeeded(initial = emptyList()) ?: remember { mutableStateOf(emptyList()) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = com.ella.music.ui.components.ellaPageBackground()
     val settingsBackdrop = rememberLayerBackdrop()
@@ -89,6 +89,7 @@ fun BackupSettingsScreen(
     var showPlaybackExportFormatDialog by remember { mutableStateOf(false) }
     var showImportTypeSheet by remember { mutableStateOf(false) }
     var showWebDavDefaultTypeSheet by remember { mutableStateOf(false) }
+    var showWebDavUploadTypeSheet by remember { mutableStateOf(false) }
     var pendingExportTypes by remember { mutableStateOf<Set<BackupType>?>(null) }
     var pendingPlaybackExportFormat by remember { mutableStateOf<PlaybackExportFormat?>(null) }
     var pendingImportRoot by remember { mutableStateOf<JSONObject?>(null) }
@@ -299,16 +300,17 @@ fun BackupSettingsScreen(
     }
 
     // WebDAV backup state
-    val savedWebDavUrl by settingsManager.webDavUrl.collectAsState(initial = "")
-    val savedWebDavUser by settingsManager.webDavUsername.collectAsState(initial = "")
-    val savedWebDavPassword by settingsManager.webDavPassword.collectAsState(initial = "")
-    val savedWebDavBackupUrl by settingsManager.webDavBackupUrl.collectAsState(initial = "")
-    val savedWebDavBackupPath by settingsManager.webDavBackupPath.collectAsState(initial = "")
-    val savedWebDavBackupUser by settingsManager.webDavBackupUsername.collectAsState(initial = "")
-    val savedWebDavBackupPassword by settingsManager.webDavBackupPassword.collectAsState(initial = "")
-    val webDavAutoBackupEnabled by settingsManager.webDavAutoBackupEnabled.collectAsState(initial = false)
-    val webDavAutoBackupInterval by settingsManager.webDavAutoBackupIntervalHours.collectAsState(initial = 24)
-    val savedWebDavRestoreDefaultTypes by settingsManager.webDavRestoreDefaultTypes.collectAsState(initial = "")
+    val savedWebDavUrl by settingsManager.webDavUrl.collectAsStateSeeded(initial = "")
+    val savedWebDavUser by settingsManager.webDavUsername.collectAsStateSeeded(initial = "")
+    val savedWebDavPassword by settingsManager.webDavPassword.collectAsStateSeeded(initial = "")
+    val savedWebDavBackupUrl by settingsManager.webDavBackupUrl.collectAsStateSeeded(initial = "")
+    val savedWebDavBackupPath by settingsManager.webDavBackupPath.collectAsStateSeeded(initial = "")
+    val savedWebDavBackupUser by settingsManager.webDavBackupUsername.collectAsStateSeeded(initial = "")
+    val savedWebDavBackupPassword by settingsManager.webDavBackupPassword.collectAsStateSeeded(initial = "")
+    val webDavAutoBackupEnabled by settingsManager.webDavAutoBackupEnabled.collectAsStateSeeded(initial = false)
+    val webDavAutoBackupInterval by settingsManager.webDavAutoBackupIntervalHours.collectAsStateSeeded(initial = 24)
+    val savedWebDavRestoreDefaultTypes by settingsManager.webDavRestoreDefaultTypes.collectAsStateSeeded(initial = "")
+    val savedWebDavUploadTypes by settingsManager.webDavUploadTypes.collectAsStateSeeded(initial = "")
     var webDavBackupUrl by remember { mutableStateOf(savedWebDavBackupUrl) }
     var webDavBackupPath by remember { mutableStateOf(savedWebDavBackupPath) }
     var webDavBackupUser by remember { mutableStateOf(savedWebDavBackupUser.ifBlank { savedWebDavUser }) }
@@ -358,7 +360,7 @@ fun BackupSettingsScreen(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -452,6 +454,129 @@ fun BackupSettingsScreen(
 
             SettingsCardGroup(highlight = highlightKey == "backup_webdav") {
                 Column {
+                    EllaMiuixListItem(
+                        title = stringResource(R.string.settings_backup_webdav_upload),
+                        summary = stringResource(R.string.settings_backup_webdav_upload_summary),
+                        enabled = !webDavUploading && !webDavDownloading,
+                        onClick = {
+                            backupScope.launch {
+                                val effectiveUrl = webDavBackupUrl.trim().ifBlank { savedWebDavUrl }
+                                if (effectiveUrl.isBlank()) {
+                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_not_configured), Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                val effectiveUser = webDavBackupUser.trim().ifBlank { savedWebDavUser }
+                                val effectivePassword = webDavBackupPassword.ifBlank { savedWebDavPassword }
+                                // Persist the backup URL and path
+                                settingsManager.setWebDavBackupUrl(effectiveUrl)
+                                settingsManager.setWebDavBackupPath(webDavBackupPath)
+                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
+                                webDavUploading = true
+                                runCatching {
+                                    val config = WebDavConfig(
+                                        url = effectiveUrl,
+                                        username = effectiveUser,
+                                        password = effectivePassword,
+                                        customHeaders = settingsManager.webDavCustomHeaders.first()
+                                    )
+                                    val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
+                                    val fileName = generateBackupFileName("zip")
+                                    val fullUrl = "${effectiveUrl.trimEnd('/')}/$path/$fileName"
+                                    val uploadTypes = savedWebDavUploadTypes.toWebDavRestoreTypes()
+                                        .ifEmpty { BackupType.entries.toSet() }
+                                    val archive = withContext(Dispatchers.IO) {
+                                        buildApplicationBackupZipFile(context, librarySongs = librarySongs, selectedTypes = uploadTypes)
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            WebDavClient.uploadFileFromFile(fullUrl, config, archive)
+                                        } finally {
+                                            archive.delete()
+                                        }
+                                    }
+                                }.onSuccess {
+                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_upload_success), Toast.LENGTH_SHORT).show()
+                                }.onFailure {
+                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_upload_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
+                                }
+                                webDavUploading = false
+                            }
+                        }
+                    )
+                    EllaMiuixListItem(
+                        title = stringResource(R.string.settings_backup_webdav_download),
+                        summary = stringResource(R.string.settings_backup_webdav_download_summary),
+                        enabled = !webDavUploading && !webDavDownloading,
+                        onClick = {
+                            backupScope.launch {
+                                val effectiveUrl = webDavBackupUrl.trim().ifBlank { savedWebDavUrl }
+                                if (effectiveUrl.isBlank()) {
+                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_not_configured), Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                val effectiveUser = webDavBackupUser.trim().ifBlank { savedWebDavUser }
+                                val effectivePassword = webDavBackupPassword.ifBlank { savedWebDavPassword }
+                                // Persist the backup URL and path
+                                settingsManager.setWebDavBackupUrl(effectiveUrl)
+                                settingsManager.setWebDavBackupPath(webDavBackupPath)
+                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
+                                webDavDownloading = true
+                                runCatching {
+                                    val config = WebDavConfig(
+                                        url = effectiveUrl,
+                                        username = effectiveUser,
+                                        password = effectivePassword,
+                                        customHeaders = settingsManager.webDavCustomHeaders.first()
+                                    )
+                                    val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
+                                    val backupDirUrl = "${effectiveUrl.trimEnd('/')}/$path/"
+                                    val items = withContext(Dispatchers.IO) {
+                                        WebDavClient.list(
+                                            config,
+                                            backupDirUrl,
+                                            forceRefresh = true,
+                                            includeNonAudioFiles = true
+                                        )
+                                    }
+                                    val backupFiles = items
+                                        .filterNot { it.isDirectory }
+                                        .filter {
+                                            (it.name.endsWith(".zip", ignoreCase = true) ||
+                                                it.name.endsWith(".json", ignoreCase = true)) &&
+                                                it.name.isHalcyonBackupFileName()
+                                        }
+                                        .sortedByDescending { it.name }
+                                    if (backupFiles.isEmpty()) {
+                                        throw IllegalStateException(context.getString(R.string.settings_backup_webdav_file_not_found))
+                                    }
+                                    webDavRestoreConfig = config
+                                    webDavBackupFiles = backupFiles
+                                }.onFailure {
+                                    webDavDownloading = false
+                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_download_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    )
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_backup_webdav_upload_types_title) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_backup_webdav_upload_types_title),
+                        summary = stringResource(R.string.settings_backup_webdav_upload_types_summary),
+                        onClick = { showWebDavUploadTypeSheet = true }
+                    )
+                    } // search-anchor:end
+
+                    // search-anchor:start
+                    SettingsSearchAnchor(R.string.settings_backup_webdav_restore_defaults_title) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_backup_webdav_restore_defaults_title),
+                        summary = stringResource(R.string.settings_backup_webdav_restore_defaults_summary),
+                        onClick = { showWebDavDefaultTypeSheet = true }
+                    )
+                    } // search-anchor:end
+
                     SettingsFocusAnchor(active = highlightKey == "backup_webdav") {
                         // search-anchor:start
                         SettingsSearchAnchor(R.string.settings_backup_webdav_url_label) {
@@ -528,117 +653,6 @@ fun BackupSettingsScreen(
                     )
                     } // search-anchor:end
 
-                    // search-anchor:start
-                    SettingsSearchAnchor(R.string.settings_backup_webdav_restore_defaults_title) {
-                    ArrowPreference(
-                        title = stringResource(R.string.settings_backup_webdav_restore_defaults_title),
-                        summary = stringResource(R.string.settings_backup_webdav_restore_defaults_summary),
-                        onClick = { showWebDavDefaultTypeSheet = true }
-                    )
-                    } // search-anchor:end
-
-                    EllaMiuixListItem(
-                        title = stringResource(R.string.settings_backup_webdav_upload),
-                        summary = stringResource(R.string.settings_backup_webdav_upload_summary),
-                        enabled = !webDavUploading && !webDavDownloading,
-                        onClick = {
-                            backupScope.launch {
-                                val effectiveUrl = webDavBackupUrl.trim().ifBlank { savedWebDavUrl }
-                                if (effectiveUrl.isBlank()) {
-                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_not_configured), Toast.LENGTH_SHORT).show()
-                                    return@launch
-                                }
-                                val effectiveUser = webDavBackupUser.trim().ifBlank { savedWebDavUser }
-                                val effectivePassword = webDavBackupPassword.ifBlank { savedWebDavPassword }
-                                // Persist the backup URL and path
-                                settingsManager.setWebDavBackupUrl(effectiveUrl)
-                                settingsManager.setWebDavBackupPath(webDavBackupPath)
-                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
-                                webDavUploading = true
-                                runCatching {
-                                    val config = WebDavConfig(
-                                        url = effectiveUrl,
-                                        username = effectiveUser,
-                                        password = effectivePassword,
-                                        customHeaders = settingsManager.webDavCustomHeaders.first()
-                                    )
-                                    val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
-                                    val fileName = generateBackupFileName("zip")
-                                    val fullUrl = "${effectiveUrl.trimEnd('/')}/$path/$fileName"
-                                    val archive = withContext(Dispatchers.IO) {
-                                        buildApplicationBackupZipFile(context, librarySongs = librarySongs)
-                                    }
-                                    withContext(Dispatchers.IO) {
-                                        try {
-                                            WebDavClient.uploadFileFromFile(fullUrl, config, archive)
-                                        } finally {
-                                            archive.delete()
-                                        }
-                                    }
-                                }.onSuccess {
-                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_upload_success), Toast.LENGTH_SHORT).show()
-                                }.onFailure {
-                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_upload_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
-                                }
-                                webDavUploading = false
-                            }
-                        }
-                    )
-                    EllaMiuixListItem(
-                        title = stringResource(R.string.settings_backup_webdav_download),
-                        summary = stringResource(R.string.settings_backup_webdav_download_summary),
-                        enabled = !webDavUploading && !webDavDownloading,
-                        onClick = {
-                            backupScope.launch {
-                                val effectiveUrl = webDavBackupUrl.trim().ifBlank { savedWebDavUrl }
-                                if (effectiveUrl.isBlank()) {
-                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_not_configured), Toast.LENGTH_SHORT).show()
-                                    return@launch
-                                }
-                                val effectiveUser = webDavBackupUser.trim().ifBlank { savedWebDavUser }
-                                val effectivePassword = webDavBackupPassword.ifBlank { savedWebDavPassword }
-                                // Persist the backup URL and path
-                                settingsManager.setWebDavBackupUrl(effectiveUrl)
-                                settingsManager.setWebDavBackupPath(webDavBackupPath)
-                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
-                                webDavDownloading = true
-                                runCatching {
-                                    val config = WebDavConfig(
-                                        url = effectiveUrl,
-                                        username = effectiveUser,
-                                        password = effectivePassword,
-                                        customHeaders = settingsManager.webDavCustomHeaders.first()
-                                    )
-                                    val path = webDavBackupPath.trim().ifBlank { "halcyon_backup" }
-                                    val backupDirUrl = "${effectiveUrl.trimEnd('/')}/$path/"
-                                    val items = withContext(Dispatchers.IO) {
-                                        WebDavClient.list(
-                                            config,
-                                            backupDirUrl,
-                                            forceRefresh = true,
-                                            includeNonAudioFiles = true
-                                        )
-                                    }
-                                    val backupFiles = items
-                                        .filterNot { it.isDirectory }
-                                        .filter {
-                                            (it.name.endsWith(".zip", ignoreCase = true) ||
-                                                it.name.endsWith(".json", ignoreCase = true)) &&
-                                                it.name.isHalcyonBackupFileName()
-                                        }
-                                        .sortedByDescending { it.name }
-                                    if (backupFiles.isEmpty()) {
-                                        throw IllegalStateException(context.getString(R.string.settings_backup_webdav_file_not_found))
-                                    }
-                                    webDavRestoreConfig = config
-                                    webDavBackupFiles = backupFiles
-                                }.onFailure {
-                                    webDavDownloading = false
-                                    Toast.makeText(context, context.getString(R.string.settings_backup_webdav_download_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                    )
                 }
             }
 
@@ -785,6 +799,20 @@ fun BackupSettingsScreen(
             compatibilityRestore?.let {
                 cleanupApplicationBackupAssets(context, it.root)
                 it.onFinished()
+            }
+        }
+    )
+
+    BackupTypeSelectionSheet(
+        show = showWebDavUploadTypeSheet,
+        title = stringResource(R.string.settings_backup_webdav_upload_types_title),
+        confirmText = stringResource(R.string.common_save),
+        onDismiss = { showWebDavUploadTypeSheet = false },
+        initialSelected = savedWebDavUploadTypes.toWebDavRestoreTypes()
+            .ifEmpty { BackupType.entries.toSet() },
+        onConfirm = { selectedTypes ->
+            backupScope.launch {
+                settingsManager.setWebDavUploadTypes(selectedTypes.toWebDavRestoreSetting())
             }
         }
     )

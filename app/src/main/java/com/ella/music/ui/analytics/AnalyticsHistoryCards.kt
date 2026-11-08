@@ -61,7 +61,8 @@ fun PlaybackHistoryScreen(
 @Composable
 internal fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
     val context = LocalContext.current
-    val days = remember(dailyListenMs) { recentDateKeys(56) }
+    val weeks = remember(dailyListenMs) { recentHeatmapWeeks(90) }
+    val days = remember(weeks) { weeks.flatten().filterNotNull() }
     val maxMs = days.maxOfOrNull { dailyListenMs[it] ?: 0L }?.coerceAtLeast(1L) ?: 1L
     val todayListenMs = days.lastOrNull()?.let { dailyListenMs[it] } ?: 0L
     var selectedDate by remember(days) { mutableStateOf(days.lastOrNull().orEmpty()) }
@@ -79,7 +80,7 @@ internal fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.analytics_recent_8_weeks),
+                text = stringResource(R.string.analytics_recent_90_days),
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
@@ -103,23 +104,23 @@ internal fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                days.chunked(7).forEach { week ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
+                weeks.forEach { week ->
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         week.forEach { date ->
-                            val listenedMs = dailyListenMs[date] ?: 0L
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(13.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(heatmapColor(listenedMs, maxMs))
-                                    .clickable { selectedDate = date }
-                            )
+                            if (date == null) {
+                                Box(modifier = Modifier.size(12.dp))
+                            } else {
+                                val listenedMs = dailyListenMs[date] ?: 0L
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(RoundedCornerShape(2.5.dp))
+                                        .background(heatmapColor(listenedMs, maxMs))
+                                        .clickable { selectedDate = date }
+                                )
+                            }
                         }
                     }
                 }
@@ -135,8 +136,8 @@ internal fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
                 listOf(0.16f, 0.36f, 0.58f, 0.82f).forEach { level ->
                     Box(
                         modifier = Modifier
-                            .size(13.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(2.5.dp))
                             .background(heatmapColor((maxMs * level).toLong(), maxMs))
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -161,10 +162,10 @@ internal fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
 internal fun HistoryCard(
     history: List<PlaybackHistoryEntry>,
     totalCount: Int,
-    libraryById: Map<Long, Song>,
-    libraryByStatsKey: Map<String, Song>,
+    resolveSong: (PlaybackHistoryEntry) -> Song?,
     mainViewModel: MainViewModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSongClick: ((Song) -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -205,9 +206,9 @@ internal fun HistoryCard(
                 history.forEach { entry ->
                     HistoryRow(
                         entry = entry,
-                        song = libraryByStatsKey[entry.analyticsStatsKey()]
-                            ?: libraryById[entry.songId],
-                        mainViewModel = mainViewModel
+                        song = resolveSong(entry),
+                        mainViewModel = mainViewModel,
+                        onClick = onSongClick
                     )
                 }
             }
@@ -220,11 +221,15 @@ private fun HistoryRow(
     entry: PlaybackHistoryEntry,
     song: Song?,
     mainViewModel: MainViewModel,
-    timeText: String = formatHistoryTime(entry.playedAt)
+    timeText: String = formatHistoryTime(entry.playedAt),
+    onClick: ((Song) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = song != null && onClick != null) {
+                song?.let { onClick?.invoke(it) }
+            }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

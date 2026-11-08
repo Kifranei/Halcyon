@@ -61,4 +61,16 @@ class VideoContentFrameTest {
         assertEquals(16f * 16f / 9f, height, 0.001f)
         assertFalse(videoContentShouldFillHeight(9f / 16f, 16f / 9f, cover = true))
     }
+
+    @Test
+    fun zoomCoversTallCanvasOnAPhone() {
+        val (width, height) = videoContentFrameDimensions(
+            videoAspectRatio = 9f / 16f,
+            containerWidth = 390f,
+            containerHeight = 844f,
+            cover = true
+        )
+        assertTrue(width >= 390f)
+        assertTrue(height >= 844f)
+    }
 }

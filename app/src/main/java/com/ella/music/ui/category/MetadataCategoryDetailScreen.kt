@@ -66,7 +66,7 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
@@ -86,7 +86,7 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -136,12 +136,13 @@ fun MetadataCategoryDetailScreen(
             if (type == "folder" && mode == MetadataDetailSongSortMode.AlbumTrack) MetadataDetailSongSortMode.Title else mode
         }
     val albumSortMode = MetadataDetailAlbumSortMode.entries.getOrElse(albumSortIndex) { MetadataDetailAlbumSortMode.YearAsc }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedTab by rememberSaveable(type, name) { mutableStateOf(MetadataDetailTab.Songs) }
     var actionSong by remember { mutableStateOf<com.ella.music.data.model.Song?>(null) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val detailQuery = searchQuery.trim()
@@ -164,7 +165,9 @@ fun MetadataCategoryDetailScreen(
             filteredSongs.sortedForMetadataDetail(sortMode)
         }
     }
-    val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES
+    val customCategories by mainViewModel.settingsManager.customMetadataCategories.collectAsState(initial = emptyList())
+    val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES ||
+        customCategories.any { it.type == type && it.albumTab }
     val shouldBuildAlbumTabContent = showAlbumTab && selectedTab == MetadataDetailTab.Albums
     val detailAlbums = remember(songs, libraryAlbums, shouldBuildAlbumTabContent) {
         if (shouldBuildAlbumTabContent) {
@@ -223,18 +226,22 @@ fun MetadataCategoryDetailScreen(
             type != "lyricist" &&
             mainViewModel.getSongsForMetadataCategory("lyricist", name).isNotEmpty()
     }
+    val hasSameNameProducer = remember(type, name, librarySongs) {
+        type in PERSON_METADATA_CATEGORY_TYPES &&
+            type != "producer" &&
+            mainViewModel.getSongsForMetadataCategory("producer", name).isNotEmpty()
+    }
     val pageBackground = ellaPageBackground()
     val folderRootName = stringResource(R.string.folder_root)
     val defaultCategoryTitle = type.categoryTitle()
     val pageTitle = remember(type, name, folderRootName, defaultCategoryTitle) {
         if (type == "folder") name.folderDisplayName(folderRootName) else name.ifBlank { defaultCategoryTitle }
     }
-    val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    val listState = com.ella.music.ui.components.rememberDetailListState(type, name)
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     var fastScrollJob by remember { mutableStateOf<Job?>(null) }
@@ -371,17 +378,17 @@ fun MetadataCategoryDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Box {
             EllaSmallTopAppBar(
                 title = pageTitle,
                 color = pageBackground,
-                onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
+                titleEndPadding = if (selection.selectionMode) 192.dp else 128.dp,
+                onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
                 navigationIcon = {
                     IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
@@ -390,6 +397,14 @@ fun MetadataCategoryDetailScreen(
                 },
                 actions = {
                     if (selection.selectionMode) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedActionSongs()
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, context.getString(R.string.library_select_songs_first), Toast.LENGTH_SHORT).show()
+                            } else {
+                                batchEditSongs = selectedSongs
+                            }
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedActionSongs()
                             if (selectedSongs.isEmpty()) {
@@ -628,8 +643,8 @@ fun MetadataCategoryDetailScreen(
                 EllaCenteredLoadingIndicator()
             } else {
             LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, currentSelectionIds),
+                state = activeListState,
+                modifier = Modifier.fillMaxSize().dragSelectList(activeListState, selection, currentSelectionIds),
                 contentPadding = PaddingValues(
                     end = when {
                         !showSongSideIndex -> 0.dp
@@ -688,24 +703,32 @@ fun MetadataCategoryDetailScreen(
                                         onClick = { onMetadataCategoryClick("lyricist", name) }
                                     )
                                 }
+                                if (hasSameNameProducer) {
+                                    MetadataDetailLinkChip(
+                                        text = stringResource(R.string.category_producer_page),
+                                        onClick = { onMetadataCategoryClick("producer", name) }
+                                    )
+                                }
                             }
                         }
                         if (showAlbumTab) {
+                            val detailTabColors = top.yukonga.miuix.kmp.glass.GlassTabRowDefaults.neutralColors()
                             Row(
                                 modifier = Modifier.padding(bottom = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 MetadataDetailTab.entries.forEach { tab ->
+                                    val selected = selectedTab == tab
                                     Text(
                                         text = tab.label(),
                                         fontSize = 13.sp,
-                                        fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (selectedTab == tab) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (selected) detailTabColors.selectedContentColor else detailTabColors.contentColor,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(999.dp))
                                             .background(
-                                                if (selectedTab == tab) MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                                else Color.Transparent
+                                                if (selected) detailTabColors.selectedContainerColor
+                                                else detailTabColors.restingContainerColor
                                             )
                                             .clickable { selectedTab = tab }
                                             .padding(horizontal = 12.dp, vertical = 7.dp)
@@ -875,13 +898,13 @@ fun MetadataCategoryDetailScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { listState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { activeListState.scrollToItem(index) }
                             }
                         }
                     )
                 } else {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -890,7 +913,7 @@ fun MetadataCategoryDetailScreen(
             }
 
             LocateCurrentSongFloatingButton(
-                listState = listState,
+                listState = activeListState,
                 currentItemIndex = currentSongItemIndex,
                 locateRequest = locateCurrentSongRequest,
                 modifier = Modifier
@@ -909,6 +932,7 @@ fun MetadataCategoryDetailScreen(
                     .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
 
+            SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
             MetadataCategoryDetailScreenSurfaces(
                 context = context,
                 mainViewModel = mainViewModel,

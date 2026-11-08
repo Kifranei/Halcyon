@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.*
 
 internal val LocalReferenceLyricMotion = staticCompositionLocalOf { false }
+
+/**
+ * Whether a held note's emphasis keeps its soft trailing release after endTimeMs ("保持拉长",
+ * the default) or cuts off exactly at the timestamp ("即停"). Runtime-switchable, so this is a
+ * regular composition local rather than a static one.
+ */
+internal val LocalLyricSustainTailExtended = compositionLocalOf { true }
 internal val ReferenceLyricEasing = CubicBezierEasing(.4f, .1f, 0f, 1f)
 private val AppleEmphasisEasing = CubicBezierEasing(.25f, .1f, .25f, 1f)
 
@@ -49,14 +56,16 @@ internal fun appleReferenceWordLift(elapsedMs: Long): Float {
 
 /**
  * Duration-dependent emphasis from Apple player.C / C3722i. The 500 ms release is Flamingo's
- * trailing wave ([flamingoEmphasisTail]) instead of a plain ease-out.
+ * trailing wave ([flamingoEmphasisTail]) instead of a plain ease-out. With [tailExtended] off
+ * the emphasis cuts off exactly at endTimeMs — no trailing release after the note ends.
  */
-internal fun appleReferenceEmphasis(elapsedMs: Long, durationMs: Long): Float {
+internal fun appleReferenceEmphasis(elapsedMs: Long, durationMs: Long, tailExtended: Boolean = true): Float {
     if (elapsedMs <= 0L || durationMs < 1000L) return 0f
     val attack = durationMs.coerceAtMost(3000L).toFloat()
     val releaseStart = durationMs.toFloat()
     return if (elapsedMs <= durationMs) AppleEmphasisEasing.transform((elapsedMs / attack).coerceIn(0f, 1f))
-    else flamingoEmphasisTail((elapsedMs - releaseStart) / 500f)
+    else if (tailExtended) flamingoEmphasisTail((elapsedMs - releaseStart) / 500f)
+    else 0f
 }
 
 // Flamingo t7.AbstractC2048d.n: each letter swells over 68% of the word; starts spread over the other 32%.

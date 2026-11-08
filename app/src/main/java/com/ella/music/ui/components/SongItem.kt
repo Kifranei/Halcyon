@@ -388,7 +388,7 @@ fun SongItem(
                     label = stringResource(R.string.online_mv),
                     contentDescription = onlineMusicVideoDescription,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    onClick = { MusicVideoLauncher.openNetease(context, song, Uri.parse(url).getQueryParameter("id").orEmpty()) }
+                    onClick = { MusicVideoLauncher.openOnline(context, song, url) }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }

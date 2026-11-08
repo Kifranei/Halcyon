@@ -215,6 +215,7 @@ sealed class Screen(val route: String) {
     data object SettingsWizard : Screen("settings_wizard")
     data object SettingsMaintenance : Screen("settings_maintenance")
     data object OtherSettings : Screen("other_settings")
+    data object ExperimentalSettings : Screen("experimental_settings")
     data object VideoPlayer : Screen("video_player")
     data object PerformanceDiagnostics : Screen("performance_diagnostics")
     data object AppearanceSubpage : Screen("appearance_subpage/{page}?highlight={highlight}") {
@@ -229,6 +230,8 @@ sealed class Screen(val route: String) {
     data object MusicFreeOnline : Screen("musicfree_online")
     data object MusicFreePlugins : Screen("musicfree_plugins")
     data object NeteaseSearch : Screen("netease_search")
+    data object SourcePluginSearch : Screen("source_plugin_search")
+    data object SourcePluginSettings : Screen("source_plugin_settings")
     data object LxOnline : Screen("lx_online")
     data object LxSourceSettings : Screen("lx_source_settings")
     data object NavidromeServerSettings : Screen("navidrome_server_settings")
@@ -241,6 +244,10 @@ sealed class Screen(val route: String) {
         }
     }
     data object Analytics : Screen("analytics")
+    data object AnalyticsRanking : Screen("analytics_ranking/{kind}") {
+        const val baseRoute = "analytics_ranking"
+        fun createRoute(kind: String): String = "$baseRoute/$kind"
+    }
     data object AiChat : Screen("ai_chat")
     data object PlaybackHistory : Screen("playback_history")
     data object RecentPlayback : Screen("recent_playback?type={type}") {
@@ -286,6 +293,9 @@ internal fun AppNavigation(
         initial = initialBottomDockItems
     )
     fun isDockItem(itemId: String): Boolean = itemId in bottomDockItems
+    // Hoisted above the NavHost: covering the main pages must not throw away every
+    // tab's saved scroll state (#750).
+    val mainPageSaveableStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
 
     androidx.compose.runtime.SideEffect { mainPageState?.routes = mainPageRoutes }
     val closeSettings: () -> Unit = {
@@ -303,10 +313,28 @@ internal fun AppNavigation(
 
     fun navigateRestorableTopLevel(route: String) {
         if (com.ella.music.MainPageNavigation.select(navController, route)) return
+        val resetFolder = com.ella.music.ui.folder.FolderHierarchySession.consumeRoot(route)
         navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            popUpTo(navController.graph.findStartDestination().id) { saveState = !resetFolder }
             launchSingleTop = true
-            restoreState = true
+            restoreState = !resetFolder
+        }
+    }
+
+    val closeFolderHierarchy: () -> Unit = {
+        com.ella.music.ui.folder.FolderHierarchySession.requestRoot()
+        listOf(
+            Screen.Folder.route,
+            Screen.Folder.baseRoute,
+            Screen.Folder.createRoute(false),
+            Screen.Folder.createRoute(true)
+        ).forEach { route -> runCatching { navController.clearBackStack(route) } }
+        if (!com.ella.music.MainPageNavigation.select(navController, Screen.Home.route)) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = false }
+                launchSingleTop = true
+                restoreState = false
+            }
         }
     }
 
@@ -365,6 +393,7 @@ internal fun AppNavigation(
                 LibraryScreen(
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
+                    mainPageState = mainPageState,
                     onNavigateToPlayer = onNavigateToPlayer,
                     onNavigateToAbout = { navController.navigate(Screen.About.route) },
                     onNavigateToSearch = { navController.navigate(Screen.LibrarySearch.createRoute()) },
@@ -459,7 +488,8 @@ internal fun AppNavigation(
                     onNavigateToScanSettings = { navController.navigate(Screen.ScanSettings.createRoute()) },
                     onFolderClick = { folderPath ->
                         navController.navigate(Screen.FolderDetail.createRoute(folderPath))
-                    }
+                    },
+                    onClose = closeFolderHierarchy
                 )
 
             }
@@ -590,6 +620,7 @@ internal fun AppNavigation(
                     onNavigateToSetupWizard = { navController.navigate(Screen.SettingsWizard.route) },
                     onNavigateToMaintenance = { navController.navigate(Screen.SettingsMaintenance.route) },
                     onNavigateToOther = { navController.navigate(Screen.OtherSettings.route) },
+                    onNavigateToExperimental = { navController.navigate(Screen.ExperimentalSettings.route) },
                     onBack = onMainPageBack,
                     showBackButton = !(fromDock && isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS)),
                     mainViewModel = mainViewModel,
@@ -600,9 +631,14 @@ internal fun AppNavigation(
             Screen.Analytics.route -> {
                 AnalyticsScreen(
                     mainViewModel = mainViewModel,
+                    playerViewModel = playerViewModel,
                     onBack = onMainPageBack,
                     showBackButton = !isDockItem(SettingsManager.BOTTOM_DOCK_ITEM_ANALYTICS),
-                    onNavigateToHistory = { navController.navigate(Screen.PlaybackHistory.route) }
+                    onNavigateToHistory = { navController.navigate(Screen.PlaybackHistory.route) },
+                    onNavigateToArtist = { navController.navigate(Screen.ArtistDetail.createRoute(it)) },
+                    onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
+                    onNavigateToGenre = { genre -> navController.navigate(Screen.MetadataCategoryDetail.createRoute("genre", genre)) },
+                    onNavigateToRanking = { kind -> navController.navigate(Screen.AnalyticsRanking.createRoute(kind)) }
                 )
 
             }
@@ -669,6 +705,7 @@ internal fun AppNavigation(
         navigationPage(com.ella.music.MAIN_PAGES_ROUTE) { backStackEntry ->
             mainPageState?.let { state ->
                 com.ella.music.MainPagePager(state, mainPageRoutes, mainPageSwipeEnabled,
+                    saveableStateHolder = mainPageSaveableStateHolder,
                     onBackToHome = {
                         if (!com.ella.music.MainPageNavigation.exitSearch(navController))
                             com.ella.music.MainPageNavigation.select(navController, Screen.Home.route)
@@ -965,7 +1002,8 @@ internal fun AppNavigation(
                 onFolderClick = { childFolderPath ->
                     navController.navigate(Screen.FolderDetail.createRoute(childFolderPath))
                 },
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                onClose = closeFolderHierarchy
             )
         }
 
@@ -980,6 +1018,10 @@ internal fun AppNavigation(
             com.ella.music.ui.settings.OtherSettingsScreen(
                 onBack = { navController.popBackStack() },
                 onVideo = { navController.navigate(Screen.VideoPlayer.route) })
+        }
+        navigationPage(Screen.ExperimentalSettings.route) {
+            com.ella.music.ui.settings.ExperimentalSettingsScreen(
+                onBack = { navController.popBackStack() })
         }
         navigationPage(Screen.VideoPlayer.route) {
             com.ella.music.ui.video.VideoToolsScreen(onBack = { navController.popBackStack() })
@@ -1067,6 +1109,9 @@ internal fun AppNavigation(
                 onNavigateToBottomNavigationSettings = {
                     navController.navigate(Screen.BottomNavigationSettings.route)
                 },
+                onNavigateToHomeDisplaySettings = {
+                    navController.navigate(Screen.HomeDisplaySettings.createRoute(""))
+                },
                 onNavigateToPlayerShortcutSettings = { mode ->
                     navController.navigate(Screen.PlayerShortcutSettings.createRoute(mode))
                 },
@@ -1151,6 +1196,7 @@ internal fun AppNavigation(
                 onNavigateToWebDavConfig = { navController.navigate(Screen.WebDavLibrary.route) },
                 onNavigateToSmbConfig = { navController.navigate(Screen.SmbLibrary.route) },
                 onNavigateToTransferConfig = { source -> navController.navigate(Screen.TransferLibrary.createRoute(source)) },
+                onNavigateToSourcePlugins = { navController.navigate(Screen.SourcePluginSettings.route) },
                 mainViewModel = mainViewModel,
                 onCloseSettings = closeSettings
             )
@@ -1318,6 +1364,23 @@ internal fun AppNavigation(
                 onNavigateToPlayer = onNavigateToPlayer
             )
         }
+        navigationPage(Screen.SourcePluginSearch.route) {
+            com.ella.music.ui.online.SourcePluginSearchScreen(
+                mainViewModel, playerViewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToAlbum = { navController.navigate(Screen.AlbumDetail.createRoute(it)) },
+                onNavigateToArtist = { navController.navigate(Screen.ArtistDetail.createRoute(it)) },
+                onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
+        navigationPage(Screen.SourcePluginSettings.route) {
+            SettingsLevel3Or4Scope(closeSettings) {
+                com.ella.music.ui.settings.SourcePluginSettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    mainViewModel = mainViewModel
+                )
+            }
+        }
         navigationPage(Screen.LxOnline.route) {
             LxOnlineScreen(
                 mainViewModel = mainViewModel,
@@ -1350,6 +1413,23 @@ internal fun AppNavigation(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
                 onNavigateToPlayer = onNavigateToPlayer
+            )
+        }
+
+        navigationPage(
+            route = Screen.AnalyticsRanking.route,
+            arguments = listOf(
+                navArgument("kind") {
+                    type = NavType.StringType
+                    defaultValue = "duration"
+                }
+            )
+        ) { entry ->
+            com.ella.music.ui.analytics.AnalyticsRankingScreen(
+                kind = entry.arguments?.getString("kind") ?: "duration",
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -1455,5 +1535,6 @@ private fun String.bottomDockItemIdForMetadataCategory(): String? = when (this) 
     "composer" -> SettingsManager.BOTTOM_DOCK_ITEM_COMPOSER
     "arranger" -> SettingsManager.BOTTOM_DOCK_ITEM_ARRANGER
     "lyricist" -> SettingsManager.BOTTOM_DOCK_ITEM_LYRICIST
+    "producer" -> SettingsManager.BOTTOM_DOCK_ITEM_PRODUCER
     else -> null
 }

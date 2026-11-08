@@ -661,6 +661,9 @@ fun PlayerScreen(
               LocalPlayerSurfaceActive provides playerVisible,
               LocalPlayerCoverVisualizerHost provides coverVisualizerHost,
               LocalPlayerLyricPositionProvider provides remember(playerViewModel) { playerViewModel::livePositionMs },
+              // #727: lyric-driven scrubs (the opening blank row) write their preview
+              // fraction here so every seek bar inside the player shows it.
+              LocalPlayerSeekPreviewOverride provides remember { mutableStateOf<Float?>(null) },
               LocalAppleMusicLyricsViewPreferences provides appleMusicLyricsViewPreferences
           ) {
             // Keep one background composed for both pages. Recreating Apple/Beautiful Lyrics
@@ -869,6 +872,7 @@ fun PlayerScreen(
                             }
                             landscapeState.expanded = it
                         },
+                        onLyricTheaterExpandedChange = { uiState.lyricTheaterExpanded = it },
                         onSongInfoExpandedChange = { uiState.songInfoExpanded = it },
                         onRatingSheetSongChange = { uiState.ratingSheetSong = it },
                         onAiSheetSongChange = { uiState.aiSheetSong = it },
@@ -950,6 +954,7 @@ fun PlayerScreen(
                             { }
                         },
                         navigateToArtistOrChoose = ::navigateToArtistOrChoose,
+                        onNavigateToAlbum = onNavigateToAlbum,
                         onDismissLyrics = onDismissLyrics,
                         enableSwipeDismiss = enableSwipeDismiss,
                         backEnabled = backEnabled,
@@ -1103,6 +1108,14 @@ fun PlayerScreen(
                     landscapeState.expanded = false
                 }
             )
+            // Poster-wall lyric theater as a standalone player action (#698). Opening it keeps
+            // the player page visible, so the "播放页隐藏桌面歌词" setting applies unchanged.
+            if (uiState.lyricTheaterExpanded) {
+                com.ella.music.ui.poster.PosterLyricTheaterScreen(
+                    playerViewModel = playerViewModel,
+                    onBack = { uiState.lyricTheaterExpanded = false }
+                )
+            }
             // A draw-only overlay: shared by portrait, AM/Halcyon wide layouts and the
             // expanded landscape host, without reserving a row below the transport controls.
             AudioVisualizer(

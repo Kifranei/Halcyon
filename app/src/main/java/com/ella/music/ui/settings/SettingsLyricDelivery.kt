@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsLiveUpdateLyricControls(
@@ -31,7 +31,7 @@ internal fun SettingsLiveUpdateLyricControls(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val enabled by settingsManager.liveUpdateLyricEnabled.collectAsState(initial = false)
+    val enabled by settingsManager.liveUpdateLyricEnabled.collectAsStateSeeded(initial = false)
     val mode by settingsManager.liveUpdateLyricMode.collectAsState(
         initial = SettingsManager.LIVE_UPDATE_LYRIC_MODE_ORIGINAL
     )
@@ -41,9 +41,9 @@ internal fun SettingsLiveUpdateLyricControls(
     val secondaryMode by settingsManager.liveUpdateLyricSecondaryMode.collectAsState(
         initial = SettingsManager.LIVE_UPDATE_LYRIC_SECONDARY_MODE_SONG
     )
-    val vivoAtomWalkmanEnabled by settingsManager.vivoAtomWalkmanWhitelistEnabled.collectAsState(initial = false)
-    val vivoMediaIslandEnabled by settingsManager.vivoMediaIslandEnabled.collectAsState(initial = false)
-    val vivoMediaIslandOnly by settingsManager.vivoMediaIslandOnly.collectAsState(initial = false)
+    val vivoAtomWalkmanEnabled by settingsManager.vivoAtomWalkmanWhitelistEnabled.collectAsStateSeeded(initial = false)
+    val vivoMediaIslandEnabled by settingsManager.vivoMediaIslandEnabled.collectAsStateSeeded(initial = false)
+    val vivoMediaIslandOnly by settingsManager.vivoMediaIslandOnly.collectAsStateSeeded(initial = false)
     var applyingVivoMediaIsland by remember { mutableStateOf(false) }
     val labels = listOf(
         stringResource(R.string.settings_live_update_lyric_original),
@@ -88,7 +88,7 @@ internal fun SettingsLiveUpdateLyricControls(
         SettingsFocusAnchor(active = highlightKey == "live_update_lyric_content") {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_live_update_lyric_content) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_live_update_lyric_content),
                 summary = stringResource(R.string.settings_live_update_lyric_content_summary),
                 items = entries,
@@ -105,7 +105,7 @@ internal fun SettingsLiveUpdateLyricControls(
         SettingsFocusAnchor(active = highlightKey == "live_update_lyric_display") {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_live_update_lyric_display) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_live_update_lyric_display),
                 summary = stringResource(R.string.settings_live_update_lyric_display_summary),
                 items = displayEntries,
@@ -122,7 +122,7 @@ internal fun SettingsLiveUpdateLyricControls(
         SettingsFocusAnchor(active = highlightKey == "live_update_lyric_secondary") {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_live_update_lyric_secondary) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_live_update_lyric_secondary),
                 summary = stringResource(R.string.settings_live_update_lyric_secondary_summary),
                 items = secondaryEntries,
@@ -137,7 +137,7 @@ internal fun SettingsLiveUpdateLyricControls(
         }
     }
 
-    val xiaomiSuperIslandEnabled by settingsManager.xiaomiSuperIslandLyricEnabled.collectAsState(initial = false)
+    val xiaomiSuperIslandEnabled by settingsManager.xiaomiSuperIslandLyricEnabled.collectAsStateSeeded(initial = false)
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_enable_xiaomi_super_island_lyric) {
     SwitchPreference(
@@ -229,8 +229,8 @@ internal fun SettingsLiveUpdateLyricControls(
                 } // search-anchor:end
         }
         SettingsFocusAnchor(active = highlightKey == "vivo_media_island_only") {
-            // search-anchor:start
-            SettingsSearchAnchor(R.string.settings_vivo_media_island_only) {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_vivo_media_island_only) {
                 SwitchPreference(
                     title = stringResource(R.string.settings_vivo_media_island_only),
                     summary = stringResource(R.string.settings_vivo_media_island_only_summary),
@@ -240,7 +240,7 @@ internal fun SettingsLiveUpdateLyricControls(
                         scope.launch { settingsManager.setVivoMediaIslandOnly(nextEnabled) }
                     }
                 )
-            } // search-anchor:end
+                } // search-anchor:end
         }
     }
 }
@@ -253,9 +253,9 @@ internal fun SettingsLyriconControls(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
-    val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
-    val lyriconPronunciation by settingsManager.lyriconPronunciation.collectAsState(initial = false)
+    val lyriconEnabled by settingsManager.lyriconEnabled.collectAsStateSeeded(initial = false)
+    val lyriconTranslation by settingsManager.lyriconTranslation.collectAsStateSeeded(initial = true)
+    val lyriconPronunciation by settingsManager.lyriconPronunciation.collectAsStateSeeded(initial = false)
     val labels = rememberLyricSecondaryLabels()
     val entries = remember(labels) { labels.map { DropdownItem(title = it) } }
 
@@ -278,7 +278,7 @@ internal fun SettingsLyriconControls(
     if (lyriconEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_secondary_delivery_content)) {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_secondary_delivery_content) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_secondary_delivery_content),
             summary = stringResource(R.string.settings_secondary_delivery_content_summary),
             items = entries,
@@ -324,18 +324,18 @@ internal fun SettingsLyricOutputControls(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
-    val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
-    val superLyricPronunciation by settingsManager.superLyricPronunciation.collectAsState(initial = false)
-    val lyricGetterEnabled by settingsManager.lyricGetterEnabled.collectAsState(initial = false)
-    val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
-    val tickerHeadsUpLyrics by settingsManager.tickerHeadsUpLyrics.collectAsState(initial = false)
-    val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
-    val statusBarAllowPhonetic by settingsManager.statusBarAllowPhonetic.collectAsState(initial = false)
-    val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsState(initial = false)
-    val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsState(initial = true)
-    val bluetoothLyricPronunciation by settingsManager.bluetoothLyricPronunciation.collectAsState(initial = false)
-    val colorOsLockScreenLyricEnabled by settingsManager.colorOsLockScreenLyricEnabled.collectAsState(initial = false)
+    val superLyricEnabled by settingsManager.superLyricEnabled.collectAsStateSeeded(initial = false)
+    val superLyricTranslation by settingsManager.superLyricTranslation.collectAsStateSeeded(initial = true)
+    val superLyricPronunciation by settingsManager.superLyricPronunciation.collectAsStateSeeded(initial = false)
+    val lyricGetterEnabled by settingsManager.lyricGetterEnabled.collectAsStateSeeded(initial = false)
+    val tickerEnabled by settingsManager.tickerEnabled.collectAsStateSeeded(initial = false)
+    val tickerHeadsUpLyrics by settingsManager.tickerHeadsUpLyrics.collectAsStateSeeded(initial = false)
+    val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsStateSeeded(initial = false)
+    val statusBarAllowPhonetic by settingsManager.statusBarAllowPhonetic.collectAsStateSeeded(initial = false)
+    val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsStateSeeded(initial = false)
+    val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsStateSeeded(initial = true)
+    val bluetoothLyricPronunciation by settingsManager.bluetoothLyricPronunciation.collectAsStateSeeded(initial = false)
+    val colorOsLockScreenLyricEnabled by settingsManager.colorOsLockScreenLyricEnabled.collectAsStateSeeded(initial = false)
     val colorOsLockScreenLyricMode by settingsManager.colorOsLockScreenLyricMode.collectAsState(
         initial = SettingsManager.OPLUS_LYRIC_MODE_SYSTEM
     )
@@ -371,7 +371,7 @@ internal fun SettingsLyricOutputControls(
     if (superLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_secondary_delivery_content)) {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_secondary_delivery_content) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_secondary_delivery_content),
             summary = stringResource(R.string.settings_secondary_delivery_content_summary),
             items = entries,
@@ -453,7 +453,7 @@ internal fun SettingsLyricOutputControls(
         if (tickerHeadsUpLyrics /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_heads_up_lyric_secondary)) {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_heads_up_lyric_secondary) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_heads_up_lyric_secondary),
                 summary = stringResource(R.string.settings_heads_up_lyric_secondary_summary),
                 items = entries,
@@ -509,7 +509,7 @@ internal fun SettingsLyricOutputControls(
     if (colorOsLockScreenLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_coloros_lock_screen_lyric_mode)) {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_coloros_lock_screen_lyric_mode) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_coloros_lock_screen_lyric_mode),
             summary = stringResource(R.string.settings_coloros_lock_screen_lyric_mode_summary),
             items = oplusModeEntries,
@@ -545,7 +545,7 @@ internal fun SettingsLyricOutputControls(
     if (bluetoothLyricEnabled /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_secondary_delivery_content)) {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_secondary_delivery_content) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_secondary_delivery_content),
             summary = stringResource(R.string.settings_secondary_delivery_content_summary),
             items = entries,
@@ -615,7 +615,7 @@ internal fun SettingsLyricOutputControls(
         ?: 1
     // search-anchor:start
     SettingsSearchAnchor(R.string.settings_media_notification_buttons) {
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = stringResource(R.string.settings_media_notification_buttons),
         summary = stringResource(R.string.settings_media_notification_buttons_summary),
         items = mediaNotificationButtonEntries,

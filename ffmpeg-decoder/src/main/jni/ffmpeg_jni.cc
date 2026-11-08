@@ -17,6 +17,7 @@
 #include <jni.h>
 #include <new>
 #include <stdlib.h>
+#include <string.h>
 
 extern "C" {
 #ifdef __cplusplus
@@ -89,6 +90,12 @@ struct FfmpegDecoderContext {
   AVPacket* packet;
   AVFrame* frame;
   SwrContext* resampleContext;
+  // Input parameters the resampleContext was built for; the resampler is
+  // rebuilt when the decoded frames' layout/format/rate change mid-stream.
+  AVChannelLayout resampleInLayout;
+  AVChannelLayout resampleOutLayout;
+  AVSampleFormat resampleInFormat;
+  int resampleInSampleRate;
 };
 
 FfmpegDecoderContext* createContext(JNIEnv* env, const AVCodec* codec,
@@ -305,6 +312,10 @@ FfmpegDecoderContext* createContext(JNIEnv* env, const AVCodec* codec,
   decoderContext->packet = av_packet_alloc();
   decoderContext->frame = av_frame_alloc();
   decoderContext->resampleContext = NULL;
+  memset(&decoderContext->resampleInLayout, 0, sizeof(AVChannelLayout));
+  memset(&decoderContext->resampleOutLayout, 0, sizeof(AVChannelLayout));
+  decoderContext->resampleInFormat = AV_SAMPLE_FMT_NONE;
+  decoderContext->resampleInSampleRate = 0;
   if (!decoderContext->packet || !decoderContext->frame) {
     LOGE("Failed to allocate reusable packet/frame.");
     releaseContext(decoderContext);
@@ -374,21 +385,38 @@ int decodePacket(FfmpegDecoderContext* decoderContext, AVPacket* packet,
       return transformError(result);
     }
 
-    // Resample output.
-    AVSampleFormat sampleFormat = context->sample_fmt;
-    int channelCount = context->ch_layout.nb_channels;
-    int sampleRate = context->sample_rate;
+    // Resample output. Input parameters come from the frame itself: for files
+    // whose channel layout the container leaves unspecified, the codec context
+    // can lag behind what the decoder actually produces.
+    AVSampleFormat sampleFormat = (AVSampleFormat)frame->format;
+    int sampleRate = frame->sample_rate;
     int sampleCount = frame->nb_samples;
-    int dataSize = av_samples_get_buffer_size(NULL, channelCount, sampleCount,
-                                              sampleFormat, 1);
+    // The output layout is what ffmpegGetChannelCount reports to the Java side;
+    // fall back to the frame layout when the codec context knows none.
+    const AVChannelLayout* outLayout =
+        context->ch_layout.nb_channels > 0 ? &context->ch_layout
+                                           : &frame->ch_layout;
+    int channelCount = outLayout->nb_channels;
     SwrContext* resampleContext = decoderContext->resampleContext;
-    if (!resampleContext) {
+    bool rebuildResampler =
+        !resampleContext ||
+        av_channel_layout_compare(&decoderContext->resampleInLayout,
+                                  &frame->ch_layout) != 0 ||
+        av_channel_layout_compare(&decoderContext->resampleOutLayout,
+                                  outLayout) != 0 ||
+        decoderContext->resampleInFormat != sampleFormat ||
+        decoderContext->resampleInSampleRate != sampleRate;
+    if (rebuildResampler) {
+      if (resampleContext) {
+        swr_free(&decoderContext->resampleContext);
+        resampleContext = NULL;
+      }
       result =
           swr_alloc_set_opts2(&resampleContext,             // ps
-                              &context->ch_layout,          // out_ch_layout
+                              outLayout,                    // out_ch_layout
                               context->request_sample_fmt,  // out_sample_fmt
                               sampleRate,                   // out_sample_rate
-                              &context->ch_layout,          // in_ch_layout
+                              &frame->ch_layout,            // in_ch_layout
                               sampleFormat,                 // in_sample_fmt
                               sampleRate,                   // in_sample_rate
                               0,                            // log_offset
@@ -408,6 +436,13 @@ int decodePacket(FfmpegDecoderContext* decoderContext, AVPacket* packet,
         return transformError(result);
       }
       decoderContext->resampleContext = resampleContext;
+      av_channel_layout_uninit(&decoderContext->resampleInLayout);
+      av_channel_layout_uninit(&decoderContext->resampleOutLayout);
+      av_channel_layout_copy(&decoderContext->resampleInLayout,
+                             &frame->ch_layout);
+      av_channel_layout_copy(&decoderContext->resampleOutLayout, outLayout);
+      decoderContext->resampleInFormat = sampleFormat;
+      decoderContext->resampleInSampleRate = sampleRate;
     }
 
     int outSampleSize = av_get_bytes_per_sample(context->request_sample_fmt);
@@ -426,8 +461,12 @@ int decodePacket(FfmpegDecoderContext* decoderContext, AVPacket* packet,
         return AUDIO_DECODER_ERROR_OTHER;
       }
     }
+    // frame->data only stores 8 plane pointers; channels 9+ live in
+    // extended_data (which also covers the <=8 case), so it must be used for
+    // inputs with more than 8 channels.
     result = swr_convert(resampleContext, &outputBuffer, outSamples,
-                         (const uint8_t**)frame->data, frame->nb_samples);
+                         (const uint8_t**)frame->extended_data,
+                         frame->nb_samples);
     av_frame_unref(frame);
     if (result < 0) {
       logError("swr_convert", result);
@@ -465,6 +504,8 @@ void releaseContext(FfmpegDecoderContext* decoderContext) {
   if (decoderContext->resampleContext) {
     swr_free(&decoderContext->resampleContext);
   }
+  av_channel_layout_uninit(&decoderContext->resampleInLayout);
+  av_channel_layout_uninit(&decoderContext->resampleOutLayout);
   if (decoderContext->frame) {
     av_frame_free(&decoderContext->frame);
   }

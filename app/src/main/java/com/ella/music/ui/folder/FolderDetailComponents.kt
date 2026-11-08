@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,15 +27,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.ui.components.BreadcrumbBar
+import com.ella.music.ui.components.TextWithEndPin
 import com.ella.music.ui.components.BreadcrumbItem
 import top.yukonga.miuix.kmp.basic.TextField
-import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixSheetActions
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
-import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -46,7 +45,7 @@ internal fun CreatePlaylistAndAddSelectedSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    EllaMiuixBottomSheet(
+    EllaMiuixDialog(
         show = true,
         title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -68,7 +67,7 @@ internal fun CreatePlaylistAndAddSelectedSheet(
                 modifier = Modifier
                     .fillMaxWidth()
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = stringResource(R.string.common_create),
                 onCancel = onDismiss,
@@ -104,14 +103,14 @@ internal fun ChildFolderRow(
     ) {
         FolderHierarchyCover(folder, Modifier.size((42 * scale).dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
+            TextWithEndPin(
                 text = folder.name,
+                pinned = isPinned,
                 fontSize = (17 * scale).sp,
                 lineHeight = (22 * scale).sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -122,11 +121,6 @@ internal fun ChildFolderRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-        if (isPinned) {
-            Icon(imageVector = MiuixIcons.Regular.Pin, contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
         }
         Icon(
             imageVector = MiuixIcons.Basic.ArrowRight,

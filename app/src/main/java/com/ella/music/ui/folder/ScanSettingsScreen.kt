@@ -43,7 +43,9 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
 
@@ -126,20 +128,22 @@ fun ScanSettingsScreen(
         }
     }
 
+    val pageBackground = ellaPageBackground()
+    val folderBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = folderBackdrop,
             title = stringResource(R.string.folder_scan_settings),
-            color = ellaPageBackground(),
+            color = pageBackground,
             navigationIcon = {
                 if (showBackButton) {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
@@ -167,7 +171,7 @@ fun ScanSettingsScreen(
 
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().layerBackdrop(folderBackdrop),
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {
             if (isScanning) {
@@ -297,6 +301,18 @@ fun ScanSettingsScreen(
                         mainViewModel.scanMusic()
                     }
                     showBlockedDialog = false
+                },
+                onAdd = { path ->
+                    val normalizedPath = path.normalizeFolderPath()
+                    scope.launch {
+                        mainViewModel.settingsManager.updateScanExcludeFolders { current ->
+                            (current.toFolderSettingList() + normalizedPath)
+                                .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
+                                .joinToString("；")
+                        }
+                        mainViewModel.scanMusic()
+                    }
+                    Toast.makeText(context, R.string.scan_folder_unselected, Toast.LENGTH_SHORT).show()
                 }
             )
         }

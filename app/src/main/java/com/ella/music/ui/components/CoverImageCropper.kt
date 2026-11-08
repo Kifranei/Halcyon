@@ -44,7 +44,7 @@ import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -131,7 +131,7 @@ internal fun CoverImageCropper(
             modifier = Modifier.padding(bottom = 8.dp),
             colors = CardDefaults.defaultColors(color = ellaOverlayCardColor())
         ) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 items = ratioOptions.map { DropdownItem(title = it.second) },
                 selectedIndex = ratioOptions.indexOfFirst { it.first == state.aspectRatio }.coerceAtLeast(0),
                 title = stringResource(R.string.song_more_metadata_cover_ratio),

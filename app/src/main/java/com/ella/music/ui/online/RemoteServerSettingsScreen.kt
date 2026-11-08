@@ -58,10 +58,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -99,21 +101,22 @@ fun RemoteServerSettingsScreen(
 
     var pendingDelete by remember { mutableStateOf<SavedRemoteServer?>(null) }
     val pageBackground = ellaPageBackground()
+    val settingsBackdrop = rememberLayerBackdrop()
     val listState = rememberSettingsLazyListState("settings_remote_${provider.name}")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
+            backdrop = settingsBackdrop,
             title = stringResource(R.string.remote_server_manage_title, providerName),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -124,7 +127,7 @@ fun RemoteServerSettingsScreen(
 
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().layerBackdrop(settingsBackdrop),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
         ) {
             if (servers.isEmpty()) {
@@ -366,19 +369,20 @@ fun RemoteServerEditorScreen(
 
     BackHandler(onBack = onBack)
 
+    val editorBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
+            backdrop = editorBackdrop,
             title = stringResource(if (serverId == null) R.string.remote_server_add else R.string.remote_server_edit),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -404,6 +408,7 @@ fun RemoteServerEditorScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .layerBackdrop(editorBackdrop)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {

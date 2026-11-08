@@ -26,6 +26,7 @@ private const val EXTRA_YEAR = "ella_song_year"
 private const val EXTRA_COMPOSER = "ella_song_composer"
 private const val EXTRA_ARRANGER = "ella_song_arranger"
 private const val EXTRA_LYRICIST = "ella_song_lyricist"
+private const val EXTRA_PRODUCER = "ella_song_producer"
 private const val EXTRA_COVER_URL = "ella_song_cover_url"
 private const val EXTRA_ONLINE_SOURCE = "ella_song_online_source"
 private const val EXTRA_ONLINE_ID = "ella_song_online_id"
@@ -80,6 +81,7 @@ internal fun Song.toMediaItemExtras(): Bundle = Bundle().apply {
     putString(EXTRA_COMPOSER, composer)
     putString(EXTRA_ARRANGER, arranger)
     putString(EXTRA_LYRICIST, lyricist)
+    putString(EXTRA_PRODUCER, producer)
     // MediaStore album-art URIs are provider fallbacks, not stable song artwork. Persisting one
     // in the media item makes the player restore an unreadable URI instead of re-reading the
     // local file's embedded/sidecar cover.
@@ -125,6 +127,7 @@ internal fun MediaItem.toSongFromMediaItemExtras(): Song? {
         composer = extras.getString(EXTRA_COMPOSER).orEmpty(),
         arranger = extras.getString(EXTRA_ARRANGER).orEmpty(),
         lyricist = extras.getString(EXTRA_LYRICIST).orEmpty(),
+        producer = extras.getString(EXTRA_PRODUCER).orEmpty(),
         coverUrl = extras.getString(EXTRA_COVER_URL).orEmpty(),
         onlineSource = extras.getString(EXTRA_ONLINE_SOURCE).orEmpty(),
         onlineId = extras.getString(EXTRA_ONLINE_ID).orEmpty(),

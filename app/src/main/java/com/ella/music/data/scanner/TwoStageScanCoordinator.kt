@@ -273,7 +273,10 @@ internal object TwoStageScanCoordinator {
         folderNameAsAlbumWhenMissing: Boolean = false,
         folderAlbumConfirmed: Boolean = false
     ): Boolean =
-        LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(artist) ||
+        // A zero duration means the vendor's MediaStore never decoded the file
+        // (seen on vivo); enrichment fills it from the tag/stream reader (#780).
+        duration <= 0L ||
+            LibraryNormalizer.isGeneratedUnknownArtistPlaceholder(artist) ||
             LibraryNormalizer.isGeneratedUnknownAlbumPlaceholder(album) ||
             (!folderAlbumConfirmed && hasFolderLookalikeAlbum(folderNameAsAlbumWhenMissing))
 

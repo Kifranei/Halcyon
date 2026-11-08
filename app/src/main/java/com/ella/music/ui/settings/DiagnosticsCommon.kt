@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -31,7 +28,6 @@ import java.util.Locale
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.InputField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -94,14 +90,12 @@ fun DiagnosticsSearchBar(
     modifier: Modifier = Modifier,
     label: String = stringResource(R.string.logs_search_label)
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    InputField(
+    com.ella.music.ui.components.EllaSearchBar(
         query = query,
         onQueryChange = onQueryChange,
+        placeholder = label,
         onSearch = {},
-        expanded = expanded,
-        onExpandedChange = { if (it) expanded = true },
-        label = label,
+        autoFocus = false,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)

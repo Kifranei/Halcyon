@@ -126,10 +126,16 @@ internal object EllaLyricsParser {
             val text = (if (words.isEmpty()) body else words.joinToString("") { it.text }).cleanLyricText()
             if (text.isIgnorableLyricText()) return@mapNotNull null
             LyricLine(start, text, words = words.toDisplayWords(text),
-                hasExplicitWordTiming = words.isNotEmpty(),
+                hasExplicitWordTiming = words.size > 1,
                 endMs = maxOf(start + duration, lastWordEnd))
         }
-        return LrcParser.LrcResult(lyrics.sortedBy { it.timeMs }.shiftedBy(-offset), title, artist, album, offset)
+        return LrcParser.LrcResult(
+            lyrics.sortedBy { it.timeMs }.stripWholeLineOnlyWordTiming().shiftedBy(-offset),
+            title,
+            artist,
+            album,
+            offset
+        )
             .takeIf { it.lyrics.isNotEmpty() }
     }
 
@@ -143,7 +149,25 @@ internal object EllaLyricsParser {
             val lineDuration = match.groupValues[2].toLongOrNull() ?: 0L
             val rawContent = match.groupValues[3]
             val markers = krcWordPattern.findAll(rawContent).toList()
-            if (markers.isEmpty()) return@mapNotNull null
+            if (markers.isEmpty()) {
+                val plainText = rawContent.cleanLyricText()
+                if (plainText.isIgnorableLyricText()) return@mapNotNull null
+                val currentIndex = lyricIndex++
+                val pronunciationText = metadata.pronunciations.getOrNull(currentIndex)
+                    .orEmpty()
+                    .filter(String::isNotBlank)
+                    .joinToString(" ")
+                    .takeIf(String::isNotBlank)
+                return@mapNotNull LyricLine(
+                    timeMs = lineStart,
+                    text = plainText,
+                    words = emptyList(),
+                    hasExplicitWordTiming = false,
+                    translation = metadata.translations.getOrNull(currentIndex)?.takeIf(String::isNotBlank),
+                    pronunciation = pronunciationText,
+                    endMs = (lineStart + lineDuration).takeIf { lineDuration > 0L }
+                )
+            }
             val words = markers.mapIndexedNotNull { index, marker ->
                 val textStart = marker.range.last + 1
                 val textEnd = markers.getOrNull(index + 1)?.range?.first ?: rawContent.length
@@ -179,7 +203,7 @@ internal object EllaLyricsParser {
                 endMs = maxOf(lineStart + lineDuration, words.last().endMs)
             )
         }
-        return LrcParser.LrcResult(lyrics = lyrics)
+        return LrcParser.LrcResult(lyrics = lyrics.stripWholeLineOnlyWordTiming())
     }
 
     private fun decodeKrcMetadata(languageHeader: String?): KrcMetadata {
@@ -274,6 +298,7 @@ internal object EllaLyricsParser {
 
         return LrcParser.LrcResult(
             lyrics = mergeCompanionLines(lines)
+                .stripWholeLineOnlyWordTiming()
                 .shiftedBy(-offset),
             title = title,
             artist = artist,
@@ -329,12 +354,15 @@ internal object EllaLyricsParser {
             val words = parseEnhancedWords(content, 0L)
             val text = if (words.isNotEmpty()) words.joinLyricText() else content.cleanLyricText()
             if (text.isIgnorableLyricText()) return emptyList()
+            val hasLeadingWordMarker = timedWordMarkerPattern.matchAt(content.trimStart(), 0) != null
+            val hasWordTiming = words.size > 1 ||
+                (words.size == 1 && hasLeadingWordMarker && !text.hasMultipleSingableUnits())
             return listOf(
                 LyricLine(
                     timeMs = words.firstOrNull()?.startMs ?: 0L,
                     text = "",
                     backgroundText = text,
-                    backgroundWords = words.toDisplayWords(text),
+                    backgroundWords = if (hasWordTiming) words.toDisplayWords(text) else emptyList(),
                     backgroundStartMs = words.firstOrNull()?.startMs ?: 0L,
                     backgroundEndMs = words.lastOrNull()?.endMs,
                     endMs = words.lastOrNull()?.endMs
@@ -359,17 +387,20 @@ internal object EllaLyricsParser {
             }
         }
 
+        val hasLeadingWordMarker = timedWordMarkerPattern.matchAt(content.trimStart(), 0) != null
         return leadingTimes.mapNotNull { timeMatch ->
             val start = parseLrcTime(timeMatch.groupValues)
             val words = parseEnhancedWords(content, start)
             val text = if (words.isNotEmpty()) words.joinLyricText() else content.cleanLyricText()
             if (text.isIgnorableLyricText()) return@mapNotNull null
+            val hasWordTiming = words.size > 1 ||
+                (words.size == 1 && hasLeadingWordMarker && !text.hasMultipleSingableUnits())
             if (embeddedBackground != null) {
                 return@mapNotNull LyricLine(
                     timeMs = words.firstOrNull()?.startMs ?: start,
                     text = "",
                     backgroundText = text,
-                    backgroundWords = words.toDisplayWords(text),
+                    backgroundWords = if (hasWordTiming) words.toDisplayWords(text) else emptyList(),
                     backgroundStartMs = words.firstOrNull()?.startMs ?: start,
                     backgroundEndMs = words.lastOrNull()?.endMs,
                     agent = agent,
@@ -379,8 +410,8 @@ internal object EllaLyricsParser {
             LyricLine(
                 timeMs = start,
                 text = text,
-                words = words.toDisplayWords(text),
-                hasExplicitWordTiming = words.size > 1 || timedWordMarkerPattern.matchAt(content, 0) != null,
+                words = if (hasWordTiming) words.toDisplayWords(text) else emptyList(),
+                hasExplicitWordTiming = hasWordTiming,
                 agent = agent,
                 endMs = words.lastOrNull()?.endMs
             )
@@ -520,7 +551,9 @@ internal object EllaLyricsParser {
                     )
                 }
             }
-        return LrcParser.LrcResult(lyrics = attachBackgroundLines(parsed)).takeIf { it.lyrics.isNotEmpty() }
+        return LrcParser.LrcResult(
+            lyrics = attachBackgroundLines(parsed).stripWholeLineOnlyWordTiming()
+        ).takeIf { it.lyrics.isNotEmpty() }
     }
 
     private fun String.leadingLrcTimeMatches(): List<MatchResult> {

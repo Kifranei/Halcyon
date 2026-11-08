@@ -2,6 +2,7 @@ package com.ella.music.data
 
 import android.app.Application
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.repository.readLibraryCacheSongs
 import com.ella.music.data.repository.writeLibrarySnapshotJson
 import com.ella.music.data.scanner.PersistentMetadataCache
@@ -31,6 +32,10 @@ class CustomMetadataCategoriesTest {
         val unusual = CustomMetadataCategory("Key", "----:COM.APPLE.ITUNES:编曲")
         assertEquals(unusual.tagKey, customCategoryTagKey(unusual.type))
         assertEquals(categories, decodeCustomCategories(encodeCustomCategories(categories)))
+        val styled = CustomMetadataCategory("Mood", "MOOD", listStyle = false, albumTab = true, updatedAt = 9L)
+        assertEquals(styled, decodeCustomCategories(encodeCustomCategories(listOf(styled))).single())
+        val older = CustomMetadataCategory("Older", "OLD")
+        assertEquals(listOf("MOOD", "OLD"), listOf(older, styled).recentEditOrder().map { it.tagKey })
         assertEquals(emptyList<CustomMetadataCategory>(), decodeCustomCategories("malformed"))
         assertNull(customCategoryTagKey("tag_xyz"))
         assertNull(customCategoryTagKey("genre"))
@@ -70,5 +75,31 @@ class CustomMetadataCategoriesTest {
             assertTrue(old.customTags.isEmpty())
             assertFalse(old.customTagsLoaded)
         } finally { file.delete() }
+    }
+
+    @Test fun customAlbumCategoryKeepsItsOwnMergeFieldsWhenGlobalStrategyChanges() {
+        val previous = NameSplitConfigStore.albumMergeFields
+        val category = CustomMetadataCategory(
+            "专辑",
+            "ALBUM",
+            albumMergeFields = CustomMetadataCategory.DEFAULT_ALBUM_MERGE_FIELDS
+        )
+        val song = song(1, mapOf("ALBUM" to listOf("Blue"))).copy(
+            album = "Blue",
+            albumArtist = "Ada",
+            year = "2020"
+        )
+        try {
+            CustomCategoryConfigStore.update(listOf(category))
+            NameSplitConfigStore.albumMergeFields = listOf("ALBUM", "ALBUMARTIST", "DATE")
+            assertEquals(listOf("Blue · Ada"), song.customCategoryValues(category.type))
+            val withDate = song.albumIdentityId()
+            NameSplitConfigStore.albumMergeFields = listOf("ALBUM")
+            assertEquals(listOf("Blue · Ada"), song.customCategoryValues(category.type))
+            assertTrue(withDate != song.albumIdentityId())
+        } finally {
+            NameSplitConfigStore.albumMergeFields = previous
+            CustomCategoryConfigStore.update(emptyList())
+        }
     }
 }

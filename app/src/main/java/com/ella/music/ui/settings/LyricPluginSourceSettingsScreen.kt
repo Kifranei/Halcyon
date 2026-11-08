@@ -60,11 +60,11 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Settings
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -75,7 +75,7 @@ fun LyricPluginSourceSettingsScreen(
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val pluginManager = remember(context) { LyricoPluginManager(context, settingsManager) }
-    val enabledIds by settingsManager.lyricoPluginEnabledIds.collectAsState(initial = emptySet())
+    val enabledIds by settingsManager.lyricoPluginEnabledIds.collectAsStateSeeded(initial = emptySet())
     var reloadToken by remember { mutableIntStateOf(0) }
     var pendingDelete by remember { mutableStateOf<LyricoPluginSource?>(null) }
     var configTarget by remember { mutableStateOf<LyricoPluginSource?>(null) }
@@ -234,7 +234,7 @@ fun LyricPluginSourceSettingsScreen(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -367,7 +367,7 @@ private fun PluginConfigDropdown(
 ) {
     if (field.options.isEmpty()) return
     val selectedIndex = field.options.indexOfFirst { it.value == value }.takeIf { it >= 0 } ?: 0
-    WindowSpinnerPreference(
+    EllaSpinnerPreference(
         title = field.title,
         summary = field.summary ?: field.options.getOrNull(selectedIndex)?.summary.orEmpty(),
         items = field.options.map { option ->

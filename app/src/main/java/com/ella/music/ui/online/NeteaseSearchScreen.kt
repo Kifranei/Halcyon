@@ -21,8 +21,10 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Settings
 
 @Composable
@@ -68,10 +70,13 @@ internal fun NeteaseSearchScreen(
         }
     }
     if (showAccount) NeteaseAccountScreen(onDismiss = { showAccount = false }, mainViewModel = mainViewModel)
-    Column(Modifier.fillMaxSize().background(ellaPageBackground()).windowInsetsPadding(WindowInsets.statusBars)) {
+    val pageBackground = ellaPageBackground()
+    val onlineBackdrop = rememberLayerBackdrop()
+    Column(Modifier.fillMaxSize().background(pageBackground)) {
         EllaSmallTopAppBar(
-            title = stringResource(R.string.netease_search_title), color = Color.Transparent,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back)) } },
+            backdrop = onlineBackdrop,
+            title = stringResource(R.string.netease_search_title), color = pageBackground,
+            navigationIcon = { IconButton(onClick = onBack) { Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back)) } },
             actions = { IconButton(onClick = { showAccount = true }) { Icon(MiuixIcons.Regular.Settings, stringResource(R.string.lx_online_source_management)) } }
         )
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
@@ -80,7 +85,7 @@ internal fun NeteaseSearchScreen(
                 if (busy) stringResource(R.string.lx_online_processing) else message,
                 modifier = Modifier.padding(vertical = 6.dp)
             )
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize().layerBackdrop(onlineBackdrop)) {
                 items(results, key = { it.onlineId }) { song ->
                     SongItem(
                         song = song, albumArtUri = song.coverUrl.takeIf { it.isNotBlank() }?.let(Uri::parse),
@@ -94,7 +99,7 @@ internal fun NeteaseSearchScreen(
                         onMore = { actionSong = song }
                     )
                 }
-                if (more) item { Button(enabled = !busy, onClick = { search(true) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.netease_search_more)) } }
+                if (more) item { Button(enabled = !busy, onClick = { search(true) }, modifier = Modifier.fillMaxWidth(), colors = os4NeutralButtonColors()) { Text(stringResource(R.string.netease_search_more)) } }
                 item { Spacer(Modifier.height(120.dp)) }
             }
         }

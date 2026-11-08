@@ -14,6 +14,7 @@ import com.ella.music.data.PlaylistStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.netease.toPlaybackHistoryEntry
+import com.ella.music.data.sourceplugin.toPlaybackHistoryEntry
 import com.ella.music.data.PlaybackHistorySource
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SongPlaybackStats
@@ -52,6 +53,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -105,26 +108,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     private val neteaseLibraryStoreForHistory = com.ella.music.data.netease.NeteaseLibraryStore.getInstance(application)
-    /** In the NetEase library the account's cloud history is merged in directly (#NetEase history). */
+    /** Recent plays of the active account-source plugin (empty for every other source). */
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    private val pluginRecentPlays: kotlinx.coroutines.flow.Flow<List<com.ella.music.data.sourceplugin.SourcePluginRecentPlay>> =
+        settingsManager.librarySource.flatMapLatest { source: String ->
+            if (!com.ella.music.data.sourceplugin.isSourcePluginKey(source)) flowOf(emptyList())
+            else com.ella.music.data.sourceplugin.SourcePluginRegistry.recentPlaysFor(getApplication<Application>(), source)
+        }
+    /** In a remote-account library the account's cloud history is merged in directly (#NetEase history). */
     private val neteaseCloudHistory: kotlinx.coroutines.flow.Flow<List<PlaybackHistoryEntry>> = combine(
         neteaseLibraryStoreForHistory.recentPlays,
+        pluginRecentPlays,
         settingsManager.librarySource
-    ) { plays, source ->
-        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE) emptyList()
-        else plays.map { it.toPlaybackHistoryEntry() }
+    ) { plays, pluginPlays, source ->
+        when {
+            source == SettingsManager.LIBRARY_SOURCE_NETEASE -> plays.map { it.toPlaybackHistoryEntry() }
+            com.ella.music.data.sourceplugin.isSourcePluginKey(source) ->
+                pluginPlays.map { it.toPlaybackHistoryEntry() }
+            else -> emptyList()
+        }
     }
     /** Cloud songs are not all in the favourites library; exposing them lets history rows resolve and play. */
     val neteaseHistorySongs: StateFlow<List<Song>> = combine(
         neteaseLibraryStoreForHistory.recentPlays,
+        pluginRecentPlays,
         settingsManager.librarySource
-    ) { plays, source ->
-        if (source != SettingsManager.LIBRARY_SOURCE_NETEASE) emptyList() else plays.map { it.song }.distinctBy { it.onlineId }
+    ) { plays, pluginPlays, source ->
+        when {
+            source == SettingsManager.LIBRARY_SOURCE_NETEASE -> plays.map { it.song }.distinctBy { it.onlineId }
+            com.ella.music.data.sourceplugin.isSourcePluginKey(source) ->
+                pluginPlays.map { it.song }.distinctBy { it.onlineId }
+            else -> emptyList()
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun refreshNeteaseHistory(force: Boolean = false) {
         viewModelScope.launch {
-            if (settingsManager.librarySource.first() == SettingsManager.LIBRARY_SOURCE_NETEASE) {
+            val source = settingsManager.librarySource.first()
+            if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) {
                 neteaseLibraryStoreForHistory.refreshRecentPlays(force)
+            } else if (com.ella.music.data.sourceplugin.isSourcePluginKey(source)) {
+                com.ella.music.data.sourceplugin.SourcePluginRegistry
+                    .libraryStoreForSource(getApplication(), source)?.refreshRecentPlays(force)
             }
         }
     }
@@ -197,13 +222,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     suspend fun localSearchSnapshot() = repository.localSearchSnapshot()
 
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    private val remoteLibraryPlaylists = settingsManager.librarySource.flatMapLatest { source: String ->
+        when {
+            source == SettingsManager.LIBRARY_SOURCE_NETEASE ->
+                com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication<Application>()).playlists
+            com.ella.music.data.sourceplugin.isSourcePluginKey(source) ->
+                com.ella.music.data.sourceplugin.SourcePluginRegistry.playlistsFor(getApplication<Application>(), source)
+            else -> flowOf(emptyList())
+        }
+    }
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
     val playlists: StateFlow<List<UserPlaylist>> = combine(
         playlistStore.playlists,
         openSubsonicCollectionsStore.playlists,
-        com.ella.music.data.netease.NeteaseLibraryStore.getInstance(application).playlists,
+        remoteLibraryPlaylists,
         settingsManager.librarySource
-    ) { localPlaylists, remotePlaylists, neteasePlaylists, source ->
-        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) neteasePlaylists else localPlaylists + remotePlaylists
+    ) { localPlaylists, remotePlaylists, onlinePlaylists, source ->
+        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE ||
+            com.ella.music.data.sourceplugin.isSourcePluginKey(source)
+        ) onlinePlaylists else localPlaylists + remotePlaylists
     }.stateIn(viewModelScope, SharingStarted.Eagerly, playlistStore.playlists.value)
     private val _libraryCacheLoaded = MutableStateFlow(false)
     val libraryCacheLoaded: StateFlow<Boolean> = _libraryCacheLoaded.asStateFlow()
@@ -225,6 +263,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         write = repository::writeCategoryTagForBatch, publish = repository::publishCategoryTagEdits)
 
     init {
+        viewModelScope.launch {
+            settingsManager.customMetadataCategories.distinctUntilChanged().collect { categories ->
+                metadataCategoryItemsCache.clear()
+                com.ella.music.data.CustomCategoryConfigStore.update(categories)
+            }
+        }
         viewModelScope.launch {
             combine(settingsManager.customMetadataCategories, songs) { categories, library ->
                 categories.isNotEmpty() && library.any { !it.customTagsLoaded &&
@@ -334,16 +378,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         openSubsonicCollectionsStore.refreshForLibrarySource(source)
+        refreshAccountLibraryStore(source)
+        repository.emitScanSummary(summary)
+        _libraryCacheLoaded.value = true
+        preloadLibrarySearchSnapshot()
+        startWebDavMetadataHydrationIfNeeded(source)
+    }
+
+    private suspend fun refreshAccountLibraryStore(source: String) {
         if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) {
             try { com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refresh(false) }
             catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
             catch (_: Exception) { /* Account settings exposes the sync error; preserve the last snapshot. */ }
             com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refreshRecentPlays()
+        } else if (com.ella.music.data.sourceplugin.isSourcePluginKey(source)) {
+            val store = com.ella.music.data.sourceplugin.SourcePluginRegistry
+                .libraryStoreForSource(getApplication(), source) ?: return
+            try { store.refresh(false) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { /* Account settings exposes the sync error; preserve the last snapshot. */ }
+            store.refreshRecentPlays()
         }
-        repository.emitScanSummary(summary)
-        _libraryCacheLoaded.value = true
-        preloadLibrarySearchSnapshot()
-        startWebDavMetadataHydrationIfNeeded(source)
     }
 
     private fun startWebDavMetadataHydrationIfNeeded(source: String) {
@@ -538,12 +593,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.loadCachedLibrary()
             }
             openSubsonicCollectionsStore.refreshForLibrarySource(source)
-        if (source == SettingsManager.LIBRARY_SOURCE_NETEASE) {
-            try { com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refresh(false) }
-            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
-            catch (_: Exception) { /* Account settings exposes the sync error; preserve the last snapshot. */ }
-            com.ella.music.data.netease.NeteaseLibraryStore.getInstance(getApplication()).refreshRecentPlays()
-        }
+            refreshAccountLibraryStore(source)
             _libraryCacheLoaded.value = true
             preloadLibrarySearchSnapshot()
         }
@@ -698,6 +748,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun writeSongCustomTag(song: Song, key: String, value: String): Result<Song?> =
         repository.writeSongCustomTag(song, key, value)
+
+    suspend fun keepSongModifiedTime(song: Song) = repository.keepSongModifiedTime(song)
 
     suspend fun writeSongMetadata(song: Song, tags: AudioTagInfo): Result<Song?> {
         val result = repository.writeSongMetadata(song, tags)

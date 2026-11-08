@@ -24,7 +24,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -34,7 +36,7 @@ internal fun TransferLibrarySettingsScreen(source: String, mainViewModel: MainVi
     val context = LocalContext.current
     val settings = mainViewModel.settingsManager
     val scope = rememberCoroutineScope()
-    val activeSource by settings.librarySource.collectAsState(initial = "")
+    val activeSource by settings.librarySource.collectAsStateSeeded(initial = "")
     val songs by mainViewModel.songs.collectAsState()
     val scanning by mainViewModel.isScanning.collectAsState()
     var url by remember(source) { mutableStateOf("") }
@@ -83,10 +85,11 @@ internal fun TransferLibrarySettingsScreen(source: String, mainViewModel: MainVi
         }
     }
     val background = ellaPageBackground()
-    Column(Modifier.fillMaxSize().background(background).windowInsetsPadding(WindowInsets.statusBars)) {
-        EllaSmallTopAppBar(title = stringResource(if (sftp) R.string.sftp_library_title else R.string.ftp_library_title), color = background,
-            navigationIcon = { IconButton(onClick = onBack) { Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back)) } })
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp).navigationBarsPadding(),
+    val settingsBackdrop = rememberLayerBackdrop()
+    Column(Modifier.fillMaxSize().background(background)) {
+        EllaSmallTopAppBar(title = stringResource(if (sftp) R.string.sftp_library_title else R.string.ftp_library_title), color = background, backdrop = settingsBackdrop,
+            navigationIcon = { IconButton(onClick = onBack) { Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back)) } })
+        Column(Modifier.weight(1f).layerBackdrop(settingsBackdrop).verticalScroll(rememberScrollState()).padding(16.dp).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.file_library_summary), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             WebDavTextField(stringResource(R.string.transfer_library_address), url, {

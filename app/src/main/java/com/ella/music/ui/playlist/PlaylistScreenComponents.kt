@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,17 +41,20 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Share
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 internal fun PlaylistScreenTopBar(
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop? = null,
     selectionMode: Boolean,
     selectedCount: Int,
     totalCount: Int,
@@ -66,9 +71,11 @@ internal fun PlaylistScreenTopBar(
     onImportClick: () -> Unit,
     onExportAllClick: () -> Unit,
     onlineReadOnly: Boolean = false,
-    onDoubleTapTitle: (() -> Unit)? = null
+    onDoubleTapTitle: (() -> Unit)? = null,
+    bottomContent: @Composable () -> Unit = {}
 ) {
     EllaSmallTopAppBar(
+        backdrop = backdrop,
         title = if (selectionMode) {
             stringResource(R.string.library_selected_fraction, selectedCount, totalCount)
         } else {
@@ -79,7 +86,7 @@ internal fun PlaylistScreenTopBar(
             if (showBackButton || selectionMode) {
                 IconButton(onClick = onBackClick) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
@@ -91,6 +98,7 @@ internal fun PlaylistScreenTopBar(
         // title end inset is too small here and can consume the first action's tap.
         titleEndPadding = if (selectionMode) 280.dp else 240.dp,
         onDoubleTapTitle = onDoubleTapTitle,
+        bottomContent = bottomContent,
         actions = {
             if (selectionMode) {
                 IconButton(onClick = onPinSelectedClick) {
@@ -172,6 +180,52 @@ private fun PlaylistTopBarIcon(
             tint = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+internal fun PlaylistFloatingSearchBar(
+    visible: Boolean,
+    query: String,
+    placeholderRes: Int,
+    backdrop: top.yukonga.miuix.kmp.blur.Backdrop?,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onCancel: () -> Unit
+) {
+    if (!visible) return
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        EllaSearchBar(
+            query = query,
+            onQueryChange = onQueryChange,
+            onSearch = onSearch,
+            placeholder = stringResource(placeholderRes),
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        GlassIconButton(
+            onClick = {
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                onCancel()
+            },
+            backdrop = backdrop,
+            inheritTopBarMaterial = false,
+            size = 36.dp
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Close,
+                contentDescription = stringResource(R.string.common_cancel),
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 

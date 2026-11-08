@@ -3,6 +3,8 @@ package com.ella.music.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import com.ella.music.data.SettingsManager
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shape
@@ -58,8 +62,13 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.material.GlassMaterials
+import top.yukonga.miuix.kmp.material.GlassShape
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.glass.GlassBottomSheet
+import top.yukonga.miuix.kmp.glass.GlassTabRowDefaults
+import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 val LocalInBottomSheet = androidx.compose.runtime.compositionLocalOf { false }
@@ -126,22 +135,23 @@ fun EllaMiuixBottomSheet(
     insideMargin: DpSize = DpSize(12.dp, 18.dp),
     content: @Composable () -> Unit
 ) {
-    // MIUIX window surfaces create a separate composition. Re-provide the caller's adjusted
-    // density so global interface/font scaling also reaches player and lyric action sheets.
+    // MIUIX overlay surfaces render in the root Scaffold's dialog layer. Re-provide the caller's
+    // adjusted density so global interface/font scaling also reaches player and lyric action sheets.
     val inheritedDensity = LocalDensity.current
-    WindowBottomSheet(
+    GlassBottomSheet(
         show = show,
+        onDismissRequest = onDismissRequest,
+        backdrop = LocalBackdrop.current,
+        modifier = modifier,
         title = title,
         startAction = startAction,
         endAction = endAction,
-        onDismissRequest = onDismissRequest,
-        onDismissFinished = onDismissFinished,
         enableNestedScroll = enableNestedScroll,
         cornerRadius = 28.dp,
         insideMargin = insideMargin,
-        backgroundColor = ellaBottomSheetCanvasColor(),
-        modifier = modifier,
-        content = {
+        containerColor = ellaBottomSheetCanvasColor(),
+        onDismissFinished = onDismissFinished,
+    ) {
             CompositionLocalProvider(
                 LocalDensity provides inheritedDensity,
                 LocalSettingsCardFrosting provides null,
@@ -170,8 +180,7 @@ fun EllaMiuixBottomSheet(
                     content()
                 }
             }
-        }
-    )
+    }
 }
 
 @Composable
@@ -184,14 +193,21 @@ fun EllaMiuixDialog(
     content: @Composable () -> Unit
 ) {
     val inheritedDensity = LocalDensity.current
+    val dialogShape = GlassShape(32.dp)
     WindowDialog(
         show = show,
         title = title,
         summary = summary,
         onDismissRequest = onDismissRequest,
-        backgroundColor = ellaDialogCanvasColor(),
+        backgroundColor = Color.Transparent,
         insideMargin = DpSize(22.dp, 20.dp),
-        modifier = modifier,
+        modifier = modifier.glassPanel(
+            backdrop = LocalBackdrop.current,
+            shape = dialogShape,
+            material = GlassMaterials.dialogGlass(ellaSchemeIsDark()),
+            shading = false,
+            fallback = Modifier.clip(dialogShape).background(ellaDialogCanvasColor()),
+        ),
         content = {
             CompositionLocalProvider(
                 LocalSettingsCardFrosting provides null,
@@ -610,4 +626,59 @@ fun <T> EllaCheckOptionGroup(
             }
         }
     }
+}
+
+/**
+ * A single glass pill tab matching miuix's [top.yukonga.miuix.kmp.glass.GlassTabRow] look, for
+ * scrollable rows whose tabs wrap their label width instead of sharing the row equally. The
+ * selected tab is the OS4 neutral (white-on-dark) pill; unselected tabs ride the shared backdrop
+ * material and fall back to the resting fill when no backdrop is available.
+ */
+@Composable
+fun EllaGlassPillTab(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = GlassTabRowDefaults.neutralColors()
+    val backdrop = LocalBackdrop.current
+    val shape = GlassTabRowDefaults.shape()
+    val interactionSource = androidx.compose.runtime.remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    top.yukonga.miuix.kmp.basic.Text(
+        text = text,
+        fontSize = 14.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        color = if (selected) colors.selectedContentColor else colors.contentColor,
+        maxLines = 1,
+        overflow = TextOverflow.Clip,
+        modifier = modifier
+            .wrapContentWidth()
+            .then(
+                if (!selected && backdrop != null && isRuntimeShaderSupported()) {
+                    Modifier.glassPanel(
+                        backdrop = backdrop,
+                        shape = shape,
+                        material = GlassTabRowDefaults.material(),
+                        stroke = GlassTabRowDefaults.stroke(),
+                        shading = false,
+                        fallback = Modifier.clip(shape).background(colors.restingContainerColor),
+                    )
+                } else {
+                    Modifier.clip(shape).background(
+                        if (selected) colors.selectedContainerColor else colors.restingContainerColor
+                    )
+                }
+            )
+            .drawBehind {
+                if (pressed && !selected) drawRect(colors.pressedOverlayColor)
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    )
 }

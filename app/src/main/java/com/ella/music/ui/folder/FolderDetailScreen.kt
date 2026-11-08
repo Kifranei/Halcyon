@@ -10,19 +10,16 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,11 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
@@ -60,15 +55,15 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.FastIndexBar
-import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
@@ -97,9 +92,12 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -111,7 +109,8 @@ fun FolderDetailScreen(
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onFolderClick: (String) -> Unit,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val librarySongs by mainViewModel.songs.collectAsState()
@@ -141,12 +140,13 @@ fun FolderDetailScreen(
     val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
@@ -171,7 +171,7 @@ fun FolderDetailScreen(
         saveScope.launch { mainViewModel.settingsManager.setFolderDetailSongSortIndex(nextSortIndex) }
     }
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
-    val listState = rememberSaveable(normalizedFolderPath, saver = LazyListState.Saver) { LazyListState() }
+    val listState = com.ella.music.ui.components.rememberDetailListState(normalizedFolderPath)
     var unpinToTopPath by remember(normalizedFolderPath) { mutableStateOf<String?>(null) }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
@@ -268,6 +268,7 @@ fun FolderDetailScreen(
     }
 
     val pageBackground = ellaPageBackground()
+    val folderBackdrop = rememberLayerBackdrop()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -276,67 +277,49 @@ fun FolderDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
         ) {
         Box {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        if (selection.selectionMode) {
-                            selection.finishSelectionMode()
-                        } else {
-                            onBack()
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = if (selection.selectionMode) stringResource(R.string.common_exit_selection) else stringResource(R.string.common_back),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-                if (!selection.selectionMode) {
-                    FolderOutlineIcon(
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (selection.selectionMode) {
-                            stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedSongs.size)
-                        } else {
-                            folderName.ifEmpty { stringResource(R.string.folder_root) }
-                        },
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MiuixTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.pointerInput(Unit) {
-                            detectTapGestures(onDoubleTap = { scrollToTopRequest++ })
-                        }
-                    )
-                    if (!selection.selectionMode) {
-                        Text(
-                            text = stringResource(R.string.folder_detail_header_summary, childFolders.size, recursiveSongs.size),
-                            fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
-                }
-                if (selection.selectionMode) {
+            EllaSmallTopAppBar(
+                title = if (selection.selectionMode) {
+                    stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedSongs.size)
+                } else {
+                    folderName.ifEmpty { stringResource(R.string.folder_root) }
+                },
+                backdrop = folderBackdrop,
+                color = pageBackground,
+                titleStartPadding = 64.dp,
+                titleEndPadding = if (selection.selectionMode) 192.dp else 128.dp,
+                onDoubleTapTitle = { scrollToTopRequest++ },
+                navigationIcon = {
                     IconButton(
                         onClick = {
+                            if (selection.selectionMode) {
+                                selection.finishSelectionMode()
+                            } else {
+                                onBack()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = GlassChevronBackwardIcon,
+                            contentDescription = if (selection.selectionMode) stringResource(R.string.common_exit_selection) else stringResource(R.string.common_back),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                actions = {
+                    if (selection.selectionMode) {
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
+                            } else {
+                                batchEditSongs = selectedSongs
+                            }
+                        })
+                        IconButton(
+                            onClick = {
                                 val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
                                 if (selectedSongs.isEmpty()) {
                                     Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
@@ -345,112 +328,134 @@ fun FolderDetailScreen(
                                     Toast.makeText(context, R.string.song_more_added_to_play_next, Toast.LENGTH_SHORT).show()
                                     selection.finishSelectionMode()
                                 }
+                            }
+                        ) {
+                            com.ella.music.ui.components.PlayNextActionIcon(
+                                contentDescription = stringResource(R.string.song_more_play_next),
+                                tint = MiuixTheme.colorScheme.onSurface
+                            )
                         }
-                    ) {
-                        com.ella.music.ui.components.PlayNextActionIcon(
-                            contentDescription = stringResource(R.string.song_more_play_next),
-                            tint = MiuixTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(
-                        onClick = {
+                        IconButton(
+                            onClick = {
                                 val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
                                 if (selectedSongs.isEmpty()) {
                                     Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
                                 } else {
                                     playlistPickerSongs = selectedSongs
                                 }
+                            }
+                        ) {
+                            com.ella.music.ui.components.AddToPlaylistActionIcon(
+                                contentDescription = stringResource(R.string.player_add_to_playlist),
+                                tint = MiuixTheme.colorScheme.onSurface
+                            )
                         }
-                    ) {
-                        com.ella.music.ui.components.AddToPlaylistActionIcon(
-                            contentDescription = stringResource(R.string.player_add_to_playlist),
-                            tint = MiuixTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(
-                        onClick = {
+                        IconButton(
+                            onClick = {
                                 val selectedSongs = sortedSongs.filter { it.id in selection.selectedIds }
                                 if (selectedSongs.isNotEmpty()) {
                                     pendingDeleteSongs = selectedSongs
                                 } else {
                                     Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
                                 }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Delete,
+                                contentDescription = stringResource(R.string.common_delete),
+                                tint = Color(0xFFE5484D),
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Delete,
-                            contentDescription = stringResource(R.string.common_delete),
-                            tint = Color(0xFFE5484D),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                } else {
-                    IconButton(onClick = {
-                        selection.selectionMode = true
-                        selection.selectedIds = emptySet()
-                        selection.rangeAnchorId = null
-                        selection.rangeTargetId = null
-                    }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.SelectAll,
-                            contentDescription = stringResource(R.string.common_multi_select),
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                        Icon(
-                            imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = stringResource(R.string.common_search),
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    SortDropdownMenu(
-                        items = directionalSortModeDropdownItems(
-                            fields = listOf(
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_title),
-                                    ascendingMode = FolderSongSortMode.Title,
-                                    descendingMode = FolderSongSortMode.TitleDesc
+                    } else {
+                        IconButton(onClick = {
+                            selection.selectionMode = true
+                            selection.selectedIds = emptySet()
+                            selection.rangeAnchorId = null
+                            selection.rangeTargetId = null
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.SelectAll,
+                                contentDescription = stringResource(R.string.common_multi_select),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                            Icon(
+                                imageVector = MiuixIcons.Basic.Search,
+                                contentDescription = stringResource(R.string.common_search),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        SortDropdownMenu(
+                            items = directionalSortModeDropdownItems(
+                                fields = listOf(
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_title),
+                                        ascendingMode = FolderSongSortMode.Title,
+                                        descendingMode = FolderSongSortMode.TitleDesc
+                                    ),
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_file_name),
+                                        ascendingMode = FolderSongSortMode.FileName,
+                                        descendingMode = FolderSongSortMode.FileNameDesc
+                                    ),
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_duration),
+                                        ascendingMode = FolderSongSortMode.DurationAsc,
+                                        descendingMode = FolderSongSortMode.Duration
+                                    ),
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_date_added),
+                                        ascendingMode = FolderSongSortMode.DateAddedAsc,
+                                        descendingMode = FolderSongSortMode.DateAdded
+                                    ),
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_date_modified),
+                                        ascendingMode = FolderSongSortMode.DateModifiedAsc,
+                                        descendingMode = FolderSongSortMode.DateModified
+                                    ),
+                                    DirectionalSortModeField(
+                                        text = stringResource(R.string.playlist_song_sort_year),
+                                        ascendingMode = FolderSongSortMode.YearAsc,
+                                        descendingMode = FolderSongSortMode.YearDesc
+                                    )
                                 ),
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_file_name),
-                                    ascendingMode = FolderSongSortMode.FileName,
-                                    descendingMode = FolderSongSortMode.FileNameDesc
-                                ),
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_duration),
-                                    ascendingMode = FolderSongSortMode.DurationAsc,
-                                    descendingMode = FolderSongSortMode.Duration
-                                ),
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_date_added),
-                                    ascendingMode = FolderSongSortMode.DateAddedAsc,
-                                    descendingMode = FolderSongSortMode.DateAdded
-                                ),
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_date_modified),
-                                    ascendingMode = FolderSongSortMode.DateModifiedAsc,
-                                    descendingMode = FolderSongSortMode.DateModified
-                                ),
-                                DirectionalSortModeField(
-                                    text = stringResource(R.string.playlist_song_sort_year),
-                                    ascendingMode = FolderSongSortMode.YearAsc,
-                                    descendingMode = FolderSongSortMode.YearDesc
+                                selectedMode = sortMode,
+                                onSelect = ::updateSortMode
+                            ) + listOf(
+                                com.ella.music.ui.components.randomSortDropdownItem(
+                                    selected = sortMode == FolderSongSortMode.Random,
+                                    onSelect = { updateSortMode(FolderSongSortMode.Random) }
                                 )
-                            ),
-                            selectedMode = sortMode,
-                            onSelect = ::updateSortMode
-                        ) + listOf(
-                            com.ella.music.ui.components.randomSortDropdownItem(
-                                selected = sortMode == FolderSongSortMode.Random,
-                                onSelect = { updateSortMode(FolderSongSortMode.Random) }
                             )
                         )
-                    )
+                        IconButton(onClick = onClose) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Close,
+                                contentDescription = stringResource(R.string.common_close),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
+                bottomContent = {
+                    if (searchExpanded) {
+                        EllaSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { searchQuery = it },
+                            onSearch = { searchExpanded = false },
+                            placeholder = stringResource(R.string.folder_detail_search_placeholder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
                 }
-            }
+            )
         }
 
         AnimatedVisibility(
@@ -485,18 +490,6 @@ fun FolderDetailScreen(
             }
         }
 
-        if (searchExpanded) {
-            EllaSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
-                placeholder = stringResource(R.string.folder_detail_search_placeholder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-        }
-
         if (com.ella.music.ui.components.showLibraryLoadingPlaceholder(
                 libraryCacheLoaded = libraryCacheLoaded,
                 contentResolved = folderContents != null,
@@ -521,14 +514,13 @@ fun FolderDetailScreen(
                     unpinToTopPath = null
                 }
             }
-            RestoreListScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                listState = listState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+            val activeListState = if (searchExpanded) searchListState else listState
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeListState.animateScrollToItem(0)
             }
             val sortedSongIndexById = remember(sortedSongs) {
                 buildMap {
@@ -666,8 +658,8 @@ fun FolderDetailScreen(
                     )
                     LazyColumn(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, sortedSongIdsForSelection),
+                        state = activeListState,
+                        modifier = Modifier.fillMaxSize().layerBackdrop(folderBackdrop).dragSelectList(activeListState, selection, sortedSongIdsForSelection),
                         contentPadding = PaddingValues(end = listEndInset, bottom = 120.dp)
                     ) {
                         if (searchQuery.isBlank()) {
@@ -751,20 +743,20 @@ fun FolderDetailScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { listState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { activeListState.scrollToItem(index) }
                             }
                         }
                     )
                 } else if (showScrollIndicator) {
                     LazyListScrollIndicator(
-                        state = listState,
+                        state = activeListState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
                     )
                 }
                 LocateCurrentSongFloatingButton(
-                    listState = listState,
+                    listState = activeListState,
                     currentItemIndex = currentSongItemIndex,
                     locateRequest = locateCurrentSongRequest,
                     modifier = Modifier
@@ -901,6 +893,7 @@ fun FolderDetailScreen(
             onNavigateToArtist = onNavigateToArtist
         )
 
+        com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
         playlistPickerSongs?.let { songsToAdd ->
             EllaMiuixBottomSheet(
                 show = true,

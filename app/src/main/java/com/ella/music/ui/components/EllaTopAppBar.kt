@@ -1,14 +1,13 @@
 @file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package com.ella.music.ui.components
-import kotlinx.coroutines.flow.first
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -20,12 +19,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.HorizontalAlignmentLine
+import androidx.compose.ui.layout.Measured
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -35,12 +40,17 @@ import com.ella.music.R
 import androidx.compose.ui.graphics.RectangleShape
 import com.ella.music.data.SettingsManager
 import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.GraphicsLayerScope
@@ -55,7 +65,17 @@ import top.yukonga.miuix.kmp.blur.ProgressiveBlur
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
 import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.drawBackdrop
+import top.yukonga.miuix.kmp.material.isRuntimeShaderSupported
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.material.GlassDefaults
+import top.yukonga.miuix.kmp.material.GlassShadows
+import top.yukonga.miuix.kmp.material.GlassShape
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarContext
+import top.yukonga.miuix.kmp.glass.GlassTopAppBarDefaults
+import top.yukonga.miuix.kmp.glass.LocalGlassTopAppBarContext
+import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
@@ -81,7 +101,7 @@ fun EllaSmallTopAppBar(
     modifier: Modifier = Modifier,
     color: Color = MiuixTheme.colorScheme.surface,
     backdrop: Backdrop? = LocalBackdrop.current,
-    enableProgressiveBlur: Boolean = LocalSettingsCloseAction.current != null,
+    enableProgressiveBlur: Boolean = true,
     titleColor: Color = MiuixTheme.colorScheme.onSurface,
     subtitle: String = "",
     subtitleColor: Color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -97,6 +117,8 @@ fun EllaSmallTopAppBar(
     titleEndPadding: Dp = 128.dp,
     titleWindowInsetsPadding: Boolean = defaultWindowInsetsPadding,
     onDoubleTapTitle: (() -> Unit)? = null,
+    onTitleLongClick: (() -> Unit)? = null,
+    titleOverlay: @Composable () -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
 ) {
     val settingsCloseAction = LocalSettingsCloseAction.current
@@ -107,11 +129,9 @@ fun EllaSmallTopAppBar(
         else backdrop ?: wallpaperBackdrop
     }
     val canvas = ellaPageCanvasColor()
-    val blurSettings = SettingsManager.getInstance(androidx.compose.ui.platform.LocalContext.current)
-    val initialProgressive = remember(blurSettings) {
-        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { blurSettings.progressiveTopBarBlur.first() }
-    }
-    val progressiveAllowed by blurSettings.progressiveTopBarBlur.collectAsState(initial = initialProgressive)
+    val preservesSharedBackground = color.alpha < 0.5f && wallpaperBackdrop != null
+    val progressiveAllowed = true
+    val liquidGlassEnabled = true
     // Progressive mode mirrors the Miuix demo's BlurredBar: one variable-radius blur whose tint
     // rides the blur's own colour pipeline, so blur and tint ease out together along the same
     // smoothstep^curve ramp. The layer spills [ProgressiveOverhang] below the bar so the ramp
@@ -125,41 +145,123 @@ fun EllaSmallTopAppBar(
             OpaqueBaseBackdrop(color, effectiveBackdrop)
         else effectiveBackdrop
     }
+    // Liquid-glass mode follows the Miuix GlassTopAppBar recipe: the band itself is a strong
+    // progressive texture blur, and each bar button sits on its own glass circle.
+    // The circle backdrop records the page behind the band once. Re-drawing the progressive
+    // blur inside that record nests GraphicsLayer.record, and the blur's sharp overlay then
+    // keeps a stale frame of whatever scrolled under the bar.
+    val glassButtonsActive = enableProgressiveBlur && progressiveAllowed && liquidGlassEnabled &&
+        blurBackdrop != null && shaderSupported
+    var bandCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    // Gate on attached coordinates: recording before the band is positioned samples the
+    // backdrop at the origin, and the cached frame then leaves displaced content inside
+    // every glass circle (#back-button sampling artifact).
+    val bandBackdrop = if (glassButtonsActive && bandCoordinates?.isAttached == true) {
+        val raw = blurBackdrop
+        rememberLayerBackdrop {
+            val coordinates = bandCoordinates?.takeIf { it.isAttached }
+            with(raw) { drawBackdrop(this@rememberLayerBackdrop, coordinates) }
+        }
+    } else {
+        null
+    }
+    // Same contract upstream GlassTopAppBar gives its buttons: children wrapped in
+    // GlassIconButton (or our per-child circle) inherit the recorded band backdrop,
+    // the pured-thin material, bloom stroke, shadow and 44dp circle geometry.
+    val glassBarContext = if (bandBackdrop != null) {
+        GlassTopAppBarContext(
+            backdrop = blurBackdrop,
+            buttonBackdrop = bandBackdrop,
+            material = GlassTopAppBarDefaults.buttonMaterial(),
+            underlayMaterial = null,
+            buttonUnderlayMaterial = null,
+            floating = true,
+            alpha = 1f,
+            ramp = remember { mutableStateOf(1f) },
+            materialProgress = remember { mutableStateOf(1f) },
+            keepMaterial = true,
+            style = GlassDefaults.Style,
+            size = GlassTopAppBarDefaults.ButtonSize,
+            shape = GlassShape(GlassTopAppBarDefaults.ButtonSize / 2),
+            fill = GlassTopAppBarDefaults.buttonFill(),
+            stroke = GlassTopAppBarDefaults.buttonStroke(),
+            shadow = GlassShadows.Regular,
+        )
+    } else {
+        null
+    }
     val progressiveLayer: Modifier? = if (enableProgressiveBlur && progressiveAllowed) {
         if (blurBackdrop != null && shaderSupported) {
-            val tint = BlurDefaults.blurColors(
-                blendColors = listOf(BlendColorEntry(color = canvas.copy(alpha = ProgressiveTintAlpha)))
-            )
-            val blur = Modifier.progressiveTextureBlur(
-                backdrop = blurBackdrop,
-                shape = RectangleShape,
-                blurRadius = ProgressiveBlurRadius,
-                gradient = ProgressiveGradient,
-                colors = tint
-            )
             // Without a content backdrop the blur only samples the wallpaper, whose sharp clear
             // end would still cover the list; fade the layer's alpha on the same curve instead.
             val hasContentBackdrop = backdrop != null && backdrop !== wallpaperBackdrop
-            if (hasContentBackdrop) blur else Modifier.easedAlphaFade().then(blur)
+            if (liquidGlassEnabled) {
+                val tintAlpha = if (preservesSharedBackground) TransparentLiquidBandTintAlpha else LiquidBandTintAlpha
+                val tint = BlurDefaults.blurColors(
+                    blendColors = listOf(BlendColorEntry(color = canvas.copy(alpha = tintAlpha)))
+                )
+                val band = Modifier.progressiveTextureBlur(
+                    backdrop = blurBackdrop,
+                    shape = RectangleShape,
+                    blurRadius = LiquidBandBlurRadius,
+                    gradient = LiquidBandGradient,
+                    colors = tint
+                )
+                Modifier
+                    .onGloballyPositioned { bandCoordinates = it }
+                    .then(if (bandBackdrop != null) Modifier.layerBackdrop(bandBackdrop) else Modifier)
+                    .then(if (hasContentBackdrop) band else Modifier.easedAlphaFade().then(band))
+            } else {
+                val tintAlpha = if (preservesSharedBackground) TransparentProgressiveTintAlpha else ProgressiveTintAlpha
+                val tint = BlurDefaults.blurColors(
+                    blendColors = listOf(BlendColorEntry(color = canvas.copy(alpha = tintAlpha)))
+                )
+                val blur = Modifier.progressiveTextureBlur(
+                    backdrop = blurBackdrop,
+                    shape = RectangleShape,
+                    blurRadius = ProgressiveBlurRadius,
+                    gradient = ProgressiveGradient,
+                    colors = tint
+                )
+                if (hasContentBackdrop) blur else Modifier.easedAlphaFade().then(blur)
+            }
         } else {
             // No backdrop, or no RuntimeShader (API < 33, where drawBackdrop is a no-op anyway):
             // tint-only, on the same eased curve.
-            val fallbackTint = remember(canvas) { easedFadeBrush(canvas, FallbackTintAlpha) }
+            val fallbackTintAlpha = if (preservesSharedBackground) TransparentFallbackTintAlpha else FallbackTintAlpha
+            val fallbackTint = remember(canvas, fallbackTintAlpha) { easedFadeBrush(canvas, fallbackTintAlpha) }
             Modifier.background(fallbackTint)
         }
     } else null
     val barBackground = if (progressiveLayer == null) Modifier.background(color) else Modifier
 
+    val glassButtonTint = canvas.copy(alpha = GlassButtonTintAlpha)
     val effectiveActions: @Composable RowScope.() -> Unit = {
-        actions()
-        settingsCloseAction?.let { close ->
-            IconButton(onClick = close) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Close,
-                    contentDescription = stringResource(R.string.common_close),
-                    tint = titleColor,
-                    modifier = Modifier.size(24.dp)
-                )
+        if (LocalGlassTopAppBarContext.current != null) {
+            GlassCircledButtons(glassButtonTint) {
+                with(TopBarRowScope) { actions() }
+                settingsCloseAction?.let { close ->
+                    IconButton(onClick = close) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = titleColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            actions()
+            settingsCloseAction?.let { close ->
+                IconButton(onClick = close) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Close,
+                        contentDescription = stringResource(R.string.common_close),
+                        tint = titleColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }
@@ -167,9 +269,12 @@ fun EllaSmallTopAppBar(
     // so the gesture never competes with navigation/action buttons; a title-less bar
     // listens on its whole surface (buttons still win because they consume the tap).
     fun Modifier.doubleTapTitle(): Modifier =
-        if (onDoubleTapTitle != null) {
-            pointerInput(onDoubleTapTitle) {
-                detectTapGestures(onDoubleTap = { onDoubleTapTitle() })
+        if (onDoubleTapTitle != null || onTitleLongClick != null) {
+            pointerInput(onDoubleTapTitle, onTitleLongClick) {
+                detectTapGestures(
+                    onDoubleTap = { onDoubleTapTitle?.invoke() },
+                    onLongPress = { onTitleLongClick?.invoke() }
+                )
             }
         } else {
             this
@@ -188,22 +293,26 @@ fun EllaSmallTopAppBar(
                     .fillMaxWidth()
                     .windowInsetsPadding(topInset)
             ) {
-                SmallTopAppBar(
-                    title = title,
-                    color = Color.Transparent,
-                    titleColor = titleColor,
-                    subtitle = subtitle,
-                    subtitleColor = subtitleColor,
-                    navigationIcon = navigationIcon,
-                    actions = effectiveActions,
-                    scrollBehavior = scrollBehavior,
-                    defaultWindowInsetsPadding = false,
-                    titlePadding = titlePadding,
-                    navigationIconPadding = navigationIconPadding,
-                    actionIconPadding = actionIconPadding,
-                    bottomContent = bottomContent
-                )
-                if (onDoubleTapTitle != null) {
+                CompositionLocalProvider(LocalGlassTopAppBarContext provides glassBarContext) {
+                    SmallTopAppBar(
+                        title = title,
+                        color = Color.Transparent,
+                        titleColor = titleColor,
+                        subtitle = subtitle,
+                        subtitleColor = subtitleColor,
+                        navigationIcon = {
+                            GlassCircledButtons(glassButtonTint) { navigationIcon() }
+                        },
+                        actions = effectiveActions,
+                        scrollBehavior = scrollBehavior,
+                        defaultWindowInsetsPadding = false,
+                        titlePadding = titlePadding,
+                        navigationIconPadding = navigationIconPadding,
+                        actionIconPadding = actionIconPadding,
+                        bottomContent = bottomContent
+                    )
+                }
+                if (onDoubleTapTitle != null || onTitleLongClick != null) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
@@ -212,6 +321,7 @@ fun EllaSmallTopAppBar(
                             .doubleTapTitle()
                     )
                 }
+                titleOverlay()
             }
         }
         return
@@ -226,23 +336,42 @@ fun EllaSmallTopAppBar(
                     if (title.isBlank()) Modifier.doubleTapTitle() else Modifier
                 )
         ) {
+            // The title is an overlay, so the action row's real width isn't known when it is
+            // laid out. Measure it instead of trusting each caller's hand-written reserve:
+            // pages used to over-estimate it, leaving a dead gap between title and buttons
+            // (#544). The caller's titleEndPadding is only a first-frame fallback.
+            var actionsWidthPx by remember { mutableIntStateOf(0) }
+            val measuredTitleEndPadding = with(androidx.compose.ui.platform.LocalDensity.current) {
+                if (actionsWidthPx > 0) actionsWidthPx.toDp() else null
+            }
             val availableTitleWidth =
-                (maxWidth - titleStartPadding - titleEndPadding).coerceAtLeast(0.dp)
-            SmallTopAppBar(
-                title = "",
-                color = Color.Transparent,
-                titleColor = titleColor,
-                subtitle = subtitle,
-                subtitleColor = subtitleColor,
-                navigationIcon = navigationIcon,
-                actions = effectiveActions,
-                scrollBehavior = scrollBehavior,
-                defaultWindowInsetsPadding = false,
-                titlePadding = titlePadding,
-                navigationIconPadding = navigationIconPadding,
-                actionIconPadding = actionIconPadding,
-                bottomContent = bottomContent
-            )
+                (maxWidth - titleStartPadding - (measuredTitleEndPadding ?: titleEndPadding)).coerceAtLeast(0.dp)
+            CompositionLocalProvider(LocalGlassTopAppBarContext provides glassBarContext) {
+                SmallTopAppBar(
+                    title = "",
+                    color = Color.Transparent,
+                    titleColor = titleColor,
+                    subtitle = subtitle,
+                    subtitleColor = subtitleColor,
+                    navigationIcon = {
+                        GlassCircledButtons(glassButtonTint) { navigationIcon() }
+                    },
+                    actions = {
+                        Row(
+                            modifier = Modifier.onSizeChanged { actionsWidthPx = it.width },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            effectiveActions()
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                    defaultWindowInsetsPadding = false,
+                    titlePadding = titlePadding,
+                    navigationIconPadding = navigationIconPadding,
+                    actionIconPadding = actionIconPadding,
+                    bottomContent = bottomContent
+                )
+            }
             Text(
                 text = title,
                 color = titleColor,
@@ -257,6 +386,7 @@ fun EllaSmallTopAppBar(
                     .width(availableTitleWidth)
                     .then(if (title.isNotBlank()) Modifier.doubleTapTitle() else Modifier)
             )
+            titleOverlay()
         }
     }
 }
@@ -264,10 +394,24 @@ fun EllaSmallTopAppBar(
 /** Miuix demo (example/shared/.../utils/PageUtils.kt `BlurredBar`) progressive-bar values. */
 private const val ProgressiveBlurRadius = 10f
 private const val ProgressiveTintAlpha = 0.3f
+private const val TransparentProgressiveTintAlpha = 0.12f
 private val ProgressiveGradient = ProgressiveBlur.Top.copy(curve = 2.2f)
 
 /** Tint-only fallback is heavier since there is no blur to separate the title from content. */
 private const val FallbackTintAlpha = 0.86f
+private const val TransparentFallbackTintAlpha = 0.24f
+
+/**
+ * Liquid-glass top bar (Miuix GlassTopAppBar recipe): a strong progressive blur band plus a
+ * glass circle behind every button. The band fades out on a soft curve so its blurred region
+ * melts into the page instead of ending on the bar's bottom edge.
+ */
+private const val LiquidBandBlurRadius = 56f
+private const val LiquidBandTintAlpha = 0.3f
+private const val TransparentLiquidBandTintAlpha = 0.12f
+private val LiquidBandGradient = ProgressiveBlur.Top.copy(curve = 0.6f)
+private const val GlassButtonTintAlpha = 0.34f
+private val GlassButtonSpacing = 6.dp
 
 /** How far the progressive layer spills below the bar so its ramp ends over content. */
 private val ProgressiveOverhang = 16.dp
@@ -349,7 +493,7 @@ private class OpaqueBaseBackdrop(
         density: Density,
         coordinates: LayoutCoordinates?,
         layerBlock: (GraphicsLayerScope.() -> Unit)?,
-        downscaleFactor: Int,
+        downscaleFactor: Float,
     ) {
         drawRect(
             color = color,
@@ -367,3 +511,90 @@ private fun Modifier.easedAlphaFade(): Modifier = this
         drawContent()
         drawRect(brush = EasedAlphaMask, blendMode = BlendMode.DstIn)
     }
+
+/**
+ * No-op [RowScope] used to evaluate `actions`/`navigationIcon` slot lambdas outside a real Row
+ * so each emitted child can be measured and wrapped individually.
+ */
+private object TopBarRowScope : RowScope {
+    override fun Modifier.weight(weight: Float, fill: Boolean): Modifier = this
+    override fun Modifier.align(alignment: Alignment.Vertical): Modifier = this
+    override fun Modifier.alignBy(alignmentLine: HorizontalAlignmentLine): Modifier = this
+    override fun Modifier.alignBy(alignmentLineBlock: (Measured) -> Int): Modifier = this
+    override fun Modifier.alignByBaseline(): Modifier = this
+}
+
+/**
+ * Lays out each direct child emitted by [content] in a row and paints a glass circle behind
+ * every one — the liquid-glass top bar's per-button pill. Material, stroke, shadow, style and
+ * circle geometry come from [LocalGlassTopAppBarContext] exactly like a Miuix [GlassIconButton]
+ * inside a `GlassTopAppBar`: a pured-thin material circle over the recorded band, `shading`
+ * off (the band already supplies the body), so every button renders as the same 44dp pill the
+ * demo shows. Without a bar context the children draw as-is.
+ */
+@Composable
+private fun GlassCircledButtons(
+    tint: Color,
+    content: @Composable () -> Unit,
+) {
+    val context = LocalGlassTopAppBarContext.current
+    val backdrop = context?.buttonBackdrop
+    if (context == null || backdrop == null) {
+        content()
+        return
+    }
+    SubcomposeLayout { constraints ->
+        val spacingPx = GlassButtonSpacing.roundToPx()
+        val minCirclePx = context.size.roundToPx()
+        val itemConstraints = Constraints(
+            minWidth = 0,
+            minHeight = 0,
+            maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth else 384.dp.roundToPx(),
+            maxHeight = 56.dp.roundToPx(),
+        )
+        val items = subcompose("glass-top-bar-buttons", content)
+            .map { it.measure(itemConstraints) }
+        if (items.isEmpty()) return@SubcomposeLayout layout(0, 0) {}
+        val width = items.sumOf { it.width } + spacingPx * (items.size - 1)
+        val height = items.maxOf { it.height }
+        val xs = IntArray(items.size)
+        val circleSizes = IntArray(items.size)
+        var x = 0
+        items.forEachIndexed { i, p ->
+            xs[i] = x
+            // The demo's button pill is a fixed diameter; a child only grows its circle.
+            circleSizes[i] = maxOf(minOf(p.width, p.height), minCirclePx)
+            x += p.width + spacingPx
+        }
+        val circles = subcompose("glass-top-bar-circles") {
+            circleSizes.forEach { dPx ->
+                val circleRadius = with(this@SubcomposeLayout) { (dPx / 2f).toDp() }
+                Box(
+                    modifier = Modifier.glassPanel(
+                        backdrop = backdrop,
+                        shape = GlassShape(circleRadius),
+                        style = context.style,
+                        material = context.material,
+                        stroke = context.stroke,
+                        shadow = context.shadow,
+                        shading = false,
+                        fallback = Modifier.clip(CircleShape).background(tint),
+                    )
+                )
+            }
+        }.mapIndexed { i, measurable ->
+            measurable.measure(Constraints.fixed(circleSizes[i], circleSizes[i]))
+        }
+        layout(width, height) {
+            circles.forEachIndexed { i, circle ->
+                circle.placeRelative(
+                    xs[i] + (items[i].width - circleSizes[i]) / 2,
+                    (height - circleSizes[i]) / 2,
+                )
+            }
+            items.forEachIndexed { i, placeable ->
+                placeable.placeRelative(xs[i], (height - placeable.height) / 2)
+            }
+        }
+    }
+}

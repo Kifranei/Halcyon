@@ -16,5 +16,10 @@ internal fun desktopLyricWindowAlpha(
     maximumTouchOpacity: Float
 ): Float = if (passThroughTouches && supportsTouchOpacityLimit) maximumTouchOpacity.coerceIn(0f, 1f) else 1f
 
+/**
+ * The floating lyric always occupies the full configured width so long lines can scroll
+ * horizontally inside a stable viewport (#727). A locked window is transparent and passes
+ * touches through anyway, so wrapping it to the content would only buy position jitter.
+ */
 internal fun desktopLyricUsesCompactWindow(locked: Boolean, statusBarMode: Boolean): Boolean =
-    locked && !statusBarMode
+    false

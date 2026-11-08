@@ -87,6 +87,18 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
+        requestLocalNetworkPermissionIfNeeded()
+    }
+
+    private var localNetworkPermissionRequestInFlight = false
+
+    private val localNetworkPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        localNetworkPermissionRequestInFlight = false
+        lifecycleScope.launch {
+            SettingsManager.getInstance(applicationContext).setLocalNetworkPermissionPromptHandled(true)
+        }
         requestNotificationPermissionIfNeeded()
     }
 
@@ -415,7 +427,7 @@ class MainActivity : ComponentActivity() {
             window.applyHalcyonSystemBars(currentAppSystemBarsMode, appliedSystemBarsReserveSpace)
             // Some OEM permission controllers ignore a launcher call made while the first
             // Activity window is still losing focus. Retry from the first focused frame.
-            requestNotificationPermissionIfNeeded()
+            requestLocalNetworkPermissionIfNeeded()
         }
     }
 
@@ -427,7 +439,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPostResume() {
         super.onPostResume()
-        requestNotificationPermissionIfNeeded()
+        requestLocalNetworkPermissionIfNeeded()
     }
 
     private fun checkAndRequestPermissions(): Boolean {
@@ -456,6 +468,42 @@ class MainActivity : ComponentActivity() {
      * several Android/OEM permission controllers. The audio permission callback retries this
      * after a competing permission dialog has finished.
      */
+    /**
+     * Android 17 (API 37) gates local-network access — which SMB/FTP library sources and DLNA
+     * casting rely on — behind the ACCESS_LOCAL_NETWORK runtime permission. Ask once on first
+     * launch, chained after the audio permission so the dialogs do not compete.
+     */
+    private fun requestLocalNetworkPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < 37) {
+            requestNotificationPermissionIfNeeded()
+            return
+        }
+        if (localNetworkPermissionRequestInFlight || isFinishing || isDestroyed) return
+        lifecycleScope.launch {
+            val settings = SettingsManager.getInstance(applicationContext)
+            val handled = withContext(Dispatchers.IO) {
+                settings.localNetworkPermissionPromptHandled.first()
+            }
+            val granted = ContextCompat.checkSelfPermission(
+                this@MainActivity,
+                Manifest.permission.ACCESS_LOCAL_NETWORK
+            ) == PackageManager.PERMISSION_GRANTED
+            if (handled || granted) {
+                if (!handled) settings.setLocalNetworkPermissionPromptHandled(true)
+                requestNotificationPermissionIfNeeded()
+                return@launch
+            }
+            if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) || isFinishing || isDestroyed) return@launch
+            localNetworkPermissionRequestInFlight = true
+            runCatching {
+                localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            }.onFailure {
+                localNetworkPermissionRequestInFlight = false
+                requestNotificationPermissionIfNeeded()
+            }
+        }
+    }
+
     private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             isFinishing ||

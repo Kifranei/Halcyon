@@ -24,7 +24,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -71,7 +71,7 @@ internal fun VideoToolsScreen(onBack: () -> Unit, initialSource: String = "", in
     LaunchedEffect(initialSource) { if(initialSource.isNotBlank()) resolve(initialSource,autoPlay,initialMime) }
     Scaffold(topBar={
         EllaSmallTopAppBar(title=stringResource(R.string.video_tools_title),navigationIcon={
-            IconButton(onClick=onBack) { Icon(MiuixIcons.Regular.Back,stringResource(R.string.common_back)) }
+            IconButton(onClick=onBack) { Icon(GlassChevronBackwardIcon,stringResource(R.string.common_back)) }
         })
     }) { insets ->
         LazyColumn(modifier=Modifier.fillMaxSize().padding(insets),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {

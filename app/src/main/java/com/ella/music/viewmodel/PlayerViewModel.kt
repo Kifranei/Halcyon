@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 // Compose lyrics interpolate between position samples on the display clock. 10 Hz is therefore
@@ -73,6 +74,7 @@ private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
 private const val PLAYBACK_POSITION_UPDATE_INTERVAL_MS = 100L
 private const val SEEK_EXTERNAL_LYRIC_SYNC_DEBOUNCE_MS = 80L
 private const val LIVE_UPDATE_ARTWORK_SIZE = 256
+private const val NOTIFICATION_ARTWORK_TIMEOUT_MS = 6_000L
 private const val AB_REPEAT_MIN_LENGTH_MS = 300L
 private const val AB_REPEAT_LOOP_GUARD_MS = 250L
 
@@ -320,15 +322,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _locateCurrentSongRequest = MutableStateFlow(0)
     val locateCurrentSongRequest: StateFlow<Int> = _locateCurrentSongRequest.asStateFlow()
 
+    // Precomputed once per playlist change so the 10 Hz sleep-timer tick can check queue
+    // membership without rebuilding identity keys for every queued song.
+    private val playlistKeys: StateFlow<Set<String>> = playlist
+        .map { list -> list.mapTo(HashSet()) { it.playlistIdentityKey() } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
     private val sleepTimerController = PlayerSleepTimerController(
         scope = viewModelScope,
         currentSong = { currentSong.value },
         duration = { duration.value },
         currentPosition = { currentPosition.value },
+        songKeyInQueue = { key -> key in playlistKeys.value },
         onPause = { playerManager.pause() }
     )
     val sleepTimerEndRealtimeMs: StateFlow<Long?> = sleepTimerController.sleepTimerEndRealtimeMs
     val stopAfterCurrentEnabled: StateFlow<Boolean> = sleepTimerController.stopAfterCurrentEnabled
+    val sleepTimerStopAfterSongKeys: StateFlow<Set<String>> = sleepTimerController.stopAfterSongKeys
 
     private var positionUpdateJob: Job? = null
     private var seekExternalLyricSyncJob: Job? = null
@@ -1073,13 +1083,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                     emptyList()
                 }
+                if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
+                    // A newer emission normally re-runs this block and re-arms the flag, but a
+                    // transient identity mismatch without a follow-up emission would otherwise
+                    // leave the lyric page pinned on the loading state forever.
+                    _lyricsLoading.value = false
+                    return@collectLatest
+                }
+                loadedLyricSongKey = loadedKey
+                setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
+                _lyricsLoading.value = false
+                // Artwork is a notification nicety; it must never pin the lyric page in a
+                // loading state, so it gets a bounded fetch after lyrics are committed.
                 val notificationArtwork = try {
-                    withContext(Dispatchers.IO) {
-                        repository.getCoverArtBitmap(
-                            song = activeSong,
-                            maxSize = LIVE_UPDATE_ARTWORK_SIZE,
-                            usage = CoverUsage.Notification
-                        ) ?: remoteNotificationArtwork(activeSong)
+                    withTimeoutOrNull(NOTIFICATION_ARTWORK_TIMEOUT_MS) {
+                        withContext(Dispatchers.IO) {
+                            repository.getCoverArtBitmap(
+                                song = activeSong,
+                                maxSize = LIVE_UPDATE_ARTWORK_SIZE,
+                                usage = CoverUsage.Notification
+                            ) ?: remoteNotificationArtwork(activeSong)
+                        }
                     }
                 } catch (error: CancellationException) {
                     throw error
@@ -1093,12 +1117,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     null
                 }
                 if (playerManager.currentSong.value?.lyricIdentityKey() != loadedKey) {
+                    _lyricsLoading.value = false
                     return@collectLatest
                 }
                 liveUpdateArtwork = notificationArtwork
-                loadedLyricSongKey = loadedKey
-                setLoadedLyrics(activeSong, songLyrics, notifyExternal = false)
-                _lyricsLoading.value = false
                 val displayedLyrics = loadedLyricsForCurrentSong()
 
                 if (lyriconBridge.isEnabled()) {
@@ -1413,7 +1435,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             positionMs = effectiveLyricPositionMs(),
             showTranslation = _showLyricTranslation.value,
             showPronunciation = _showLyricPronunciation.value,
-            interlude = desktopInterludeAt(currentLyrics, effectiveLyricPositionMs())
+            interlude = desktopInterludeAt(currentLyrics, effectiveLyricPositionMs()),
+            songHasPronunciation = desktopLyricSetHasPronunciation(currentLyrics),
+            songHasTranslation = desktopLyricSetHasTranslation(currentLyrics)
         )
     }
 
@@ -1426,9 +1450,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         desktopLyricBridge.sendLyric(
             currentLyrics.getOrNull(index), position,
             _showLyricTranslation.value, _showLyricPronunciation.value,
-            desktopInterludeAt(currentLyrics, position)
+            desktopInterludeAt(currentLyrics, position),
+            songHasPronunciation = desktopLyricSetHasPronunciation(currentLyrics),
+            songHasTranslation = desktopLyricSetHasTranslation(currentLyrics)
         )
     }
+
+    // The floating desktop lyric reserves secondary rows so the original text never shifts when
+    // a line lacks a row other lines have (#727). Only report presence the user opted to display:
+    // the view reserves slots unconditionally once a flag says the song has them.
+    private fun desktopLyricSetHasPronunciation(lyrics: List<LyricLine>): Boolean =
+        lyrics.any { !it.pronunciation.isNullOrBlank() || it.pronunciationWords.isNotEmpty() }
+
+    private fun desktopLyricSetHasTranslation(lyrics: List<LyricLine>): Boolean =
+        lyrics.any { !it.translation.isNullOrBlank() }
 
     /**
      * The lyric page and Live Update already use [lastLyricPositionMs], which filters the small
@@ -1948,6 +1983,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.cyclePlaybackMode()
     }
 
+    fun setPlaybackMode(shuffle: Boolean, repeatMode: Int) {
+        playerManager.applyExternalPlaybackMode(shuffle, repeatMode)
+    }
+
     fun toggleAbRepeat() {
         val song = currentSong.value ?: return
         val songKey = song.lyricIdentityKey()
@@ -2114,6 +2153,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         if (error is CancellationException) throw error
                         android.widget.Toast.makeText(getApplication(), getApplication<Application>().getString(com.ella.music.R.string.netease_sync_failed), android.widget.Toast.LENGTH_SHORT).show()
                     }
+            } else if (com.ella.music.data.sourceplugin.isSourcePluginKey(song.onlineSource)) {
+                val store = com.ella.music.data.sourceplugin.SourcePluginRegistry
+                    .libraryStore(getApplication(), com.ella.music.data.sourceplugin.sourcePluginKeyOf(song.onlineSource))
+                if (store != null) {
+                    runCatching { store.toggleFavorite(song) }
+                        .onFailure { error ->
+                            if (error is CancellationException) throw error
+                            android.widget.Toast.makeText(getApplication(), getApplication<Application>().getString(com.ella.music.R.string.netease_sync_failed), android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                } else {
+                    playlistStore.toggleFavorite(song)
+                }
             } else if (openSubsonicCollectionsStore.isManagedFavorite(song)) {
                 runCatching { openSubsonicCollectionsStore.toggleFavorite(song) }
             } else {
@@ -2192,6 +2243,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setStopAfterCurrentEnabled(enabled: Boolean) {
         sleepTimerController.setStopAfterCurrentEnabled(enabled)
+    }
+
+    /** Arms/disarms the song-boundary sleep timer from the sheet's queue picks. */
+    fun setSleepTimerStopAfterSongKeys(keys: Set<String>) {
+        sleepTimerController.setStopAfterSongs(keys)
+    }
+
+    fun toggleSleepTimerStopAfterSong(songKey: String) {
+        val current = sleepTimerController.stopAfterSongKeys.value
+        sleepTimerController.setStopAfterSongs(
+            if (songKey in current) current - songKey else current + songKey
+        )
     }
 
     fun cancelSleepTimer() {

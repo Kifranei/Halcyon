@@ -78,13 +78,18 @@ class DesktopLyricBridge(private val context: Context) {
         positionMs: Long,
         showTranslation: Boolean,
         showPronunciation: Boolean,
-        interlude: com.ella.music.ui.player.AppleMusicInterlude? = null
+        interlude: com.ella.music.ui.player.AppleMusicInterlude? = null,
+        /** Whether any line of the current lyric set carries secondary rows (#727). */
+        songHasPronunciation: Boolean = false,
+        songHasTranslation: Boolean = false
     ) {
         val lyricLine = line ?: if (interlude != null) LyricLine(interlude.startMs, "", endMs = interlude.endMs) else return
         val payload = Intent(context, DesktopLyricService::class.java)
             .setAction(DesktopLyricService.ACTION_UPDATE)
             .putExtra(DesktopLyricService.EXTRA_INTERLUDE_START, interlude?.startMs ?: -1L)
             .putExtra(DesktopLyricService.EXTRA_INTERLUDE_END, interlude?.endMs ?: -1L)
+            .putExtra(DesktopLyricService.EXTRA_SET_HAS_PRONUNCIATION, songHasPronunciation && showPronunciation)
+            .putExtra(DesktopLyricService.EXTRA_SET_HAS_TRANSLATION, songHasTranslation && showTranslation)
             .putExtra(DesktopLyricService.EXTRA_TEXT, lyricLine.text)
             .putExtra(DesktopLyricService.EXTRA_PRONUNCIATION, if (showPronunciation) lyricLine.pronunciation.orEmpty() else "")
             .putExtra(DesktopLyricService.EXTRA_TRANSLATION, if (showTranslation) lyricLine.translation.orEmpty() else "")

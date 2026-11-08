@@ -40,11 +40,16 @@ internal fun Modifier.miniPlayerOpeningGesture(
     val latestClick by rememberUpdatedState(onClick)
     val flingThreshold = with(LocalDensity.current) { 1000.dp.toPx() }
     val minTravel = with(LocalDensity.current) { 240.dp.toPx() }
+    // Below this drag distance the pill stays a rigid liquid-glass surface; the morph only
+    // starts once the pull is committed, matching the press-then-expand feel.
+    val morphDeadZone = with(LocalDensity.current) { 24.dp.toPx() }
     var settle by remember { mutableStateOf<Job?>(null) }
     if (!enabled || (ownedByDock && !dockOwner)) this else
         onGloballyPositioned { inputOrigin = it.positionInRoot() }.pointerInput(key, enabled, state, dockOwner) {
         var distance = 0f
         var travel = minTravel
+        fun morphProgress(dragDistance: Float): Float =
+            ((dragDistance - morphDeadZone) / (travel - morphDeadZone).coerceAtLeast(1f)).coerceIn(0f, 1f)
         val tracker = VelocityTracker()
         fun finish(cancel: Boolean) {
             if (state == null) {
@@ -79,13 +84,13 @@ internal fun Modifier.miniPlayerOpeningGesture(
             if (state != null) {
                 state.cancelOpening = { settle?.cancel(); finish(true) }
                 state.onOpeningStart()
-                state.openingProgress = (distance / travel).coerceIn(0f, 1f)
+                state.openingProgress = morphProgress(distance)
             }
             val completed = verticalDrag(drag.id) { change ->
                 tracker.addPosition(change.uptimeMillis, change.position + inputOrigin)
                 travel = ((state?.miniBounds?.top ?: minTravel) - (state?.origin?.y ?: 0f)).coerceAtLeast(minTravel)
                 distance = (distance - (change.position.y - change.previousPosition.y)).coerceIn(0f, travel)
-                state?.openingProgress = distance / travel
+                state?.openingProgress = morphProgress(distance)
                 change.consume()
             }
             finish(cancel = !completed)

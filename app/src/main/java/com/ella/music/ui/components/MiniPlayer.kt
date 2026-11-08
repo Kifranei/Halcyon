@@ -96,6 +96,8 @@ fun MiniPlayer(
     swipeUpToOpenPlayer: Boolean = true,
     isFloating: Boolean = true,
     dockedAtBottom: Boolean = false,
+    // HyperOS-4 capsule bottom bar is 54.dp tall; match it so the pill aligns with the dock.
+    os4Style: Boolean = false,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipPrevious: () -> Unit = {},
@@ -142,11 +144,12 @@ fun MiniPlayer(
             fontFamily = globalFontFamily
         )
     }
-    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+    val accentColor = MiuixTheme.colorScheme.primary
+    val titleStyle = remember(accentColor, globalFontFamily) {
         TextStyle(
             fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            color = onSurfaceColor,
+            fontWeight = FontWeight.Medium,
+            color = accentColor,
             fontFamily = globalFontFamily
         )
     }
@@ -326,7 +329,7 @@ fun MiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textX, startY + hint.size.height + lineGap)
                             )
                         } else {
@@ -338,7 +341,7 @@ fun MiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
                             )
                         }
@@ -365,7 +368,7 @@ fun MiniPlayer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = if (os4Style) 4.dp else 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isFloating) {
@@ -374,8 +377,8 @@ fun MiniPlayer(
                         isPlaying = isPlaying,
                         progress = progress,
                         coverRotationEnabled = coverRotationEnabled,
-                        coverSize = 44.dp,
-                        ringSize = 50.dp
+                        coverSize = if (os4Style) 40.dp else 44.dp,
+                        ringSize = if (os4Style) 46.dp else 50.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                 } else {
@@ -509,6 +512,7 @@ fun CompactMiniPlayer(
     nextSongTitle: String? = null,
     showSkipButton: Boolean = true,
     swipeUpToOpenPlayer: Boolean = true,
+    os4Style: Boolean = false,
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -533,11 +537,12 @@ fun CompactMiniPlayer(
             fontFamily = globalFontFamily
         )
     }
-    val titleStyle = remember(onSurfaceColor, globalFontFamily) {
+    val accentColor = MiuixTheme.colorScheme.primary
+    val titleStyle = remember(accentColor, globalFontFamily) {
         TextStyle(
             fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            color = onSurfaceColor,
+            fontWeight = FontWeight.Medium,
+            color = accentColor,
             fontFamily = globalFontFamily
         )
     }
@@ -571,7 +576,9 @@ fun CompactMiniPlayer(
     val skipPreviousState by androidx.compose.runtime.rememberUpdatedState(onSkipPrevious)
     val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
     val compact = compactProgress.coerceIn(0f, 1f)
-    val compactHeight = androidx.compose.ui.unit.lerp(64.dp, 60.dp, compact)
+    // HyperOS-4 capsule bottom bar is 54.dp tall; match it so the collapsed player stays
+    // flush with the capsule row.
+    val compactHeight = if (os4Style) 54.dp else androidx.compose.ui.unit.lerp(64.dp, 60.dp, compact)
     val coverSize = 38.dp
     val ringSize = 44.dp
     val startPadding = 12.dp
@@ -696,7 +703,7 @@ fun CompactMiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textX, startY + hint.size.height + lineGap)
                             )
                         } else {
@@ -708,7 +715,7 @@ fun CompactMiniPlayer(
                             )
                             drawText(
                                 textLayoutResult = titleHint,
-                                color = onSurfaceColor.copy(alpha = textAlpha * 0.85f),
+                                color = accentColor.copy(alpha = textAlpha),
                                 topLeft = Offset(textRight - titleHint.size.width, startY + hint.size.height + lineGap)
                             )
                         }
@@ -832,6 +839,7 @@ private fun ExpandedMiniPlayerSurface(
             glassEffect = glassEffect,
             disableRefraction = disableRefraction,
             liquidGlassConfig = liquidConfig,
+            touchHighlight = true,
             content = content
         )
     } else {

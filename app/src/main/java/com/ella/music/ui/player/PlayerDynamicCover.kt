@@ -107,10 +107,34 @@ internal data class DynamicCoverSource(
     val failureKey: String,
     val kind: DynamicCoverKind = DynamicCoverKind.Video,
     val aspectRatio: Float? = null,
+    val videoWidth: Int? = null,
+    val videoHeight: Int? = null,
     val preferLandscapeBackground: Boolean = false,
     val playbackOwnerKey: String = "",
     val role: PlayerVideoRole = PlayerVideoRole.DynamicCover
 )
+
+internal const val SPOTIFY_CANVAS_FILL_MAX_LONG_EDGE_PX = 2560
+internal const val SPOTIFY_CANVAS_FILL_MAX_ASPECT_MISMATCH = 0.15f
+
+/**
+ * Spotify Canvas is normally a lightweight 9:16 vertical loop. Some tracks instead carry nearly
+ * square/landscape or very large videos; zooming those to the phone screen magnifies embedded
+ * artwork text and makes lyrics hard to read. Only allow reasonably sized, close-aspect vertical
+ * canvases to become the full-bleed player surface; the rest stay in the normal artwork slot.
+ */
+internal fun DynamicCoverSource.fillsPlayer(screenAspectRatio: Float? = null): Boolean {
+    if (!failureKey.startsWith("spotify-canvas:")) return false
+    val ratio = aspectRatio ?: return false
+    if (ratio <= 0f || ratio > 0.75f) return false
+    val longEdge = maxOf(videoWidth ?: 0, videoHeight ?: 0)
+    if (longEdge > SPOTIFY_CANVAS_FILL_MAX_LONG_EDGE_PX) return false
+    if (screenAspectRatio != null && screenAspectRatio > 0f) {
+        val mismatch = kotlin.math.abs(ratio - screenAspectRatio) / screenAspectRatio
+        if (mismatch > SPOTIFY_CANVAS_FILL_MAX_ASPECT_MISMATCH) return false
+    }
+    return true
+}
 
 internal fun Song.dynamicCoverResolutionKey(): String =
     listOf(
@@ -143,8 +167,16 @@ internal fun rememberPlayerDynamicCoverSource(
         if (local != null || !spotifyEnabled || cookie.isBlank()) return@produceState
         val clip = com.ella.music.data.spotify.SpotifyCanvasRepository.getInstance(context).resolve(song, cookie)
         value = clip?.let {
-            DynamicCoverSource(Uri.fromFile(it.file), "spotify-canvas:${it.trackUri}", aspectRatio = 9f / 16f,
-                playbackOwnerKey = song.dynamicCoverResolutionKey()).takeUnless { it.failureKey == failedPath }
+            val videoUri = Uri.fromFile(it.file)
+            val videoSize = withContext(Dispatchers.IO) { context.readDynamicCoverVideoSize(videoUri) }
+            DynamicCoverSource(
+                videoUri,
+                "spotify-canvas:${it.trackUri}",
+                aspectRatio = videoSize?.aspectRatio ?: 9f / 16f,
+                videoWidth = videoSize?.width,
+                videoHeight = videoSize?.height,
+                playbackOwnerKey = song.dynamicCoverResolutionKey()
+            ).takeUnless { source -> source.failureKey == failedPath }
         }
     }
     return source?.takeIf { it.playbackOwnerKey == songKey }
@@ -1272,13 +1304,16 @@ private fun File.toDynamicCoverSource(
     role: PlayerVideoRole
 ): DynamicCoverSource {
     val uri = Uri.fromFile(this)
+    val videoSize = context.readDynamicCoverVideoSize(uri)
     return DynamicCoverSource(
         uri = uri,
         failureKey = "file:${absolutePath}:${lastModified()}:${length()}",
         // Probe the authored canvas while the source is being resolved off the main thread. A
         // null ratio makes SurfaceView briefly occupy the square cover bounds, which is the
         // source of the portrait-MV corner flash reported in #592.
-        aspectRatio = context.readDynamicCoverAspectRatio(uri),
+        aspectRatio = videoSize?.aspectRatio,
+        videoWidth = videoSize?.width,
+        videoHeight = videoSize?.height,
         preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
         role = role
     )
@@ -1289,15 +1324,27 @@ private fun DocumentFile.toDynamicCoverSource(
     rootUri: String,
     role: PlayerVideoRole
 ): DynamicCoverSource =
-    DynamicCoverSource(
-        uri = uri,
-        failureKey = "tree:$rootUri:${uri}:${length()}",
-        aspectRatio = context.readDynamicCoverAspectRatio(uri),
-        preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
-        role = role
-    )
+    run {
+        val videoSize = context.readDynamicCoverVideoSize(uri)
+        DynamicCoverSource(
+            uri = uri,
+            failureKey = "tree:$rootUri:${uri}:${length()}",
+            aspectRatio = videoSize?.aspectRatio,
+            videoWidth = videoSize?.width,
+            videoHeight = videoSize?.height,
+            preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
+            role = role
+        )
+    }
 
-private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
+internal data class DynamicCoverVideoSize(
+    val width: Int,
+    val height: Int
+) {
+    val aspectRatio: Float get() = width.toFloat() / height.toFloat()
+}
+
+internal fun Context.readDynamicCoverVideoSize(uri: Uri): DynamicCoverVideoSize? =
     runCatching {
         MediaMetadataRetriever().useCompat { retriever ->
             if (uri.scheme.equals("content", ignoreCase = true)) {
@@ -1316,11 +1363,15 @@ private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
                 ?.toIntOrNull()
                 ?: 0
             val rotated = rotation == 90 || rotation == 270
-            val displayWidth = if (rotated) height else width
-            val displayHeight = if (rotated) width else height
-            displayWidth.toFloat() / displayHeight.toFloat()
+            DynamicCoverVideoSize(
+                width = if (rotated) height else width,
+                height = if (rotated) width else height
+            )
         }
     }.getOrNull()
+
+private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
+    readDynamicCoverVideoSize(uri)?.aspectRatio
 
 internal fun Context.readMusicVideoDurationMs(uri: Uri): Long =
     runCatching {

@@ -52,6 +52,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_SPECTRUM_VIEWER_ID
 import com.ella.music.data.SettingsManager.Companion.KEY_MIN_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_ALL_FILES_ACCESS_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED
+import com.ella.music.data.SettingsManager.Companion.KEY_LOCAL_NETWORK_PERMISSION_PROMPT_HANDLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAY_NEXT_MODE
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYLIST_CUSTOM_ORDER
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYLIST_SPECIAL_ENTRIES_VISIBLE
@@ -153,6 +154,7 @@ interface LibrarySettingsAccess {
     val setupWizardCompleted: Flow<Boolean>
     val localPlaylistScanPromptHandled: Flow<Boolean>
     val notificationPermissionPromptHandled: Flow<Boolean>
+    val localNetworkPermissionPromptHandled: Flow<Boolean>
     val allFilesAccessPromptHandled: Flow<Boolean>
     val artistSeparators: Flow<String>
     val artistProtectedNames: Flow<String>
@@ -160,6 +162,7 @@ interface LibrarySettingsAccess {
     val genreSeparators: Flow<String>
     val genreProtectedNames: Flow<String>
     val tagIgnoreCase: Flow<Boolean>
+    val albumMergeFields: Flow<String>
     val playlistCustomOrder: Flow<List<String>>
     val folderPlaylistCustomOrder: Flow<List<String>>
     val addToPlaylistAppendToEnd: Flow<Boolean>
@@ -240,6 +243,7 @@ interface LibrarySettingsAccess {
     suspend fun setSetupWizardCompleted(completed: Boolean)
     suspend fun setLocalPlaylistScanPromptHandled(handled: Boolean)
     suspend fun setNotificationPermissionPromptHandled(handled: Boolean)
+    suspend fun setLocalNetworkPermissionPromptHandled(handled: Boolean)
     suspend fun setAllFilesAccessPromptHandled(handled: Boolean)
     suspend fun setArtistSeparators(separators: String)
     suspend fun setArtistProtectedNames(names: String)
@@ -247,6 +251,7 @@ interface LibrarySettingsAccess {
     suspend fun setGenreSeparators(separators: String)
     suspend fun setGenreProtectedNames(names: String)
     suspend fun setTagIgnoreCase(enabled: Boolean)
+    suspend fun setAlbumMergeFields(fields: String)
     suspend fun setScanExcludeFolders(folders: String)
     /** Atomic read-modify-write, so rapid consecutive toggles never overwrite each other. */
     suspend fun updateScanExcludeFolders(transform: (String) -> String)
@@ -404,6 +409,8 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.data.map { it[KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED] ?: false }
     override val notificationPermissionPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED] ?: false }
+    override val localNetworkPermissionPromptHandled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LOCAL_NETWORK_PERMISSION_PROMPT_HANDLED] ?: false }
     override val allFilesAccessPromptHandled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_ALL_FILES_ACCESS_PROMPT_HANDLED] ?: false }
     override val artistSeparators: Flow<String> = context.dataStore.data.map {
@@ -418,6 +425,9 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
     }
     override val genreProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_GENRE_PROTECTED_NAMES] ?: "" }
     override val tagIgnoreCase: Flow<Boolean> = context.dataStore.data.map { it[KEY_TAG_IGNORE_CASE] ?: false }
+    override val albumMergeFields: Flow<String> = context.dataStore.data.map {
+        it[SettingsManager.KEY_ALBUM_MERGE_FIELDS] ?: SettingsManager.DEFAULT_ALBUM_MERGE_FIELDS
+    }
 
     override val playlistCustomOrder: Flow<List<String>> = context.dataStore.data.map {
         it[KEY_PLAYLIST_CUSTOM_ORDER]
@@ -903,6 +913,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
         context.dataStore.edit { it[KEY_NOTIFICATION_PERMISSION_PROMPT_HANDLED] = handled }
     }
 
+    override suspend fun setLocalNetworkPermissionPromptHandled(handled: Boolean) {
+        context.dataStore.edit { it[KEY_LOCAL_NETWORK_PERMISSION_PROMPT_HANDLED] = handled }
+    }
+
     override suspend fun setAllFilesAccessPromptHandled(handled: Boolean) {
         context.dataStore.edit { it[KEY_ALL_FILES_ACCESS_PROMPT_HANDLED] = handled }
     }
@@ -929,6 +943,10 @@ internal class LibrarySettingsAccessImpl(private val context: Context) : Library
 
     override suspend fun setTagIgnoreCase(enabled: Boolean) {
         context.dataStore.edit { it[KEY_TAG_IGNORE_CASE] = enabled }
+    }
+
+    override suspend fun setAlbumMergeFields(fields: String) {
+        context.dataStore.edit { it[SettingsManager.KEY_ALBUM_MERGE_FIELDS] = fields.trim() }
     }
 
     override suspend fun setScanExcludeFolders(folders: String) {

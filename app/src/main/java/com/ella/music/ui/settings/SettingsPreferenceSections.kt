@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -65,9 +65,9 @@ internal fun SettingsHomeCustomizeSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsState(initial = "")
-    val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsState(initial = true)
-    val categoryContinuePlaybackRowVisible by settingsManager.categoryContinuePlaybackRowVisible.collectAsState(initial = true)
+    val homeFeatureWallpaperUri by settingsManager.homeFeatureWallpaperUri.collectAsStateSeeded(initial = "")
+    val continuePlaybackRowVisible by settingsManager.continuePlaybackRowVisible.collectAsStateSeeded(initial = true)
+    val categoryContinuePlaybackRowVisible by settingsManager.categoryContinuePlaybackRowVisible.collectAsStateSeeded(initial = true)
     val homeFeatureWallpaperPicker = rememberAppearanceImagePicker(
         currentUri = homeFeatureWallpaperUri,
         imageName = "home_feature_wallpaper",
@@ -159,13 +159,24 @@ internal fun SettingsLibrarySourceSection(
     onOpenWebDavConfig: (() -> Unit)? = null,
     onOpenSmbConfig: (() -> Unit)? = null,
     onOpenTransferConfig: ((String) -> Unit)? = null,
+    onOpenSourcePlugins: (() -> Unit)? = null,
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val librarySource by settingsManager.librarySource.collectAsState(initial = "")
+    val librarySource by settingsManager.librarySource.collectAsStateSeeded(initial = "")
     var showNeteaseAccount by remember { mutableStateOf(false) }
+    val installedSourcePlugins by com.ella.music.data.sourceplugin.SourcePluginRegistry
+        .plugins(context).collectAsStateSeeded(initial = emptyList())
+    var pluginAccountTarget by remember {
+        mutableStateOf<com.ella.music.data.sourceplugin.SourcePluginConfig?>(null)
+    }
+    pluginAccountTarget?.let { target ->
+        com.ella.music.ui.online.SourcePluginAccountSheet(
+            target, onDismiss = { pluginAccountTarget = null }, mainViewModel = mainViewModel
+        )
+    }
     val neteaseSearchRequest = SettingsSearchFocus.request
     LaunchedEffect(neteaseSearchRequest) {
         if (neteaseSearchRequest?.sheet == "netease_quality") showNeteaseAccount = true
@@ -183,7 +194,9 @@ internal fun SettingsLibrarySourceSection(
         SettingsManager.LIBRARY_SOURCE_SMB to stringResource(R.string.smb_title),
         SettingsManager.LIBRARY_SOURCE_FTP to stringResource(R.string.ftp_library_title),
         SettingsManager.LIBRARY_SOURCE_SFTP to stringResource(R.string.sftp_library_title)
-    )
+    ) + installedSourcePlugins.map {
+        com.ella.music.data.sourceplugin.sourcePluginSourceKey(it.id) to it.name
+    }
     val librarySourceEntries = librarySourceOptions.map { DropdownItem(title = it.second) }
     val selectedLibrarySourceIndex = librarySourceOptions
         .indexOfFirst { it.first == librarySource }
@@ -197,7 +210,7 @@ internal fun SettingsLibrarySourceSection(
                 if (librarySource.isNotBlank() /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_library_source)) {
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_library_source) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_library_source),
                         summary = stringResource(R.string.settings_library_source_summary),
                         items = librarySourceEntries,
@@ -311,7 +324,27 @@ internal fun SettingsLibrarySourceSection(
                     )
                     } // search-anchor:end
                 }
+                else -> {
+                    if (com.ella.music.data.sourceplugin.isSourcePluginKey(librarySource)) {
+                        val plugin = installedSourcePlugins.firstOrNull {
+                            it.id == com.ella.music.data.sourceplugin.sourcePluginKeyOf(librarySource)
+                        }
+                        ArrowPreference(
+                            title = plugin?.name ?: stringResource(R.string.source_plugin_settings_title),
+                            summary = stringResource(R.string.source_plugin_account_summary, plugin?.author.orEmpty()),
+                            onClick = { plugin?.let { pluginAccountTarget = it } }
+                        )
+                    }
+                }
             }
+            // search-anchor:start
+            SettingsSearchAnchor(R.string.source_plugin_manage_entry) {
+            ArrowPreference(
+                title = stringResource(R.string.source_plugin_manage_entry),
+                summary = stringResource(R.string.source_plugin_settings_summary),
+                onClick = { onOpenSourcePlugins?.invoke() }
+            )
+            } // search-anchor:end
         }
     }
 }
@@ -323,9 +356,9 @@ internal fun SettingsAiInterpretationSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
-    val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
-    val openAiModel by settingsManager.openAiModel.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
+    val openAiApiKey by settingsManager.openAiApiKey.collectAsStateSeeded(initial = "")
+    val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsStateSeeded(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
+    val openAiModel by settingsManager.openAiModel.collectAsStateSeeded(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
     val aiApiProtocol by settingsManager.aiApiProtocol.collectAsState(
         initial = SettingsManager.AI_API_PROTOCOL_COMPATIBLE
     )
@@ -371,7 +404,7 @@ internal fun SettingsAiInterpretationSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_ai_protocol) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_ai_protocol),
                 summary = protocolLabels[selectedProtocol],
                 items = protocolEntries,
@@ -489,8 +522,8 @@ internal fun SettingsMcpSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val mcpServerEnabled by settingsManager.mcpServerEnabled.collectAsState(initial = false)
-    val webMusicServerEnabled by settingsManager.webMusicServerEnabled.collectAsState(initial = false)
+    val mcpServerEnabled by settingsManager.mcpServerEnabled.collectAsStateSeeded(initial = false)
+    val webMusicServerEnabled by settingsManager.webMusicServerEnabled.collectAsStateSeeded(initial = false)
     val uriHandler = LocalUriHandler.current
     val webAddresses = remember(webMusicServerEnabled) {
         if (webMusicServerEnabled) com.ella.music.web.WebMusicService.accessAddresses() else emptyList()
@@ -611,8 +644,8 @@ internal fun SettingsLyricShareSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsState(initial = "")
-    val lyricShareExportFolderUri by settingsManager.lyricShareExportFolderUri.collectAsState(initial = "")
+    val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsStateSeeded(initial = "")
+    val lyricShareExportFolderUri by settingsManager.lyricShareExportFolderUri.collectAsStateSeeded(initial = "")
     val lyricShareExportFolderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -675,37 +708,13 @@ internal fun SettingsTagScrapingSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val metadataEditorId by settingsManager.metadataEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
-    val lyricTimingEditorId by settingsManager.lyricTimingEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
-    val spectrumViewerId by settingsManager.spectrumViewerId.collectAsState(initial = SpectrumViewerLauncher.BUILTIN)
+    val metadataEditorId by settingsManager.metadataEditorId.collectAsStateSeeded(initial = TagEditorOptionIds.ASK_EACH_TIME)
+    val lyricTimingEditorId by settingsManager.lyricTimingEditorId.collectAsStateSeeded(initial = TagEditorOptionIds.ASK_EACH_TIME)
+    val spectrumViewerId by settingsManager.spectrumViewerId.collectAsStateSeeded(initial = SpectrumViewerLauncher.BUILTIN)
 
-    val editorAskEveryTime = stringResource(R.string.settings_editor_ask_every_time)
-    val editorBuiltinCustomTag = stringResource(R.string.settings_editor_builtin_custom_tag)
-    val editorBuiltinLyricTiming = stringResource(R.string.settings_editor_builtin_lyric_timing)
-    val editorLunaBeatMetadata = stringResource(R.string.settings_editor_lunabeat_metadata)
-    val editorMusicTag = stringResource(R.string.settings_editor_music_tag)
-    val editorSpotiFlac = stringResource(R.string.settings_editor_spotiflac)
-    val editorLunaBeatLyricTiming = stringResource(R.string.settings_editor_lunabeat_lyric_timing)
-    val metadataEditorOptions = listOf(
-        TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
-        TagEditorOptionIds.BUILTIN_CUSTOM_TAG to editorBuiltinCustomTag,
-        TagEditorOptionIds.LYRICO to "Lyrico",
-        TagEditorOptionIds.LUNABEAT_METADATA to editorLunaBeatMetadata,
-        TagEditorOptionIds.MUSIC_TAG to editorMusicTag,
-        TagEditorOptionIds.SPOTIFLAC to editorSpotiFlac
-    )
-    val lyricTimingEditorOptions = listOf(
-        TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
-        TagEditorOptionIds.BUILTIN_LYRIC_TIMING to editorBuiltinLyricTiming,
-        TagEditorOptionIds.LUNABEAT_LYRIC_TIMING to editorLunaBeatLyricTiming
-    )
-    val spectrumViewerOptions = listOf(
-        SpectrumViewerLauncher.ASK_EACH_TIME to stringResource(R.string.settings_editor_ask_every_time),
-        SpectrumViewerLauncher.BUILTIN to stringResource(R.string.settings_spectrum_builtin),
-        SpectrumViewerLauncher.ASPECT_PRO to stringResource(R.string.settings_spectrum_aspect_pro),
-        SpectrumViewerLauncher.KASPEK to stringResource(R.string.settings_spectrum_kaspek),
-        SpectrumViewerLauncher.HEARUSY to stringResource(R.string.settings_spectrum_hearusy)
-    )
+    val metadataEditorOptions = com.ella.music.ui.player.metadataEditorOptions()
+    val lyricTimingEditorOptions = com.ella.music.ui.player.lyricTimingEditorOptions()
+    val spectrumViewerOptions = com.ella.music.ui.player.spectrumViewerOptions()
     val metadataEditorIndex = metadataEditorOptions
         .indexOfFirst { it.first == metadataEditorId }
         .takeIf { it >= 0 }
@@ -734,7 +743,7 @@ internal fun SettingsTagScrapingSection(
             SettingsFocusAnchor(active = highlightKey == "tag_scraping") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_metadata_editor) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_metadata_editor),
                     summary = stringResource(R.string.settings_metadata_editor_summary),
                     items = metadataEditorEntries,
@@ -752,7 +761,7 @@ internal fun SettingsTagScrapingSection(
             }
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_lyric_timing_editor) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_lyric_timing_editor),
                 summary = stringResource(R.string.settings_lyric_timing_editor_summary),
                 items = lyricTimingEditorEntries,
@@ -769,7 +778,7 @@ internal fun SettingsTagScrapingSection(
 
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_spectrum_viewer) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_spectrum_viewer),
                 summary = stringResource(R.string.settings_spectrum_viewer_summary),
                 items = spectrumViewerEntries,
@@ -789,7 +798,8 @@ internal fun SettingsTagScrapingSection(
 
 private enum class ScanAdvancedSheet {
     SplitRules,
-    SearchScope
+    SearchScope,
+    AlbumMerge
 }
 
 @Composable
@@ -799,24 +809,27 @@ internal fun SettingsScanSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsState(initial = false)
-    val coldStartAutoScan by settingsManager.coldStartAutoScan.collectAsState(initial = SettingsManager.DEFAULT_COLD_START_AUTO_SCAN)
-    val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
-    val filterVideoFiles by settingsManager.filterVideoFiles.collectAsState(initial = true)
-    val folderNameAsAlbumWhenMissing by settingsManager.folderNameAsAlbumWhenMissing.collectAsState(initial = false)
+    val autoScanLocalPlaylists by settingsManager.autoScanLocalPlaylists.collectAsStateSeeded(initial = false)
+    val coldStartAutoScan by settingsManager.coldStartAutoScan.collectAsStateSeeded(initial = SettingsManager.DEFAULT_COLD_START_AUTO_SCAN)
+    val minDurationSec by settingsManager.minDurationSec.collectAsStateSeeded(initial = 15)
+    val filterVideoFiles by settingsManager.filterVideoFiles.collectAsStateSeeded(initial = true)
+    val folderNameAsAlbumWhenMissing by settingsManager.folderNameAsAlbumWhenMissing.collectAsStateSeeded(initial = false)
     var confirmAutoPlaylistScan by remember { mutableStateOf(false) }
     val artistSeparators by settingsManager.artistSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_SEPARATORS
     )
-    val artistProtectedNames by settingsManager.artistProtectedNames.collectAsState(initial = "")
-    val parseFeaturedArtists by settingsManager.parseFeaturedArtists.collectAsState(initial = false)
+    val artistProtectedNames by settingsManager.artistProtectedNames.collectAsStateSeeded(initial = "")
+    val parseFeaturedArtists by settingsManager.parseFeaturedArtists.collectAsStateSeeded(initial = false)
     val genreSeparators by settingsManager.genreSeparators.collectAsState(
         initial = SettingsManager.DEFAULT_GENRE_SEPARATORS
     )
-    val genreProtectedNames by settingsManager.genreProtectedNames.collectAsState(initial = "")
-    val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = false)
-    val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
-    val showArtistIntroduction by settingsManager.showArtistIntroduction.collectAsState(initial = true)
+    val genreProtectedNames by settingsManager.genreProtectedNames.collectAsStateSeeded(initial = "")
+    val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsStateSeeded(initial = false)
+    val albumMergeFields by settingsManager.albumMergeFields.collectAsState(
+        initial = SettingsManager.DEFAULT_ALBUM_MERGE_FIELDS
+    )
+    val showAlbumArtists by settingsManager.showAlbumArtists.collectAsStateSeeded(initial = true)
+    val showArtistIntroduction by settingsManager.showArtistIntroduction.collectAsStateSeeded(initial = true)
     val artistBioDownload by settingsManager.artistBioDownload.collectAsState(
         initial = SettingsManager.DEFAULT_ARTIST_BIO_DOWNLOAD
     )
@@ -826,15 +839,12 @@ internal fun SettingsScanSection(
     val searchAllSongMatchTypes by settingsManager.searchAllSongMatchTypes.collectAsState(
         initial = SettingsManager.SEARCH_ALL_SONG_MATCH_TYPES
     )
-    val songRatingDisplayMode by settingsManager.songRatingDisplayMode.collectAsState(
-        initial = SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
-    )
-
     var activeSheet by remember { mutableStateOf<ScanAdvancedSheet?>(null) }
     LaunchedEffect(highlightKey) {
         activeSheet = when (highlightKey) {
             "artist_separators", "artist_protected_names", "genre_separators", "genre_protected_names" ->
                 ScanAdvancedSheet.SplitRules
+            "album_merge_fields" -> ScanAdvancedSheet.AlbumMerge
             "search_all_categories", "search_all_song_match_types" -> ScanAdvancedSheet.SearchScope
             else -> null
         }
@@ -976,7 +986,7 @@ internal fun SettingsScanSection(
                     .coerceIn(bioLabels.indices)
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_artist_bio_download) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_artist_bio_download),
                     summary = stringResource(R.string.settings_artist_bio_download_summary),
                     items = bioLabels.map { DropdownItem(title = it) },
@@ -989,29 +999,6 @@ internal fun SettingsScanSection(
 
             }
             ArtistBiographyRuleSettings(settingsManager)
-            SettingsFocusAnchor(active = highlightKey == "song_rating_display_stars") {
-                // search-anchor:start
-                SettingsSearchAnchor(R.string.settings_song_rating_display_stars) {
-                SwitchPreference(
-                    title = stringResource(R.string.settings_song_rating_display_stars),
-                    summary = if (songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS) {
-                        stringResource(R.string.settings_song_rating_display_stars_summary)
-                    } else {
-                        stringResource(R.string.settings_song_rating_display_number_summary)
-                    },
-                    checked = songRatingDisplayMode == SettingsManager.SONG_RATING_DISPLAY_STARS,
-                    onCheckedChange = { enabled ->
-                        scope.launch {
-                            settingsManager.setSongRatingDisplayMode(
-                                if (enabled) SettingsManager.SONG_RATING_DISPLAY_STARS
-                                else SettingsManager.SONG_RATING_DISPLAY_STAR_NUMBER
-                            )
-                        }
-                    }
-                )
-                } // search-anchor:end
-
-            }
         }
     }
 
@@ -1048,6 +1035,17 @@ internal fun SettingsScanSection(
                 } // search-anchor:end
 
             }
+            SettingsFocusAnchor(active = highlightKey == "album_merge_fields") {
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_album_merge_strategy) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_album_merge_strategy),
+                    summary = stringResource(R.string.settings_album_merge_strategy_summary),
+                    onClick = { activeSheet = ScanAdvancedSheet.AlbumMerge }
+                )
+                } // search-anchor:end
+
+            }
             SettingsFocusAnchor(active = highlightKey == "search_all_categories" || highlightKey == "search_all_song_match_types") {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_search_all_categories) {
@@ -1073,6 +1071,40 @@ internal fun SettingsScanSection(
             settingsManager.setGenreProtectedNames(values[3])
         } }
     )
+
+    EllaMiuixBottomSheet(
+        show = activeSheet == ScanAdvancedSheet.AlbumMerge,
+        title = stringResource(R.string.settings_album_merge_strategy),
+        onDismissRequest = { activeSheet = null }
+    ) {
+        SettingsCardGroup {
+            Column {
+                top.yukonga.miuix.kmp.basic.Text(
+                    text = stringResource(R.string.custom_category_album_merge),
+                    color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    fontSize = 12.sp,
+                    modifier = androidx.compose.ui.Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp)
+                )
+                com.ella.music.data.CustomMetadataCategory.ALBUM_MERGE_FIELD_ORDER.forEach { field ->
+                    val locked = field == com.ella.music.data.CustomMetadataCategory.MERGE_ALBUM
+                    val enabled = locked || field in albumMergeFields.split(',')
+                    SwitchPreference(
+                        title = stringResource(albumMergeFieldLabel(field)),
+                        checked = enabled,
+                        enabled = !locked,
+                        onCheckedChange = { checked ->
+                            val current = albumMergeFields.split(',').filter { it.isNotBlank() }
+                            val next = com.ella.music.data.CustomMetadataCategory.ALBUM_MERGE_FIELD_ORDER.filter {
+                                it == com.ella.music.data.CustomMetadataCategory.MERGE_ALBUM ||
+                                    (if (checked) it in current + field else it in current - field)
+                            }
+                            scope.launch { settingsManager.setAlbumMergeFields(next.joinToString(",")) }
+                        }
+                    )
+                }
+            }
+        }
+    }
 
     EllaMiuixBottomSheet(
         show = activeSheet == ScanAdvancedSheet.SearchScope,
@@ -1120,6 +1152,7 @@ private fun SearchAllCategoryTypesPreference(
         "composer" to R.string.library_search_composers,
         "arranger" to R.string.library_search_arrangers,
         "lyricist" to R.string.library_search_lyricists,
+        "producer" to R.string.library_search_producers,
         "genre" to R.string.library_search_genres,
         "year" to R.string.library_search_years
     )
@@ -1162,6 +1195,7 @@ private fun SearchAllSongMatchTypesPreference(
         "lyricist" to R.string.library_search_match_lyricist,
         "composer" to R.string.library_search_match_composer,
         "arranger" to R.string.library_search_match_arranger,
+        "producer" to R.string.library_search_match_producer,
         "album_artist" to R.string.library_search_match_album_artist,
         "genre" to R.string.library_search_match_genre,
         "year" to R.string.library_search_match_year,

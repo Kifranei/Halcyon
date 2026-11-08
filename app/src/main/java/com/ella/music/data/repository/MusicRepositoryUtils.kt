@@ -316,6 +316,8 @@ internal fun AudioTagInfo.toSongTagInfo(): com.ella.music.data.model.SongTagInfo
         composer = composer.orEmpty(),
         arranger = arranger.orEmpty(),
         lyricist = lyricist.orEmpty(),
+        producer = producer.orEmpty(),
+        language = language.orEmpty(),
         track = trackNumber?.toString().orEmpty(),
         comment = comment.orEmpty(),
         copyright = copyright.orEmpty(),
@@ -325,7 +327,8 @@ internal fun AudioTagInfo.toSongTagInfo(): com.ella.music.data.model.SongTagInfo
         songwriters = songwriters.orEmpty().ifBlank { customTags.firstMatchingTagValue("SONGWRITERS") ?: customTags.firstMatchingTagValue("SONGWRITER").orEmpty() },
         rating = rating.normalizeTagRatingToStars(),
         customTagText = customTags.flattenForSearch(),
-        customTags = customTags
+        customTags = customTags,
+        durationMs = durationMs
     )
 
 internal fun Map<String, List<String>>.flattenForSearch(): String =

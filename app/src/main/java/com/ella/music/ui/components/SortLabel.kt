@@ -10,11 +10,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.home.HomeDailyShuffleIcon
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -59,10 +59,10 @@ internal fun ShuffleAllSummaryButton(
         modifier = Modifier.size(40.dp)
     ) {
         Icon(
-            painter = painterResource(id = R.drawable.ic_shuffle),
+            imageVector = HomeDailyShuffleIcon,
             contentDescription = stringResource(R.string.shuffle),
-            tint = MiuixTheme.colorScheme.primary,
-            modifier = Modifier.size(30.dp)
+            tint = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.size(24.dp)
         )
     }
 }

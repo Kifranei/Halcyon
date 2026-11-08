@@ -117,7 +117,7 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Download
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Pause
 import top.yukonga.miuix.kmp.icon.extended.Share
@@ -253,7 +253,7 @@ internal fun DetailMusicVideoScreen(
                     .build(),
                 true
             )
-            if (source.scheme != "halcyon-netease-mv") {
+            if (source.scheme != "halcyon-netease-mv" && source.scheme != "halcyon-plugin-mv") {
                 setMediaItem(context.buildMusicVideoMediaItem(source, song.mimeType.takeIf { source.toString() == song.path && it.isNotBlank() }))
                 prepare()
                 playWhenReady = true
@@ -264,6 +264,34 @@ internal fun DetailMusicVideoScreen(
     var neteaseMvResolution by remember(source) { mutableStateOf<Int?>(null) }
     var showMvQualitySheet by remember { mutableStateOf(false) }
     LaunchedEffect(player, source, neteaseMvResolution) {
+        if (source.scheme == "halcyon-plugin-mv") {
+            try {
+                val pluginId = source.host.orEmpty()
+                val mvId = android.net.Uri.decode(source.lastPathSegment.orEmpty())
+                val config = com.ella.music.data.sourceplugin.SourcePluginRegistry.config(context, pluginId)
+                    ?: throw com.ella.music.data.sourceplugin.SourcePluginException(
+                        context.getString(R.string.source_plugin_not_installed))
+                val result = com.ella.music.data.sourceplugin.SourcePluginRegistry.client(context)
+                    .getMvUrl(config, song, mvId, neteaseMvResolution ?: 720)
+                val url = result.optString("url")
+                if (url.isBlank()) throw com.ella.music.data.sourceplugin.SourcePluginException(
+                    context.getString(R.string.source_plugin_no_url))
+                val headers = org.json.JSONObject().apply {
+                    result.optJSONObject("headers")?.let { put("headers", it) }
+                }
+                val marked = com.ella.music.data.musicfree.MusicFreeStreamHeaders
+                    .getInstance(context).register(url, headers)
+                val resumeAt = player.currentPosition.takeIf { player.mediaItemCount > 0 } ?: 0L
+                player.setMediaItem(context.buildMusicVideoMediaItem(Uri.parse(marked)), resumeAt)
+                player.prepare()
+                player.playWhenReady = true
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                Toast.makeText(context, R.string.music_video_play_failed, Toast.LENGTH_LONG).show()
+            }
+            return@LaunchedEffect
+        }
         if (source.scheme == "halcyon-netease-mv") {
             try {
                 val resolution = neteaseMvResolution ?: settingsManager.neteaseMvResolution.first().also { neteaseMvResolution = it }
@@ -735,7 +763,7 @@ private fun PortraitMusicVideoLayout(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
+                    VideoIconButton(GlassChevronBackwardIcon, stringResource(R.string.common_back), onBack)
                     Row {
                     qualityLabel?.let { label -> VideoQualityButton(label, onQuality) }
                     onDownload?.let { download -> VideoIconButton(MiuixIcons.Regular.Download, stringResource(R.string.netease_download_mv), download) }
@@ -882,7 +910,7 @@ private fun LandscapeMusicVideoLayout(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    VideoIconButton(MiuixIcons.Regular.Back, stringResource(R.string.common_back), onBack)
+                    VideoIconButton(GlassChevronBackwardIcon, stringResource(R.string.common_back), onBack)
                     Text(song.title.ifBlank { song.fileName }, color = ComposeColor.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
                     if (isMusicVideo) ArtistChip(song = song)
                     IconButton(onClick = onPictureInPicture) {
@@ -1376,7 +1404,7 @@ private fun MusicVideoCaptionSettingsOverlay(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 VideoIconButton(
-                    icon = MiuixIcons.Regular.Back,
+                    icon = GlassChevronBackwardIcon,
                     description = stringResource(R.string.common_back),
                     onClick = onDismiss,
                     modifier = Modifier.padding(end = 8.dp)

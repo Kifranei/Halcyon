@@ -31,5 +31,9 @@ class ArtistBiographyMatchRulesTest {
         settings.restoreSettingsJson(backup)
         assertEquals(rules, settings.artistBiographyMatchRules.first())
         assertTrue(decodeArtistBiographyMatchRules("bad json").isEmpty())
+        val ordered = listOf(ArtistBiographyMatchRule("A", "a"),
+            ArtistBiographyMatchRule("B", "b", updatedAt = 5), ArtistBiographyMatchRule("C", "c"))
+        assertEquals(listOf("B", "C", "A"), ordered.recentEditOrder().map { it.search })
+        assertEquals(5L, decodeArtistBiographyMatchRules(encodeArtistBiographyMatchRules(ordered))[1].updatedAt)
     }
 }

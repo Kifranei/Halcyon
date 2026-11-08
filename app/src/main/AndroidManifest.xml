@@ -45,7 +45,7 @@
         <package android:name="com.zarz.spotiflac" />
         <package android:name="com.andrewkhandr.aspectpro" />
         <package android:name="ka.spek" />
-        <package android:name="com.hearusy.spectrum" />
+        <package android:name="com.xuncorp.saltaudioanalyzer" />
         <package android:name="net.mediaarea.mediainfo" />
         <package android:name="com.android.musicfx" />
         <package android:name="com.miui.misound" />
@@ -189,6 +189,19 @@
             android:name=".CastingDeviceActivity"
             android:exported="false"
             android:theme="@style/Theme.Ella.Casting" />
+
+        <activity
+            android:name=".ArtistImageSearchActivity"
+            android:label="@string/artist_image_search"
+            android:exported="true"
+            android:theme="@style/Theme.Ella.Casting">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="halcyon" android:host="artist-image-search" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".SpectrumViewerActivity"

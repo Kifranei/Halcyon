@@ -115,6 +115,15 @@ internal fun TimedLyricText(
     singleLine: Boolean = false,
     statusBarMarquee: Boolean = false,
     followWordFocus: Boolean = false,
+    /**
+     * When non-null this overrides the shared `lyric_unsung_opacity` setting for the dim fill of
+     * not-yet-sung karaoke words. The floating desktop lyric passes its own opacity setting.
+     */
+    unsungAlpha: Float? = null,
+    /** Duration-synced horizontal scroll for an overflowing single-line lyric (#727). */
+    lineProgressScroll: Boolean = false,
+    lineStartMs: Long = 0L,
+    lineEndMs: Long = 0L,
     pronunciation: String = "",
     pronunciationWords: List<LyricWord> = emptyList(),
     rubyBelow: Boolean = false,
@@ -153,7 +162,30 @@ internal fun TimedLyricText(
             pronunciation = pronunciation
         )
     }
+    // The clock ticks every frame. Hand the words a State they read in the draw/layer phase
+    // instead of a value they take as a parameter, so a frame no longer recomposes the whole
+    // line's worth of word subtrees just to move one feathered edge.
+    val positionState = positionClock ?: rememberUpdatedState(positionMs)
     if (timedWords.isEmpty()) {
+        if (singleLine && lineProgressScroll) {
+            LineProgressScrollViewport(
+                positionMs = positionState,
+                lineStartMs = lineStartMs,
+                lineEndMs = lineEndMs,
+                textAlign = style.textAlign,
+                modifier = modifier
+            ) {
+                UntimedScrollableText(
+                    text = text,
+                    style = style,
+                    outlineColor = outlineColor,
+                    outlineWidth = outlineWidth,
+                    glowColor = glowColor,
+                    glowRadius = glowRadius
+                )
+            }
+            return
+        }
         val textModifier = Modifier
             .fillMaxWidth()
             .then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
@@ -214,7 +246,12 @@ internal fun TimedLyricText(
     val hdrHighlightEnabled by remember(context) {
         SettingsManager.getInstance(context).lyricHdrHighlightEnabled
     }.collectAsState(initial = false)
-    val positionState = positionClock ?: rememberUpdatedState(positionMs)
+    val sharedUnsungOpacity by remember(context) {
+        SettingsManager.getInstance(context).lyricUnsungOpacity
+    }.collectAsState(initial = 36)
+    // A desktop lyric overlay supplies its own unsung-word opacity; every other surface falls
+    // back to the shared lyric setting.
+    val unsungDimAlpha = unsungAlpha?.coerceIn(0f, 1f) ?: (sharedUnsungOpacity / 100f)
     val content: @Composable () -> Unit = {
         timedWords.forEachIndexed { index, renderWord ->
             AppleMusicKaraokeWord(
@@ -226,6 +263,7 @@ internal fun TimedLyricText(
                 wordLiftEnabled = wordLiftEnabled,
                 wordLiftScale = wordLiftScale,
                 sustainGlowScale = sustainGlowScale,
+                unsungAlpha = unsungDimAlpha,
                 outlineColor = outlineColor,
                 outlineWidth = outlineWidth,
                 glowColor = glowColor,
@@ -251,6 +289,21 @@ internal fun TimedLyricText(
                 modifier = modifier,
                 content = content
             )
+        } else if (lineProgressScroll) {
+            LineProgressScrollViewport(
+                positionMs = positionState,
+                lineStartMs = lineStartMs,
+                lineEndMs = lineEndMs,
+                textAlign = style.textAlign,
+                modifier = modifier
+            ) {
+                Row(
+                    horizontalArrangement = horizontalArrangement,
+                    verticalAlignment = if (rubyBelow) Alignment.Top else Alignment.Bottom
+                ) {
+                    content()
+                }
+            }
         } else {
             Row(
                 modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
@@ -328,6 +381,112 @@ private fun AppleMusicFocusedTimedRow(
     }
 }
 
+/**
+ * Duration-synced horizontal scroll for a single-line lyric that overflows its viewport (#727).
+ * Unlike basicMarquee the offset is deterministic: the leading edge of the line is visible when
+ * the line starts and the trailing edge has scrolled fully into view by the line's timed end.
+ * Lines that fit keep their text alignment; the position clock is read in the layer phase so the
+ * scroll advances every frame without recomposing the words.
+ */
+@Composable
+private fun LineProgressScrollViewport(
+    positionMs: State<Long>,
+    lineStartMs: Long,
+    lineEndMs: Long,
+    textAlign: TextAlign,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val viewportWidthPx = with(LocalDensity.current) { maxWidth.toPx() }
+        var contentWidthPx by remember(lineStartMs, lineEndMs) { mutableIntStateOf(0) }
+        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        Box(Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .wrapContentWidth(unbounded = true)
+                    .onSizeChanged { contentWidthPx = it.width }
+                    .graphicsLayer {
+                        if (!viewportWidthPx.isFinite() || viewportWidthPx <= 0f || contentWidthPx <= 0) {
+                            // No bounded viewport to scroll inside; draw from the start.
+                            translationX = 0f
+                            return@graphicsLayer
+                        }
+                        val overflow = (contentWidthPx - viewportWidthPx).coerceAtLeast(0f)
+                        val span = (lineEndMs - lineStartMs).coerceAtLeast(1L)
+                        val progress =
+                            ((positionMs.value - lineStartMs).toFloat() / span).coerceIn(0f, 1f)
+                        val alignmentOffset = if (overflow <= 0f) {
+                            when (textAlign) {
+                                TextAlign.Center -> (viewportWidthPx - contentWidthPx) / 2f
+                                TextAlign.End -> if (isRtl) 0f else viewportWidthPx - contentWidthPx
+                                else -> if (isRtl) viewportWidthPx - contentWidthPx else 0f
+                            }
+                        } else {
+                            0f
+                        }
+                        translationX = alignmentOffset + if (isRtl) {
+                            -overflow * (1f - progress)
+                        } else {
+                            -overflow * progress
+                        }
+                    }
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** A single untimed lyric row measured at its natural width inside a scrolling viewport. */
+@Composable
+private fun UntimedScrollableText(
+    text: String,
+    style: TextStyle,
+    outlineColor: Color?,
+    outlineWidth: Float,
+    glowColor: Color?,
+    glowRadius: Float
+) {
+    val textGlow = if (glowColor != null && glowRadius > 0f) {
+        Shadow(
+            color = glowColor.copy(alpha = glowColor.alpha * style.color.alpha),
+            offset = Offset.Zero,
+            blurRadius = glowRadius
+        )
+    } else null
+    if (outlineColor != null && outlineWidth > 0f) {
+        Box {
+            BasicText(
+                text = text,
+                style = style.copy(
+                    color = outlineColor,
+                    drawStyle = Stroke(width = outlineWidth),
+                    shadow = null
+                ),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip
+            )
+            BasicText(
+                text = text,
+                style = style.copy(shadow = textGlow),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip
+            )
+        }
+    } else {
+        BasicText(
+            text = text,
+            style = style.copy(shadow = textGlow),
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip
+        )
+    }
+}
+
 @Composable
 private fun AppleMusicTimedWordRows(
     textAlign: TextAlign,
@@ -393,6 +552,7 @@ private fun AppleMusicKaraokeWord(
     wordLiftEnabled: Boolean,
     wordLiftScale: Float = 1f,
     sustainGlowScale: Float = 1f,
+    unsungAlpha: Float = DefaultKaraokeDimAlphaFactor,
     outlineColor: Color? = null,
     outlineWidth: Float = 0f,
     glowColor: Color? = null,
@@ -406,6 +566,7 @@ private fun AppleMusicKaraokeWord(
     onLongPress: (() -> Unit)? = null
 ) {
     val referenceMotion = LocalReferenceLyricMotion.current
+    val sustainTailExtended = LocalLyricSustainTailExtended.current
     val word = renderWord.word
     var leftRoom by remember { mutableFloatStateOf(0f) }
     var rightRoom by remember { mutableFloatStateOf(0f) }
@@ -482,7 +643,7 @@ private fun AppleMusicKaraokeWord(
                     !flamingoWaveEligible(referenceMotion, renderWord, word.text.length)) {
                     val duration = renderWord.sustainDurationMs
                     val amount = ((duration / 1000f).coerceIn(1f, 2f) - 1f) * .03f
-                    val emphasis = appleReferenceEmphasis(positionMs.value - word.startMs, duration)
+                    val emphasis = appleReferenceEmphasis(positionMs.value - word.startMs, duration, sustainTailExtended)
                     scaleX = 1f + amount * emphasis * sustainGlowScale.coerceIn(0f, 1f)
                     scaleY = scaleX
                 }
@@ -503,6 +664,7 @@ private fun AppleMusicKaraokeWord(
                 baseStyle = baseStyle,
                 contentColor = contentColor,
                 sustainGlowScale = sustainGlowScale,
+                unsungAlpha = unsungAlpha,
                 layoutCache = glyphLayout,
                 outlineColor = outlineColor,
                 outlineWidth = outlineWidth,
@@ -597,6 +759,7 @@ private fun AppleMusicKaraokeGlyphs(
     baseStyle: TextStyle,
     contentColor: Color,
     sustainGlowScale: Float,
+    unsungAlpha: Float,
     layoutCache: KaraokeGlyphLayout,
     outlineColor: Color? = null,
     outlineWidth: Float = 0f,
@@ -607,12 +770,13 @@ private fun AppleMusicKaraokeGlyphs(
     lineGeometry: KaraokeLineGeometry? = null
 ) {
     val referenceMotion = LocalReferenceLyricMotion.current
+    val sustainTailExtended = LocalLyricSustainTailExtended.current
     val word = renderWord.word
     val measurer = rememberTextMeasurer()
     val cache = layoutCache
     val baseAlpha = baseStyle.color.alpha
     val bright = contentColor.copy(alpha = baseAlpha)
-    val dimFactor = DefaultKaraokeDimAlphaFactor
+    val dimFactor = unsungAlpha.coerceIn(0f, 1f)
     val dim = contentColor.copy(alpha = baseAlpha * dimFactor)
     val sustainDurationMs = renderWord.sustainDurationMs
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl || word.text.isRtlText()
@@ -654,7 +818,7 @@ private fun AppleMusicKaraokeGlyphs(
                 )
             }
             val envelope = if (referenceMotion && active && renderWord.sustainEndMs != null) {
-                appleReferenceEmphasis(clock - word.startMs, renderWord.sustainDurationMs)
+                appleReferenceEmphasis(clock - word.startMs, renderWord.sustainDurationMs, sustainTailExtended)
             } else renderWord.sustainGlowAlpha(clock, active)
             val glow = envelope * effectiveSustainGlowScale.coerceIn(0f, glowCap)
             val fontSizePx = baseStyle.fontSize.toPx().coerceAtLeast(1f)

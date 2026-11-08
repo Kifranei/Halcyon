@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.layout.ContentScale
@@ -95,6 +96,7 @@ internal fun AlbumCopyrightFooter(
     composers: List<AlbumMetadataDisplayItem>,
     arrangers: List<AlbumMetadataDisplayItem>,
     lyricists: List<AlbumMetadataDisplayItem>,
+    producers: List<AlbumMetadataDisplayItem>,
     mainViewModel: MainViewModel,
     artistCoverFolderUri: String,
     onGenreClick: (String) -> Unit,
@@ -102,6 +104,7 @@ internal fun AlbumCopyrightFooter(
     onComposerClick: (String) -> Unit,
     onArrangerClick: (String) -> Unit,
     onLyricistClick: (String) -> Unit,
+    onProducerClick: (String) -> Unit,
     onYearClick: (String) -> Unit,
     showReleaseDateSection: Boolean = true
 ) {
@@ -182,6 +185,14 @@ internal fun AlbumCopyrightFooter(
             mainViewModel = mainViewModel,
             artistCoverFolderUri = artistCoverFolderUri,
             onItemClick = onLyricistClick
+        )
+        AlbumMetadataSection(
+            title = stringResource(R.string.player_detail_producer),
+            items = producers,
+            circularCover = true,
+            mainViewModel = mainViewModel,
+            artistCoverFolderUri = artistCoverFolderUri,
+            onItemClick = onProducerClick
         )
     }
 }
@@ -518,7 +529,7 @@ private fun AlbumTrackRow(
                     label = stringResource(R.string.online_mv),
                     contentDescription = stringResource(R.string.online_mv),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    onClick = { MusicVideoLauncher.openNetease(context, song, Uri.parse(url).getQueryParameter("id").orEmpty()) }
+                    onClick = { MusicVideoLauncher.openOnline(context, song, url) }
                 )
                 Spacer(modifier = Modifier.width(6.dp))
             }
@@ -988,7 +999,7 @@ private fun AlbumAmCircularActions(
         verticalAlignment = Alignment.CenterVertically
     ) {
         AlbumAmCircleButton(
-            drawableRes = R.drawable.ic_shuffle,
+            imageVector = com.ella.music.ui.home.HomeDailyShuffleIcon,
             contentDescription = stringResource(R.string.shuffle),
             size = 48.dp,
             iconSize = 22.dp,
@@ -1021,7 +1032,8 @@ private fun AlbumAmCircularActions(
 
 @Composable
 private fun AlbumAmCircleButton(
-    drawableRes: Int,
+    drawableRes: Int? = null,
+    imageVector: ImageVector? = null,
     contentDescription: String,
     size: androidx.compose.ui.unit.Dp,
     iconSize: androidx.compose.ui.unit.Dp,
@@ -1037,12 +1049,21 @@ private fun AlbumAmCircleButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            painter = painterResource(id = drawableRes),
-            contentDescription = contentDescription,
-            tint = tint,
-            modifier = Modifier.size(iconSize)
-        )
+        if (imageVector != null) {
+            Icon(
+                imageVector = imageVector,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(iconSize)
+            )
+        } else {
+            Icon(
+                painter = painterResource(id = requireNotNull(drawableRes)),
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(iconSize)
+            )
+        }
     }
 }
 

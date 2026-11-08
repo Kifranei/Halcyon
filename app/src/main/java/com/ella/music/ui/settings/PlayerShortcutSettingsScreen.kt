@@ -62,7 +62,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Notes
 import top.yukonga.miuix.kmp.icon.extended.Stopwatch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -341,7 +341,7 @@ fun PlayerShortcutSettingsScreen(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
@@ -403,6 +403,7 @@ internal fun playerShortcutLabel(id: String): String = when (id) {
     PlayerExtraActionIds.LYRIC_SHARE -> stringResource(R.string.player_lyric_share)
     ActionMenuIds.LANDSCAPE -> stringResource(R.string.player_landscape_lyrics)
     ActionMenuIds.POSTER_WALL -> stringResource(R.string.poster_wall_title)
+    ActionMenuIds.LYRIC_THEATER -> stringResource(R.string.poster_wall_fullscreen_player)
     ActionMenuIds.LYRICS_DISPLAY -> stringResource(R.string.player_lyrics_display)
     ActionMenuIds.MINI_LYRICS_STYLE -> stringResource(R.string.player_mini_lyrics_style)
     ActionMenuIds.SPECTRUM -> stringResource(R.string.song_more_view_spectrum)

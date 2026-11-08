@@ -35,8 +35,8 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.DefaultAlbumCover
-import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixSheetActions
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import top.yukonga.miuix.kmp.basic.TextField
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.rememberSongArtworkState
@@ -50,7 +50,7 @@ internal fun CategoryCreatePlaylistAndAddSelectedSheet(
     onCreate: (String) -> Unit
 ) {
     var playlistName by remember { mutableStateOf("") }
-    EllaMiuixBottomSheet(
+    EllaMiuixDialog(
         show = true,
         title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -72,7 +72,7 @@ internal fun CategoryCreatePlaylistAndAddSelectedSheet(
                 modifier = Modifier
                     .fillMaxWidth()
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = stringResource(R.string.common_create),
                 onCancel = onDismiss,
@@ -87,14 +87,15 @@ internal fun MetadataDetailLinkChip(
     text: String,
     onClick: () -> Unit
 ) {
+    val colors = top.yukonga.miuix.kmp.glass.GlassTabRowDefaults.neutralColors()
     Text(
         text = text,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        color = MiuixTheme.colorScheme.primary,
+        color = colors.contentColor,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .background(colors.restingContainerColor)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     )

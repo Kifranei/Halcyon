@@ -25,13 +25,14 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.ui.settings.SettingsCardGroup
+import com.ella.music.ui.settings.PlayerLyricDisplayPreferences
 import com.ella.music.ui.settings.SettingsFloatSliderPreference as SliderPreference
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun LyricActionMenu(
@@ -81,6 +82,9 @@ internal fun LyricActionMenu(
     val rainbowEnabled by settingsManager.lyricRainbowEnabled.collectAsState(initial = false)
     val hdrEnabled by settingsManager.lyricHdrHighlightEnabled.collectAsState(initial = false)
     val sustainMotion by settingsManager.lyricSustainMotion.collectAsState(initial = true)
+    val sustainTailMode by settingsManager.appleMusicLyricsSustainTailMode.collectAsState(
+        initial = SettingsManager.DEFAULT_APPLE_MUSIC_LYRICS_SUSTAIN_TAIL_MODE
+    )
     val containerModifier = if (applyScrollableContainer) {
         modifier
             .verticalScroll(rememberScrollState())
@@ -160,6 +164,11 @@ internal fun LyricActionMenu(
                 )
             }
         }
+        // #781: the same player_lyric_* display controls the lyric settings page exposes,
+        // shared through PlayerLyricDisplayPreferences so both entries stay in sync.
+        SettingsCardGroup {
+            PlayerLyricDisplayPreferences()
+        }
         SettingsCardGroup {
             SliderPreference(
                 title = stringResource(R.string.player_lyrics_sustain_threshold),
@@ -183,10 +192,21 @@ internal fun LyricActionMenu(
                     }
                 }
             )
+            EllaSpinnerPreference(
+                title = stringResource(R.string.player_lyric_sustain_tail_mode),
+                items = listOf(
+                    DropdownItem(title = stringResource(R.string.player_lyric_sustain_tail_extended)),
+                    DropdownItem(title = stringResource(R.string.player_lyric_sustain_tail_immediate))
+                ),
+                selectedIndex = sustainTailMode.coerceIn(0, 1),
+                onSelectedIndexChange = { index ->
+                    scope.launch { settingsManager.setAppleMusicLyricsSustainTailMode(index) }
+                }
+            )
         }
         if (lyricFormatAvailability.hasBoth) {
             SettingsCardGroup {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.player_lyric_format),
                     items = listOf(
                         DropdownItem(title = stringResource(R.string.player_lyric_format_ttml)),
@@ -200,7 +220,7 @@ internal fun LyricActionMenu(
             }
         }
         SettingsCardGroup {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.player_lyric_source),
                 items = listOf(
                     DropdownItem(title = stringResource(R.string.player_lyric_source_auto)),

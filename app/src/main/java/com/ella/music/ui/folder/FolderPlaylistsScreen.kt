@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +59,7 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
-import com.ella.music.ui.components.RestoreListScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchListState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -84,13 +84,15 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import sh.calvin.reorderable.ReorderableItem
 import com.ella.music.ui.components.rememberEllaReorderableLazyListState
@@ -154,15 +156,14 @@ fun FolderPlaylistsScreen(
         showEditor = true
     }
     var pendingDelete by remember { mutableStateOf<FolderPlaylist?>(null) }
-    var searchExpanded by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val folderDisplayColumns = rememberFolderDisplaySettings().columns
     val listState = rememberLazyListState()
-    RestoreListScrollAfterSearch(
-        searchExpanded = searchExpanded,
-        query = searchQuery,
-        listState = listState
-    )
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    val searchListState = rememberSearchListState(searchExpanded, searchQuery)
+    val activeListState = if (searchExpanded) searchListState else listState
     var moreMenuTarget by remember { mutableStateOf<FolderPlaylist?>(null) }
     var associateFolderPaths by remember { mutableStateOf<List<String>?>(null) }
     var draggedPlaylistId by remember { mutableStateOf<String?>(null) }
@@ -250,7 +251,7 @@ fun FolderPlaylistsScreen(
         }
     }
     val reorderableLazyListState = rememberEllaReorderableLazyListState(
-        lazyListState = listState,
+        lazyListState = activeListState,
         onMove = { from, to ->
             if (!reorderEnabled) return@rememberEllaReorderableLazyListState
             val fromIndex = from.index
@@ -324,7 +325,7 @@ fun FolderPlaylistsScreen(
         // to the bottom when that card sorts last (#374).
         androidx.compose.runtime.withFrameNanos { }
         androidx.compose.runtime.withFrameNanos { }
-        if (filteredPlaylists.isNotEmpty()) listState.scrollToItem(0)
+        if (filteredPlaylists.isNotEmpty()) activeListState.scrollToItem(0)
         pendingSortResetMode = null
     }
 
@@ -373,28 +374,30 @@ fun FolderPlaylistsScreen(
         }
     }
 
+    val pageBackground = ellaPageBackground()
+    val folderBackdrop = rememberLayerBackdrop()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
+            .background(pageBackground)
     ) {
         EllaSmallTopAppBar(
+            backdrop = folderBackdrop,
             title = if (selection.selectionMode) {
                 stringResource(R.string.library_selected_fraction, selection.selectedIds.size, filteredPlaylists.size)
             } else {
                 stringResource(R.string.folder_playlist_title)
             },
-            color = ellaPageBackground(),
+            color = pageBackground,
             // Six selection actions occupy the right side. Keep the title gesture area clear of
             // the first (pin) action so it remains reliably tappable on narrow screens.
             titleEndPadding = if (selection.selectionMode) 304.dp else 192.dp,
-            onDoubleTapTitle = { scope.launch { listState.animateScrollToItem(0) } },
+            onDoubleTapTitle = { scope.launch { activeListState.animateScrollToItem(0) } },
             navigationIcon = {
                 if (showBackButton || selection.selectionMode) {
                     IconButton(onClick = { if (selection.selectionMode) selection.finishSelectionMode() else onBack() }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
@@ -633,8 +636,8 @@ fun FolderPlaylistsScreen(
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                state = listState,
-                modifier = Modifier.fillMaxSize().dragSelectList(listState, selection, displayedPlaylistIds, excludedEndWidth = 112.dp),
+                state = activeListState,
+                modifier = Modifier.fillMaxSize().layerBackdrop(folderBackdrop).dragSelectList(activeListState, selection, displayedPlaylistIds, excludedEndWidth = 112.dp),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {

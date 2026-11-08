@@ -10,6 +10,7 @@ import com.ella.music.data.artistNamesForSong
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
 import com.ella.music.viewmodel.MainViewModel
@@ -95,9 +96,9 @@ internal data class ListeningInsight(
 )
 
 internal data class TasteProfile(
-    val topArtist: TasteInsight?,
-    val topAlbum: TasteInsight?,
-    val topGenre: TasteInsight?
+    val topArtists: List<TasteInsight>,
+    val topAlbums: List<TasteInsight>,
+    val topGenres: List<TasteInsight>
 )
 
 internal data class TasteInsight(
@@ -105,14 +106,17 @@ internal data class TasteInsight(
     val title: String,
     val subtitle: String,
     val listenedMs: Long,
-    val playCount: Int
+    val playCount: Int,
+    /** Album navigation target when this insight is an album (#698). */
+    val albumId: Long? = null
 )
 
 internal data class TasteAccumulator(
     val title: String,
     val subtitle: String = "",
     var listenedMs: Long = 0L,
-    var playCount: Int = 0
+    var playCount: Int = 0,
+    var albumId: Long? = null
 )
 
 internal data class ResolvedHistoryEntry(
@@ -389,13 +393,20 @@ internal fun buildTasteProfile(
                 )
         }
 
-    fun add(acc: MutableMap<String, TasteAccumulator>, rawTitle: String, subtitle: String, stat: SongPlaybackStats) {
+    fun add(
+        acc: MutableMap<String, TasteAccumulator>,
+        rawTitle: String,
+        subtitle: String,
+        stat: SongPlaybackStats,
+        albumId: Long? = null
+    ) {
         val title = rawTitle.trim()
         if (title.isBlank()) return
         val key = title.lowercase(Locale.getDefault())
-        val item = acc.getOrPut(key) { TasteAccumulator(title = title, subtitle = subtitle) }
+        val item = acc.getOrPut(key) { TasteAccumulator(title = title, subtitle = subtitle, albumId = albumId) }
         item.listenedMs += stat.listenedMs
         item.playCount += stat.playCount
+        if (item.albumId == null) item.albumId = albumId
     }
 
     val artists = linkedMapOf<String, TasteAccumulator>()
@@ -409,31 +420,219 @@ internal fun buildTasteProfile(
             .forEach { artist -> add(artists, artist, song?.album.orEmpty(), stat) }
 
         val album = song?.album?.takeIf { it.isNotBlank() } ?: stat.album
-        add(albums, album, song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(), stat)
+        add(
+            albums, album, song?.albumArtist?.takeIf { it.isNotBlank() }.orEmpty(), stat,
+            albumId = song?.albumIdentityId()
+        )
 
         splitGenreNames(song?.genre.orEmpty()).forEach { genre -> add(genres, genre, "", stat) }
     }
 
-    fun top(labelRes: Int, acc: Map<String, TasteAccumulator>): TasteInsight? {
-        val item = acc.values.maxWithOrNull(
-            compareBy<TasteAccumulator> { it.listenedMs }
-                .thenBy { it.playCount }
-        ) ?: return null
-        return TasteInsight(
-            labelRes = labelRes,
-            title = item.title,
-            subtitle = item.subtitle,
-            listenedMs = item.listenedMs,
-            playCount = item.playCount
-        )
+    fun topN(labelRes: Int, acc: Map<String, TasteAccumulator>, n: Int = 3): List<TasteInsight> {
+        return acc.values.sortedWith(
+            compareByDescending<TasteAccumulator> { it.listenedMs }
+                .thenByDescending { it.playCount }
+        ).take(n).map { item ->
+            TasteInsight(
+                labelRes = labelRes,
+                title = item.title,
+                subtitle = item.subtitle,
+                listenedMs = item.listenedMs,
+                playCount = item.playCount,
+                albumId = item.albumId
+            )
+        }
     }
 
     return TasteProfile(
-        topArtist = top(R.string.analytics_taste_top_artist, artists),
-        topAlbum = top(R.string.analytics_taste_top_album, albums),
-        topGenre = top(R.string.analytics_taste_top_genre, genres)
+        topArtists = topN(R.string.analytics_taste_top_artist, artists),
+        topAlbums = topN(R.string.analytics_taste_top_album, albums),
+        topGenres = topN(R.string.analytics_taste_top_genre, genres)
     )
 }
+
+/**
+ * Time ranges for the ranking cards/page (#698, extended in #781). Picker order is the
+ * declaration order: 全部时间 first, then the calendar-bounded "今" family, then the
+ * rolling "最近" family.
+ */
+internal enum class AnalyticsRankingRange(val prefValue: String, val labelRes: Int) {
+    All("all", R.string.analytics_range_all),
+    /** Current calendar month (1st → today). */
+    CurMonth("cm", R.string.analytics_range_cur_month),
+    /** Current calendar month plus the two previous months. */
+    CurMonth3("c3m", R.string.analytics_range_cur_month3),
+    /** Current calendar quarter (months 1-3, 4-6, 7-9 or 10-12). */
+    CurQuarter("cq", R.string.analytics_range_cur_quarter),
+    /** Current calendar half-year (months 1-6 or 7-12). */
+    CurHalf("ch", R.string.analytics_range_cur_half),
+    /** Current calendar year. */
+    CurYear("cy", R.string.analytics_range_cur_year),
+    Week("7d", R.string.analytics_range_7d),
+    Month1("1m", R.string.analytics_range_1m),
+    Month3("3m", R.string.analytics_range_3m),
+    Month6("6m", R.string.analytics_range_6m),
+    Year1("1y", R.string.analytics_range_1y);
+
+    fun cutoffMs(now: Long): Long {
+        if (this == All) return 0L
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
+        when (this) {
+            Week -> cal.add(Calendar.DAY_OF_YEAR, -7)
+            Month1 -> cal.add(Calendar.MONTH, -1)
+            Month3 -> cal.add(Calendar.MONTH, -3)
+            Month6 -> cal.add(Calendar.MONTH, -6)
+            Year1 -> cal.add(Calendar.YEAR, -1)
+            CurMonth -> cal.moveToPeriodStart()
+            CurMonth3 -> {
+                cal.add(Calendar.MONTH, -2)
+                cal.moveToPeriodStart()
+            }
+            CurQuarter -> {
+                cal.set(Calendar.MONTH, cal.get(Calendar.MONTH) / 3 * 3)
+                cal.moveToPeriodStart()
+            }
+            CurHalf -> {
+                cal.set(Calendar.MONTH, if (cal.get(Calendar.MONTH) < Calendar.JULY) Calendar.JANUARY else Calendar.JULY)
+                cal.moveToPeriodStart()
+            }
+            CurYear -> {
+                cal.set(Calendar.MONTH, Calendar.JANUARY)
+                cal.moveToPeriodStart()
+            }
+            All -> Unit
+        }
+        return cal.timeInMillis
+    }
+
+    /** Moves to 00:00:00.000 on the first day of the currently-set month. */
+    private fun Calendar.moveToPeriodStart() {
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+
+    companion object {
+        fun fromPref(value: String?): AnalyticsRankingRange =
+            entries.firstOrNull { it.prefValue == value } ?: All
+    }
+}
+
+/**
+ * Aggregates per-play history into `SongPlaybackStats`-compatible rows over a bounded range so
+ * the ranking cards/page can be scoped by time (#698). Grouped by the same stats key the cards
+ * resolve against, so remote/Last.fm entries merge correctly. `duration` sums listenedMs of
+ * every entry; `count` only counts entries that met the play-count threshold.
+ */
+internal fun buildRangeRankingStats(
+    history: List<PlaybackHistoryEntry>,
+    range: AnalyticsRankingRange,
+    kind: String,
+    now: Long = System.currentTimeMillis()
+): List<SongPlaybackStats> {
+    val cutoff = range.cutoffMs(now)
+    return history
+        .asSequence()
+        .filter { it.playedAt >= cutoff }
+        .groupBy { it.analyticsStatsKey() }
+        .values
+        .map { entries ->
+            val first = entries.first()
+            SongPlaybackStats(
+                songId = first.songId,
+                title = first.title,
+                artist = first.artist,
+                album = first.album,
+                playCount = entries.count { it.playCounted },
+                listenedMs = entries.sumOf { it.listenedMs },
+                lastPlayedAt = entries.maxOf { it.playedAt }
+            )
+        }
+        .filter { if (kind == "count") it.playCount > 0 else it.listenedMs > 0 }
+        .let { list ->
+            if (kind == "count") list.sortedByDescending { it.playCount }
+            else list.sortedByDescending { it.listenedMs }
+        }
+        .toList()
+}
+
+/**
+ * Resolves history rows back to a library [Song] even after the recorded song went stale
+ * (#781): retag/rescan changes title/artist/album or reuses the MediaStore id, leaving
+ * dead entries in the rankings. Match order keeps the strongest identity first —
+ * normalized title+artist+album stats key, online source id, the original file name
+ * (from `mediaUri`, or the tag-less title which stores the file name), and finally the
+ * raw song id as a last resort. Unmatchable rows return null and keep their recorded
+ * title/artist as a fallback display.
+ */
+internal class HistorySongResolver(songs: List<Song>) {
+    private val byId = songs.associateBy { it.id }
+    private val byStatsKey = songs.associateBy { it.analyticsStatsKey() }
+    private val byOnlineKey = songs
+        .asSequence()
+        .filter { it.onlineSource.isNotBlank() && it.onlineId.isNotBlank() }
+        .associateBy { "${it.onlineSource}|${it.onlineId}" }
+    private val byFileName = songs
+        .asSequence()
+        .mapNotNull { song -> song.libraryFileName().historyFileKey()?.let { it to song } }
+        .toMap()
+    private val byFileStem = songs
+        .asSequence()
+        .mapNotNull { song ->
+            song.libraryFileName().substringBeforeLast('.').historyFileKey()?.let { it to song }
+        }
+        .toMap()
+
+    fun resolve(stat: SongPlaybackStats): Song? =
+        byStatsKey[stat.analyticsStatsKey()] ?: byId[stat.songId]
+
+    fun resolve(entry: PlaybackHistoryEntry): Song? =
+        byStatsKey[entry.analyticsStatsKey()]
+            ?: entry.onlineMatchKey()?.let(byOnlineKey::get)
+            ?: entry.fileNameCandidates().firstNotNullOfOrNull { raw ->
+                val key = raw.historyFileKey() ?: return@firstNotNullOfOrNull null
+                byFileName[key] ?: byFileStem[key]
+            }
+            ?: byId[entry.songId]
+
+    private fun Song.libraryFileName(): String =
+        fileName.ifBlank { path.substringAfterLast('/') }
+
+    private fun PlaybackHistoryEntry.onlineMatchKey(): String? =
+        if (onlineSource.isNotBlank() && onlineId.isNotBlank()) "$onlineSource|$onlineId" else null
+
+    private fun PlaybackHistoryEntry.fileNameCandidates(): List<String> = buildList {
+        // Local rows can carry the original path/uri; its last segment is the file name.
+        mediaUri.substringAfterLast('/').substringBefore('?')
+            .takeIf { it.isNotBlank() && it != mediaUri }
+            ?.let { add(android.net.Uri.decode(it)) }
+        // Tag-less local files keep the file name (with or without extension) as the title.
+        if (title.isNotBlank()) add(title)
+        if (title.contains('.')) add(title.substringBeforeLast('.'))
+    }
+
+    private fun String?.historyFileKey(): String? =
+        this?.trim()?.lowercase(Locale.getDefault())?.replace(Regex("\\s+"), " ")
+            ?.takeIf { it.isNotBlank() }
+}
+
+/**
+ * Maps each stats key to the song resolved from its most recent history entry, so ranking
+ * rows keep playing after the referenced song was retagged or re-added (#781).
+ */
+internal fun buildStatsSongMap(
+    history: List<PlaybackHistoryEntry>,
+    resolver: HistorySongResolver
+): Map<String, Song> = history
+    .groupBy { it.analyticsStatsKey() }
+    .mapNotNull { (key, entries) ->
+        entries.maxByOrNull { it.playedAt }
+            ?.let(resolver::resolve)
+            ?.let { key to it }
+    }
+    .toMap()
 
 internal suspend fun buildLibraryAnalysis(
     songs: List<Song>,
@@ -698,6 +897,20 @@ internal fun recentDateKeys(days: Int): List<String> {
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         key
     }
+}
+
+/** GitHub-contribution-style columns: seven weekday rows, with blanks before the first day. */
+internal fun recentHeatmapWeeks(days: Int): List<List<String?>> {
+    val keys = recentDateKeys(days)
+    if (keys.isEmpty()) return emptyList()
+    val first = keys.first().split('-').mapNotNull { it.toIntOrNull() }
+    val leadingBlanks = if (first.size == 3) {
+        Calendar.getInstance().apply { set(first[0], first[1] - 1, first[2]) }
+            .get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+    } else {
+        0
+    }
+    return (List(leadingBlanks.coerceAtLeast(0)) { null } + keys).chunked(7)
 }
 
 internal fun heatmapColor(listenedMs: Long, maxMs: Long): Color {

@@ -75,7 +75,7 @@ import com.ella.music.ui.components.rememberLibrarySelectionState
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LazyGridScrollIndicator
-import com.ella.music.ui.components.RestoreGridScrollAfterSearch
+import com.ella.music.ui.components.rememberSearchGridState
 import com.ella.music.ui.components.ShuffleAllSummaryButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.DirectionalSortModeField
@@ -88,15 +88,18 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.Scaffold
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import com.ella.music.data.LibraryAlbumAggregator
 
 @Composable
@@ -115,14 +118,16 @@ fun AlbumScreen(
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-    var searchExpanded by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
     val selection = rememberLibrarySelectionState<Long>()
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var batchEditSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var albumMenuTarget by remember { mutableStateOf<Album?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var batchAlbumTarget by remember { mutableStateOf<com.ella.music.data.model.Album?>(null) }
     val storedPinnedAlbumKeys by mainViewModel.settingsManager.pinnedKeysFlow("album").collectAsState(initial = null)
     val pinnedAlbumKeys = storedPinnedAlbumKeys.orEmpty()
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
@@ -259,25 +264,25 @@ fun AlbumScreen(
         if (selection.rangeTargetId !in visibleIds) selection.rangeTargetId = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        Box {
+    val pageBackground = ellaPageBackground()
+    val albumBackdrop = rememberLayerBackdrop()
+    Scaffold(
+        containerColor = pageBackground,
+        topBar = {
             EllaSmallTopAppBar(
+                backdrop = albumBackdrop,
+                enableProgressiveBlur = true,
                 title = if (selection.selectionMode) {
                     stringResource(R.string.library_selected_fraction, selection.selectedIds.size, sortedAlbums.size)
                 } else {
-                    stringResource(R.string.tab_album)
+                    "${stringResource(R.string.tab_album)} (${sortedAlbums.size})"
                 },
-                color = ellaPageBackground(),
+                color = pageBackground,
                 navigationIcon = {
                     if (showBackButton) {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = MiuixIcons.Regular.Back,
+                                imageVector = GlassChevronBackwardIcon,
                                 contentDescription = stringResource(R.string.common_back),
                                 tint = MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
@@ -286,7 +291,7 @@ fun AlbumScreen(
                     }
                 },
                 titleStartPadding = if (showBackButton || selection.selectionMode) 64.dp else 20.dp,
-                titleEndPadding = if (selection.selectionMode) 280.dp else 128.dp,
+                titleEndPadding = if (selection.selectionMode) 328.dp else 128.dp,
                 onDoubleTapTitle = { scrollToTopRequest++ },
                 actions = {
                     if (selection.selectionMode) {
@@ -304,6 +309,10 @@ fun AlbumScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        com.ella.music.ui.components.SelectionBatchEditButton(onClick = {
+                            val selectedSongs = selectedAlbumSongs()
+                            if (selectedSongs.isNotEmpty()) batchEditSongs = selectedSongs
+                        })
                         IconButton(onClick = {
                             val selectedSongs = selectedAlbumSongs()
                             if (selectedSongs.isNotEmpty()) {
@@ -337,6 +346,22 @@ fun AlbumScreen(
                             )
                         }
                     } else {
+                    if (randomAlbumSongs.isNotEmpty()) {
+                        IconButton(onClick = {
+                            playerViewModel.setShuffledPlaylist(
+                                randomAlbumSongs,
+                                0,
+                                songSources = visibleAlbumSongSources()
+                            )
+                        }) {
+                            Icon(
+                                imageVector = com.ella.music.ui.home.HomeDailyShuffleIcon,
+                                contentDescription = stringResource(R.string.shuffle),
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                     IconButton(onClick = {
                         selection.selectionMode = true
                         selection.selectedIds = emptySet()
@@ -395,62 +420,36 @@ fun AlbumScreen(
                         )
                     )
                     }
-                }
-            )
-        }
-
-        AnimatedVisibility(
-            visible = sortExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                AlbumSortMode.entries.forEach { mode ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                LibrarySortUiState.albumListSortIndex = mode.ordinal
-                                scope.launch { mainViewModel.settingsManager.setAlbumListSortIndex(mode.ordinal) }
-                                sortExpanded = false
-                            }
-                            .padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(mode.labelRes),
-                            fontSize = 14.sp,
-                            fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
-                            color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+                },
+                bottomContent = {
+                    if (searchExpanded) {
+                        EllaSearchBar(
+                            query = searchQuery,
+                            onQueryChange = { searchQuery = it },
+                            onSearch = { searchExpanded = false },
+                            placeholder = stringResource(R.string.album_search_placeholder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
                         )
                     }
                 }
-            }
-        }
-
-        if (searchExpanded) {
-            EllaSearchBar(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
-                placeholder = stringResource(R.string.album_search_placeholder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
             )
         }
-
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(albumBackdrop)
+                .background(pageBackground)
+        ) {
         if (albums.isEmpty() && !libraryCacheLoaded) {
-            EllaCenteredLoadingIndicator()
+            EllaCenteredLoadingIndicator(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()))
         } else if (albums.isNotEmpty() && !albumOrderReady) {
-            EllaCenteredLoadingIndicator()
+            EllaCenteredLoadingIndicator(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()))
         } else if (albums.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -459,14 +458,13 @@ fun AlbumScreen(
                 )
             }
         } else {
-            RestoreGridScrollAfterSearch(
-                searchExpanded = searchExpanded,
-                query = searchQuery,
-                gridState = gridState
-            )
+            // #777: expanded search gets its own scroll container — a "search page" inside
+            // the screen — so result scrolling can never overwrite the page position.
+            val searchGridState = rememberSearchGridState(searchExpanded, searchQuery)
+            val activeGridState = if (searchExpanded) searchGridState else gridState
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
-                if (scrollToTopRequest > 0) gridState.animateScrollToItem(0)
+                if (scrollToTopRequest > 0) activeGridState.animateScrollToItem(0)
             }
             // Restoration is applied only to a result calculated from the final pin/sort inputs.
             // requestScrollToItem also disables lazy key anchoring for the next remeasure.
@@ -496,31 +494,12 @@ fun AlbumScreen(
 
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    com.ella.music.ui.components.SortSummaryHeader(
-                        text = stringResource(
-                            R.string.album_list_summary,
-                            sortedAlbums.size,
-                            com.ella.music.ui.components.sortLabel(sortMode.labelRes, sortMode.isDescending())
-                        ),
-                        leadingContent = {
-                            ShuffleAllSummaryButton(
-                                visible = !selection.selectionMode && randomAlbumSongs.isNotEmpty(),
-                                onClick = {
-                                    playerViewModel.setShuffledPlaylist(
-                                        randomAlbumSongs,
-                                        0,
-                                        songSources = visibleAlbumSongSources()
-                                    )
-                                }
-                            )
-                        }
-                    )
-
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(safeGridColumns),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize().dragSelectGrid(gridState, selection, sortedAlbumIds),
+                        state = activeGridState,
+                        modifier = Modifier.fillMaxSize().dragSelectGrid(activeGridState, selection, sortedAlbumIds),
                         contentPadding = PaddingValues(
+                            top = paddingValues.calculateTopPadding() + 8.dp,
                             end = if (showAlbumSideIndex) SideIndexListEndPadding else 0.dp,
                             bottom = 160.dp
                         )
@@ -588,13 +567,13 @@ fun AlbumScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { gridState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { activeGridState.scrollToItem(index) }
                             }
                         }
                     )
                 } else if (showAlbumSideIndex) {
                     LazyGridScrollIndicator(
-                        state = gridState,
+                        state = activeGridState,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -613,8 +592,10 @@ fun AlbumScreen(
                 )
             }
         }
+        }
     }
 
+    com.ella.music.ui.category.SongBatchEditSheetHost(batchEditSongs, mainViewModel) { batchEditSongs = null }
     playlistPickerSongs?.let { songsToAdd ->
         EllaMiuixBottomSheet(
             show = true,
@@ -703,11 +684,27 @@ fun AlbumScreen(
                     ).show()
                     albumMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchAlbumTarget = album; albumMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForAlbum(album.id)
                     albumMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchAlbumTarget?.let { batchAlbum ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "album",
+            category = batchAlbum.name,
+            songs = remember(batchAlbum.id) { mainViewModel.getSongsForAlbum(batchAlbum.id) },
+            specs = com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchAlbumTarget = null }
         )
     }
 

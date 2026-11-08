@@ -27,8 +27,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private val smbAudioExtensions = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "aiff", "aif", "alac", "wma", "ape", "dsf", "dff")
@@ -91,11 +93,13 @@ internal fun SmbScreen(mainViewModel: MainViewModel, playerViewModel: PlayerView
         } finally { loading = false }
     }
     val songs = remember(entries) { entries.filterNot { it.directory }.map { it.toSong() } }
-    Column(Modifier.fillMaxSize().background(ellaPageBackground()).windowInsetsPadding(WindowInsets.statusBars)) {
-        EllaSmallTopAppBar(title = stringResource(R.string.smb_title), color = ellaPageBackground(),
-            navigationIcon = { IconButton(onClick = { back() }) { Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back)) } },
+    val pageBackground = ellaPageBackground()
+    val folderBackdrop = rememberLayerBackdrop()
+    Column(Modifier.fillMaxSize().background(pageBackground)) {
+        EllaSmallTopAppBar(title = stringResource(R.string.smb_title), color = pageBackground, backdrop = folderBackdrop,
+            navigationIcon = { IconButton(onClick = { back() }) { Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back)) } },
             actions = { IconButton(onClick = { settingsVisible = !settingsVisible }) { Icon(MiuixIcons.Regular.Settings, stringResource(R.string.smb_settings)) } })
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 160.dp)) {
+        LazyColumn(Modifier.fillMaxSize().layerBackdrop(folderBackdrop), contentPadding = PaddingValues(bottom = 160.dp)) {
             if (settingsVisible || savedUrl.isBlank()) item {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.smb_address_summary), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
@@ -103,7 +107,7 @@ internal fun SmbScreen(mainViewModel: MainViewModel, playerViewModel: PlayerView
                     WebDavTextField(label = stringResource(R.string.webdav_username), value = username, onValueChange = { username = it })
                     WebDavTextField(label = stringResource(R.string.webdav_password), value = password, onValueChange = { password = it }, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
                     WebDavTextField(label = stringResource(R.string.smb_domain), value = domain, onValueChange = { domain = it })
-                    top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
+                    com.ella.music.ui.components.EllaSpinnerPreference(
                         title = stringResource(R.string.smb_protocol),
                         items = listOf(DropdownItem(stringResource(R.string.smb_protocol_auto)), DropdownItem("SMB 2"), DropdownItem("SMB 3")),
                         selectedIndex = protocol.ordinal,

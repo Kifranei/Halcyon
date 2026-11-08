@@ -12,19 +12,19 @@ import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val miniPlayerLyricSecondary by settingsManager.miniPlayerLyricSecondary.collectAsState(initial = SettingsManager.LYRIC_SECONDARY_TRANSLATION)
-    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
-    val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsState(initial = 0)
-    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
-    val miniPlayerSwipeToOpenPlayer by settingsManager.miniPlayerSwipeToOpenPlayer.collectAsState(initial = true)
-    val lyricSourcePriority by settingsManager.lyricSourcePriority.collectAsState(initial = SettingsManager.DEFAULT_LYRIC_SOURCE_PRIORITY)
+    val miniPlayerLyricSecondary by settingsManager.miniPlayerLyricSecondary.collectAsStateSeeded(initial = SettingsManager.LYRIC_SECONDARY_TRANSLATION)
+    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsStateSeeded(initial = true)
+    val miniPlayerRightButton by settingsManager.miniPlayerRightButton.collectAsStateSeeded(initial = 0)
+    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsStateSeeded(initial = true)
+    val miniPlayerSwipeToOpenPlayer by settingsManager.miniPlayerSwipeToOpenPlayer.collectAsStateSeeded(initial = true)
+    val lyricSourcePriority by settingsManager.lyricSourcePriority.collectAsStateSeeded(initial = SettingsManager.DEFAULT_LYRIC_SOURCE_PRIORITY)
 
     val statusLyricSecondaryLabels = listOf(
         stringResource(R.string.settings_status_secondary_off),
@@ -54,7 +54,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
         SettingsFocusAnchor(active = highlightKey == "mini_player_secondary") {
             // search-anchor:start
             SettingsSearchAnchor(R.string.settings_mini_player_secondary) {
-            WindowSpinnerPreference(
+            EllaSpinnerPreference(
                 title = stringResource(R.string.settings_mini_player_secondary),
                 summary = stringResource(R.string.settings_mini_player_secondary_summary),
                 items = statusLyricSecondaryEntries,
@@ -105,7 +105,7 @@ internal fun SettingsMiniLyricsControls(highlightKey: String? = null) {
     SettingsFocusAnchor(active = highlightKey == "mini_player_right_button") {
         // search-anchor:start
         SettingsSearchAnchor(R.string.settings_mini_player_right_button) {
-        WindowSpinnerPreference(
+        EllaSpinnerPreference(
             title = stringResource(R.string.settings_mini_player_right_button),
             summary = stringResource(R.string.settings_mini_player_right_button_summary),
             items = miniPlayerRightButtonLabels.map { DropdownItem(title = it) },

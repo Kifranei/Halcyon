@@ -56,7 +56,7 @@ import com.ella.music.ui.components.ReorderableSelectionSheet
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -66,7 +66,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -78,13 +78,13 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
     val storedItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
-    val homeSearchTarget by settingsManager.homeSearchTarget.collectAsState(initial = "local")
-    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsState(initial = true)
+    val homeSearchTarget by settingsManager.homeSearchTarget.collectAsStateSeeded(initial = "local")
+    val mergeSearch by settingsManager.bottomDockMergeSearch.collectAsStateSeeded(initial = true)
     val maxSelectableItems = SettingsManager.maxBottomDockItems(mergeSearch)
     val startupItem by settingsManager.bottomDockStartupItem.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_STARTUP_ITEM
     )
-    val startupOpenPlayer by settingsManager.startupOpenPlayer.collectAsState(initial = false)
+    val startupOpenPlayer by settingsManager.startupOpenPlayer.collectAsStateSeeded(initial = false)
     val bottomBarCornerRadius by settingsManager.bottomBarCornerRadius.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_BAR_CORNER_RADIUS_DP
     )
@@ -360,7 +360,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
                 SettingsSearchAnchor(R.string.settings_home_search_target) {
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_home_search_target) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_home_search_target),
                         summary = stringResource(R.string.settings_home_search_target_summary),
                         items = listOf(
@@ -469,7 +469,7 @@ fun BottomNavigationSettingsScreen(onBack: () -> Unit) {
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = MiuixIcons.Regular.Back,
+                        imageVector = GlassChevronBackwardIcon,
                         contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)

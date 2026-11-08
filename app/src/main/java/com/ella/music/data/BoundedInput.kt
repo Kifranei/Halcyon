@@ -32,3 +32,9 @@ internal fun InputStream.readUtf8Bounded(maxBytes: Long): String {
     copyToBoundedOrThrow(output, maxBytes)
     return String(output.toByteArray(), StandardCharsets.UTF_8)
 }
+
+internal fun InputStream.readBytesBounded(maxBytes: Long): ByteArray {
+    val output = ByteArrayOutputStream(minOf(maxBytes, 64L * 1024L).toInt())
+    copyToBoundedOrThrow(output, maxBytes)
+    return output.toByteArray()
+}

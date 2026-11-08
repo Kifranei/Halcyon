@@ -118,6 +118,7 @@ internal fun String?.toCurrentTabRoute(): String? {
         this.isTopLevelRoute(Screen.Album.baseRoute) -> Screen.Album.createRoute(fromDock = true)
         this.isDockSettingsRoute() -> Screen.Settings.createRoute(fromDock = true)
         this.isDockScanSettingsRoute() -> Screen.ScanSettings.createRoute(fromDock = true)
+        this.isSettingsGraphRoute() || this == Screen.About.route -> Screen.Settings.createRoute(fromDock = true)
         this == Screen.Analytics.route -> Screen.Analytics.route
         this == Screen.LibraryAnalysis.route -> Screen.LibraryAnalysis.route
         this.metadataCategoryType() != null -> Screen.MetadataCategory.createRoute(this.metadataCategoryType().orEmpty(), fromDock = true)
@@ -160,6 +161,10 @@ internal fun String?.isSettingsGraphRoute(): Boolean {
         path == "logs" ||
         path == "appearance_subpage" ||
         path.startsWith("appearance_subpage/")
+}
+
+internal fun String?.keepsNavigationRailRoute(): Boolean {
+    return isBottomDockRoute() || isSettingsGraphRoute() || this == Screen.About.route
 }
 
 internal fun String?.isSearchRoute(): Boolean {
@@ -363,6 +368,24 @@ internal fun NavHostController.navigateBottomDockRoute(
 }
 
 /**
+ * Shortcuts, deeplinks and launcher entries stack the target on top of the page the user was
+ * on, so Back returns there instead of the dock tab that was selected before the jump (#745).
+ * A cold start, Home, or the tab already on screen still settles inside the main pager.
+ */
+internal fun NavHostController.navigateShortcutRoute(
+    route: String,
+    selectedMainRoute: String?,
+    coldStart: Boolean
+) {
+    val onMainPages = currentDestination?.route == MAIN_PAGES_ROUTE
+    val sameTab = onMainPages && selectedMainRoute != null &&
+        mainPageIdentity(selectedMainRoute) == mainPageIdentity(route) && !route.isSearchRoute()
+    if ((route == Screen.Home.route || sameTab || (coldStart && onMainPages)) &&
+        MainPageNavigation.select(this, route)) return
+    navigate(route) { launchSingleTop = true }
+}
+
+/**
  * Routes emitted by shared song-information surfaces may be either a real detail page or one of
  * the first-level destinations. Keep both cases on the same navigation policy as the bottom dock
  * so a jump cannot accidentally leave a stale search/settings entry on top of the destination.
@@ -423,7 +446,7 @@ private fun String?.metadataCategoryType(): String? {
     val parts = route.split('/')
     if (parts.size != 2 || parts[0] != Screen.MetadataCategory.baseRoute) return null
     return parts[1].urlDecode().takeIf { type ->
-        type in setOf("folder", "genre", "year", "composer", "arranger", "lyricist")
+        type in setOf("folder", "genre", "year", "composer", "arranger", "lyricist", "producer")
     }
 }
 

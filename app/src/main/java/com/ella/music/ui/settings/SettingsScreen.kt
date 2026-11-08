@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
@@ -54,7 +57,9 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
+import top.yukonga.miuix.kmp.icon.extended.Close
+import top.yukonga.miuix.kmp.glass.GlassIconButton
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -91,6 +96,7 @@ fun SettingsScreen(
     onNavigateToSetupWizard: () -> Unit = {},
     onNavigateToMaintenance: () -> Unit = {},
     onNavigateToOther: () -> Unit = {},
+    onNavigateToExperimental: () -> Unit = {},
     onBack: () -> Unit = {},
     showBackButton: Boolean = true,
     mainViewModel: MainViewModel? = null,
@@ -100,8 +106,8 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { SettingsSearchFocus.reset() }
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val searchHistory by settingsManager.settingsSearchHistory.collectAsState(initial = emptyList())
-    var searchQuery by remember { mutableStateOf("") }
+    val searchHistory by settingsManager.settingsSearchHistory.collectAsStateSeeded(initial = emptyList())
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -191,6 +197,16 @@ fun SettingsScreen(
         0.dp
     }
     val topBarHeight = 56.dp + statusBarHeight
+    val settingsSearchHeight = 56.dp
+    val settingsPageScrollState = rememberSettingsScrollState("settings_root")
+    // #777: expanded search gets its own scroll container — a "search page" inside
+    // the screen — so result scrolling can never overwrite the page position.
+    // #779: nav-entry saved, so opening a result and coming back restores the scrolled
+    // position; leaving search mode and starting a fresh query still opens at the top.
+    val settingsSearchScrollState = rememberSaveable(
+        inSearchMode,
+        saver = androidx.compose.foundation.ScrollState.Saver
+    ) { androidx.compose.foundation.ScrollState(0) }
 
     Box(
         modifier = Modifier
@@ -201,46 +217,12 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .layerBackdrop(settingsBackdrop)
-                .verticalScroll(rememberSettingsScrollState("settings_root"))
+                .verticalScroll(if (inSearchMode) settingsSearchScrollState else settingsPageScrollState)
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(topBarHeight + 8.dp))
+            Spacer(modifier = Modifier.height(topBarHeight + settingsSearchHeight + 8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                EllaSearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    onSearch = {
-                        if (searchQuery.isNotBlank()) {
-                            scope.launch { settingsManager.recordSettingsSearchQuery(searchQuery) }
-                        }
-                    },
-                    placeholder = stringResource(R.string.settings_search_placeholder),
-                    autoFocus = false,
-                    onFocusChange = { searchFocused = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp)
-                )
-                if (inSearchMode) {
-                    Text(
-                        text = stringResource(R.string.common_cancel),
-                        color = MiuixTheme.colorScheme.primary,
-                        fontSize = 16.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                            searchQuery = ""
-                            searchFocused = false
-                            focusManager.clearFocus()
-                            }
-                            .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
-                    )
-                }
-            }
+
 
             if (inSearchMode) {
                 if (searchQuery.isNotBlank()) {
@@ -259,9 +241,9 @@ fun SettingsScreen(
                                         summary = entry.summary,
                                         modifier = Modifier.clickable {
                                             scope.launch { settingsManager.recordSettingsSearchQuery(searchQuery) }
-                                            searchQuery = ""
                                             searchFocused = false
                                             focusManager.clearFocus()
+                                            keyboardController?.hide()
                                             SettingsSearchFocus.select(entry.titleRes, entry.sheet)
                                             openSettingsSearchTarget(entry.target)
                                         }
@@ -374,8 +356,15 @@ fun SettingsScreen(
                 }
 
                 SettingsCardGroup {
-                    ArrowPreference(title = stringResource(R.string.settings_other),
-                        summary = stringResource(R.string.video_tools_summary), onClick = onNavigateToOther)
+                    Column {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_experimental),
+                            summary = stringResource(R.string.settings_experimental_summary),
+                            onClick = onNavigateToExperimental
+                        )
+                        ArrowPreference(title = stringResource(R.string.settings_other),
+                            summary = stringResource(R.string.video_tools_summary), onClick = onNavigateToOther)
+                    }
                 }
 
                 SmallTitle(text = stringResource(R.string.settings_maintenance), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))
@@ -415,13 +404,55 @@ fun SettingsScreen(
                 if (showBackButton) {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Back,
+                            imageVector = GlassChevronBackwardIcon,
                             contentDescription = stringResource(R.string.common_back)
                         )
                     }
                 }
             },
             titleStartPadding = if (showBackButton) 64.dp else 20.dp,
+            bottomContent = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EllaSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onSearch = {
+                            if (searchQuery.isNotBlank()) {
+                                scope.launch { settingsManager.recordSettingsSearchQuery(searchQuery) }
+                            }
+                        },
+                        placeholder = stringResource(R.string.settings_search_placeholder),
+                        autoFocus = false,
+                        onFocusChange = { searchFocused = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (inSearchMode) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        GlassIconButton(
+                            onClick = {
+                                searchQuery = ""
+                                searchFocused = false
+                                focusManager.clearFocus()
+                                keyboardController?.hide()
+                            },
+                            backdrop = settingsBackdrop,
+                            inheritTopBarMaterial = false,
+                            size = 36.dp
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Close,
+                                contentDescription = stringResource(R.string.common_cancel),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            },
             modifier = Modifier.align(Alignment.TopCenter)
         )
     }

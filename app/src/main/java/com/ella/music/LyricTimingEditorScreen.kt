@@ -82,7 +82,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
+import com.ella.music.ui.components.GlassChevronBackwardIcon
 import top.yukonga.miuix.kmp.icon.extended.Download
 import top.yukonga.miuix.kmp.icon.extended.File
 import top.yukonga.miuix.kmp.icon.extended.Pause
@@ -488,17 +488,14 @@ internal fun LyricTimingEditorScreen(
         Modifier
             .fillMaxSize()
             .background(pageBackground)
-            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
             title = stringResource(R.string.settings_lyric_timing_editor),
             color = pageBackground,
-            defaultWindowInsetsPadding = false,
-            titleWindowInsetsPadding = false,
             titleEndPadding = 120.dp,
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(MiuixIcons.Regular.Back, stringResource(R.string.common_back), tint = MiuixTheme.colorScheme.onSurface)
+                    Icon(GlassChevronBackwardIcon, stringResource(R.string.common_back), tint = MiuixTheme.colorScheme.onSurface)
                 }
             },
             actions = {
