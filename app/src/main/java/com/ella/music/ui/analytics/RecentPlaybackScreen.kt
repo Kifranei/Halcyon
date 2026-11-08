@@ -156,7 +156,8 @@ internal enum class RecentPlaybackTab(val routeValue: String, val labelRes: Int)
     Genre("genre", R.string.category_genre),
     Composer("composer", R.string.category_composer),
     Arranger("arranger", R.string.category_arranger),
-    Lyricist("lyricist", R.string.category_lyricist);
+    Lyricist("lyricist", R.string.category_lyricist),
+    Producer("producer", R.string.category_producer);
 
     companion object {
         fun fromRoute(value: String?): RecentPlaybackTab =
@@ -1799,7 +1800,7 @@ internal fun buildRecentPlaybackRowsForResolved(
                 subtitle = formatPlayedToSubtitle(members.size, latest.entry.title, latest.entry.artist),
                 playedAt = latest.entry.playedAt, song = latest.song ?: members.firstOrNull(),
                 entryIds = entries.map { it.entry.entryId },
-                circularArt = kind in setOf(RecentPlaybackTab.Artist, RecentPlaybackTab.Composer, RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist),
+                circularArt = kind in setOf(RecentPlaybackTab.Artist, RecentPlaybackTab.Composer, RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist, RecentPlaybackTab.Producer),
                 kind = kind, entityId = id, albumId = albumId, rowSongs = members, nestedFolder = nestedFolder
             )
         }.sortedByDescending { it.playedAt }
@@ -1829,7 +1830,7 @@ internal fun recentPlaybackRowRoute(row: RecentPlaybackRow): String? = when (row
     RecentPlaybackTab.Folder -> if (row.nestedFolder) Screen.FolderDetail.createRoute(row.entityId)
         else Screen.MetadataCategoryDetail.createRoute("folder", row.entityId)
     RecentPlaybackTab.Year, RecentPlaybackTab.Genre, RecentPlaybackTab.Composer,
-    RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist -> Screen.MetadataCategoryDetail.createRoute(row.kind.routeValue, row.entityId)
+    RecentPlaybackTab.Arranger, RecentPlaybackTab.Lyricist, RecentPlaybackTab.Producer -> Screen.MetadataCategoryDetail.createRoute(row.kind.routeValue, row.entityId)
     else -> null
 }
 
@@ -1912,6 +1913,7 @@ private fun RecentPlaybackTab.countDescriptionRes(): Int = when (this) {
     RecentPlaybackTab.Composer -> R.string.recent_playback_count_composer
     RecentPlaybackTab.Arranger -> R.string.recent_playback_count_arranger
     RecentPlaybackTab.Lyricist -> R.string.recent_playback_count_lyricist
+    RecentPlaybackTab.Producer -> R.string.recent_playback_count_producer
 }
 
 private fun formatPlayedToSubtitle(songCount: Int, title: String, artist: String): String {
@@ -1932,6 +1934,7 @@ private fun formatCollectionTitle(tab: RecentPlaybackTab, name: String): String 
         RecentPlaybackTab.Composer -> "作曲家"
         RecentPlaybackTab.Arranger -> "编曲家"
         RecentPlaybackTab.Lyricist -> "作词家"
+        RecentPlaybackTab.Producer -> "制作人"
         else -> return name
     }
     return "$prefix：$name"
@@ -1981,7 +1984,8 @@ private fun resolveRecentRowSongs(
         RecentPlaybackTab.Genre,
         RecentPlaybackTab.Composer,
         RecentPlaybackTab.Arranger,
-        RecentPlaybackTab.Lyricist ->
+        RecentPlaybackTab.Lyricist,
+        RecentPlaybackTab.Producer ->
             mainViewModel.getSongsForMetadataCategory(row.kind.routeValue, row.entityId).ifEmpty { fallback }
         RecentPlaybackTab.Collection -> fallback
     }

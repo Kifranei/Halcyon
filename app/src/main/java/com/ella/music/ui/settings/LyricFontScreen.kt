@@ -68,7 +68,7 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Download
@@ -320,13 +320,13 @@ fun LyricFontScreen(
                             Column {
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_global_western) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_global_western),
                                     summary = globalWesternDisplayName,
                                     items = westernOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = westernOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setGlobalFont(chosen.name, chosen.path, globalCjkFontName, globalCjkFontPath)
                                             notifyDesktopLyricFontChanged(context, settingsManager)
@@ -337,13 +337,13 @@ fun LyricFontScreen(
 
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_global_cjk) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_global_cjk),
                                     summary = globalCjkDisplayName,
                                     items = cjkOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setGlobalFont(globalWesternFontName, globalWesternFontPath, chosen.name, chosen.path)
                                             notifyDesktopLyricFontChanged(context, settingsManager)
@@ -395,13 +395,13 @@ fun LyricFontScreen(
                             Column {
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_original_western) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_original_western),
                                     summary = originalWesternDisplayName,
                                     items = westernOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = westernOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setLyricOriginalFont(chosen.name, chosen.path, originalCjkFontName, originalCjkFontPath)
                                             notifyDesktopLyricFontChanged(context, settingsManager)
@@ -412,13 +412,13 @@ fun LyricFontScreen(
 
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_original_cjk) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_original_cjk),
                                     summary = originalCjkDisplayName,
                                     items = cjkOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setLyricOriginalFont(originalWesternFontName, originalWesternFontPath, chosen.name, chosen.path)
                                             notifyDesktopLyricFontChanged(context, settingsManager)
@@ -470,13 +470,13 @@ fun LyricFontScreen(
                             Column {
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_translation_western) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_translation_western),
                                     summary = translationWesternDisplayName,
                                     items = westernOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(westernOptions, westernPath, "Inter Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = westernOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = westernOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setLyricTranslationFont(chosen.name, chosen.path, translationCjkFontName, translationCjkFontPath)
                                             notifyDesktopLyricFontChanged(context, settingsManager)
@@ -487,13 +487,13 @@ fun LyricFontScreen(
 
                                 // search-anchor:start
                                 SettingsSearchAnchor(R.string.settings_font_translation_cjk) {
-                                WindowSpinnerPreference(
+                                EllaSpinnerPreference(
                                     title = stringResource(R.string.settings_font_translation_cjk),
                                     summary = translationCjkDisplayName,
                                     items = cjkOptions.map { DropdownItem(title = it.name) },
                                     selectedIndex = resolveFontDropdownSelectedIndex(cjkOptions, cjkPath, "MiSans Bold"),
                                     onSelectedIndexChange = { index ->
-                                        val chosen = cjkOptions.getOrNull(index) ?: return@WindowSpinnerPreference
+                                        val chosen = cjkOptions.getOrNull(index) ?: return@EllaSpinnerPreference
                                         scope.launch {
                                             settingsManager.setLyricTranslationFont(translationWesternFontName, translationWesternFontPath, chosen.name, chosen.path)
                                             notifyDesktopLyricFontChanged(context, settingsManager)

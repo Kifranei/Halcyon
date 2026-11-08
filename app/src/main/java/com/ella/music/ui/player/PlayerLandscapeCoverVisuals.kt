@@ -69,9 +69,13 @@ internal fun LandscapeCoverModeBackground(
     customBackgroundOpacity: Float = 1f,
     customBackgroundDim: Float = 0.26f,
     beautifulLyricsBackground: Boolean = false,
+    videoDimAlpha: Float = 0.24f,
     modifier: Modifier = Modifier
 ) {
     val musicVideoSource = dynamicCoverSource?.takeIf { it.preferLandscapeBackground }
+    // Same retention as SharedPlayerPageBackground: a null cover mid-swap must not collapse the
+    // flow surface, or every track change restarts it on a blank frame.
+    val retainedFlowCover = rememberRetainedFlowCover(embeddedCover ?: paletteBitmap)
     Box(modifier = modifier.background(if (musicVideoSource != null) Color.Black else palette.middle)) {
         if (musicVideoSource != null) {
             val context = LocalContext.current
@@ -93,11 +97,13 @@ internal fun LandscapeCoverModeBackground(
                     AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.24f))
-            )
+            if (videoDimAlpha > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = videoDimAlpha))
+                )
+            }
         } else if (customBackgroundUri.isNotBlank()) {
             PlayerCustomBackground(
                 uri = customBackgroundUri,
@@ -108,7 +114,7 @@ internal fun LandscapeCoverModeBackground(
         } else if (beautifulLyricsBackground) {
             BeautifulLyricsDynamicBackground(
                 palette = palette,
-                coverBitmap = embeddedCover ?: paletteBitmap,
+                coverBitmap = retainedFlowCover,
                 positionMs = currentPosition,
                 isPlaying = isPlaying,
                 animate = true,
@@ -117,7 +123,7 @@ internal fun LandscapeCoverModeBackground(
         } else {
             val flowAlpha = if (visualizerEnabled) visualizerOpacity.coerceIn(0f, 1f) else 1f
             AppleCoverFlowBackground(
-                coverBitmap = embeddedCover ?: paletteBitmap,
+                coverBitmap = retainedFlowCover,
                 backgroundColor = palette.middle,
                 isDark = !palette.isLight,
                 isPlaying = isPlaying,

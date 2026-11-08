@@ -98,6 +98,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -111,7 +112,8 @@ fun FolderDetailScreen(
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onFolderClick: (String) -> Unit,
-    onNavigateToPlayer: () -> Unit
+    onNavigateToPlayer: () -> Unit,
+    onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val librarySongs by mainViewModel.songs.collectAsState()
@@ -171,7 +173,7 @@ fun FolderDetailScreen(
         saveScope.launch { mainViewModel.settingsManager.setFolderDetailSongSortIndex(nextSortIndex) }
     }
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
-    val listState = rememberSaveable(normalizedFolderPath, saver = LazyListState.Saver) { LazyListState() }
+    val listState = com.ella.music.ui.components.rememberDetailListState(normalizedFolderPath)
     var unpinToTopPath by remember(normalizedFolderPath) { mutableStateOf<String?>(null) }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
@@ -449,6 +451,14 @@ fun FolderDetailScreen(
                             )
                         )
                     )
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }

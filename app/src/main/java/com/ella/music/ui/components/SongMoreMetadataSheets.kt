@@ -173,6 +173,7 @@ internal fun SongMetadataEditorSheet(
     var composer by remember(tagInfo) { mutableStateOf(tagInfo?.composer.orEmpty()) }
     var arranger by remember(tagInfo) { mutableStateOf(tagInfo?.arranger.orEmpty()) }
     var lyricist by remember(tagInfo) { mutableStateOf(tagInfo?.lyricist.orEmpty()) }
+    var producer by remember(tagInfo) { mutableStateOf(tagInfo?.producer.orEmpty()) }
     var songwriters by remember(tagInfo) { mutableStateOf(tagInfo?.songwriters.orEmpty().ifBlank { fullTagInfo?.songwriters.orEmpty() }) }
     var copyright by remember(tagInfo) { mutableStateOf(tagInfo?.copyright.orEmpty()) }
     var comment by remember(tagInfo) { mutableStateOf(tagInfo?.comment.orEmpty()) }
@@ -247,6 +248,7 @@ internal fun SongMetadataEditorSheet(
             composer = composer.takeIf { v -> v != currentTagInfo.composer },
             arranger = arranger.takeIf { v -> v != currentTagInfo.arranger },
             lyricist = lyricist.takeIf { v -> v != currentTagInfo.lyricist },
+            producer = producer.takeIf { v -> v != currentTagInfo.producer },
             songwriters = songwriters.takeIf { v -> v != currentTagInfo.songwriters && v != fullTagInfo?.songwriters },
             copyright = copyright.takeIf { v -> v != currentTagInfo.copyright },
             comment = comment.takeIf { v -> v != currentTagInfo.comment },
@@ -405,6 +407,7 @@ internal fun SongMetadataEditorSheet(
                 MetadataField(stringResource(R.string.song_more_metadata_composer), composer) { composer = it }
                 MetadataField(stringResource(R.string.song_more_metadata_arranger), arranger) { arranger = it }
                 MetadataField(stringResource(R.string.song_more_metadata_lyricist), lyricist) { lyricist = it }
+                MetadataField(stringResource(R.string.player_detail_producer), producer) { producer = it }
                 MetadataField(stringResource(R.string.song_more_metadata_songwriters), songwriters) { songwriters = it }
                 MetadataField(stringResource(R.string.song_more_metadata_copyright), copyright) { copyright = it }
                 MetadataField(stringResource(R.string.song_more_metadata_comment), comment) { comment = it }
@@ -597,6 +600,7 @@ internal fun SongMetadataEditorSheet(
                     composer = match.tags.composer ?: composer
                     arranger = match.tags.arranger ?: arranger
                     lyricist = match.tags.lyricist ?: lyricist
+                    producer = match.tags.producer ?: producer
                     songwriters = match.tags.songwriters ?: songwriters
                     copyright = match.tags.copyright ?: copyright
                     comment = match.tags.comment ?: comment

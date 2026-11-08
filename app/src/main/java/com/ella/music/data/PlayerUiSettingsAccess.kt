@@ -89,6 +89,7 @@ import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_SONG_ANNOTA
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_SHOW_TOTAL_DURATION
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_TAP_SEEK_ENABLED
 import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_TITLE_POSITION
+import com.ella.music.data.SettingsManager.Companion.KEY_PLAYER_QUALITY_CHIP_OUTLINE
 import com.ella.music.data.SettingsManager.Companion.KEY_TRANSPORT_BUTTON_OUTLINES
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -120,6 +121,7 @@ interface PlayerUiSettingsAccess {
     val playerProgressLongPressCycle: Flow<Boolean>
     val playerProgressInfoSeparated: Flow<Boolean>
     val transportButtonOutlines: Flow<Boolean>
+    val playerQualityChipOutline: Flow<Boolean>
     val playerTapSeekEnabled: Flow<Boolean>
     val playerShowTotalDuration: Flow<Boolean>
     val playerShowSongAnnotation: Flow<Boolean>
@@ -222,10 +224,19 @@ interface PlayerUiSettingsAccess {
     suspend fun setPlayerProgressLongPressCycle(enabled: Boolean)
     suspend fun setPlayerProgressInfoSeparated(enabled: Boolean)
     suspend fun setTransportButtonOutlines(enabled: Boolean)
+    suspend fun setPlayerQualityChipOutline(enabled: Boolean)
     suspend fun setPlayerHdrGlow(enabled: Boolean)
     suspend fun setPlayerImmersiveCover(enabled: Boolean)
     suspend fun setAppleMusicPlayerImmersiveCover(enabled: Boolean)
     suspend fun setPlayerCenterTitle(enabled: Boolean)
+    val playerShowFavoriteButton: Flow<Boolean>
+    val playerTitleMarquee: Flow<Boolean>
+    val playerSubtitleMarquee: Flow<Boolean>
+    val playerTitleOpensAlbum: Flow<Boolean>
+    suspend fun setPlayerShowFavoriteButton(enabled: Boolean)
+    suspend fun setPlayerTitleMarquee(enabled: Boolean)
+    suspend fun setPlayerSubtitleMarquee(enabled: Boolean)
+    suspend fun setPlayerTitleOpensAlbum(enabled: Boolean)
     suspend fun setAppleMusicUseAppleFavorite(enabled: Boolean)
     suspend fun setPlayerAlbumCoverCornerRadius(value: Int)
     suspend fun setPlayerMusicVideoCornerRadius(value: Int)
@@ -340,6 +351,11 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
             it[KEY_TRANSPORT_BUTTON_OUTLINES]
                 ?: SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
         }
+    override val playerQualityChipOutline: Flow<Boolean> =
+        context.dataStore.data.map {
+            it[KEY_PLAYER_QUALITY_CHIP_OUTLINE]
+                ?: SettingsManager.DEFAULT_PLAYER_QUALITY_CHIP_OUTLINE
+        }
     override val playerTapSeekEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_TAP_SEEK_ENABLED] ?: true }
     override val playerShowTotalDuration: Flow<Boolean> =
@@ -416,6 +432,14 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
     override val appleMusicPlayerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_APPLE_MUSIC_PLAYER_IMMERSIVE_COVER] ?: false }
     override val playerCenterTitle: Flow<Boolean> = context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_CENTER_TITLE] ?: false }
+    override val playerShowFavoriteButton: Flow<Boolean> =
+        context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_SHOW_FAVORITE_BUTTON] ?: true }
+    override val playerTitleMarquee: Flow<Boolean> =
+        context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_TITLE_MARQUEE] ?: true }
+    override val playerSubtitleMarquee: Flow<Boolean> =
+        context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_SUBTITLE_MARQUEE] ?: true }
+    override val playerTitleOpensAlbum: Flow<Boolean> =
+        context.dataStore.data.map { it[SettingsManager.KEY_PLAYER_TITLE_OPENS_ALBUM] ?: false }
     override val appleMusicUseAppleFavorite: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_APPLE_MUSIC_USE_APPLE_FAVORITE] ?: true }
     override val playerFavoriteHeartPink: Flow<Boolean> =
@@ -666,6 +690,10 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
         context.dataStore.edit { it[KEY_TRANSPORT_BUTTON_OUTLINES] = enabled }
     }
 
+    override suspend fun setPlayerQualityChipOutline(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PLAYER_QUALITY_CHIP_OUTLINE] = enabled }
+    }
+
     override suspend fun setPlayerHdrGlow(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_HDR_GLOW] = enabled }
     }
@@ -680,6 +708,22 @@ internal class PlayerUiSettingsAccessImpl(private val context: Context) : Player
 
     override suspend fun setPlayerCenterTitle(enabled: Boolean) {
         context.dataStore.edit { it[SettingsManager.KEY_PLAYER_CENTER_TITLE] = enabled }
+    }
+
+    override suspend fun setPlayerShowFavoriteButton(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_PLAYER_SHOW_FAVORITE_BUTTON] = enabled }
+    }
+
+    override suspend fun setPlayerTitleMarquee(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_PLAYER_TITLE_MARQUEE] = enabled }
+    }
+
+    override suspend fun setPlayerSubtitleMarquee(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_PLAYER_SUBTITLE_MARQUEE] = enabled }
+    }
+
+    override suspend fun setPlayerTitleOpensAlbum(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsManager.KEY_PLAYER_TITLE_OPENS_ALBUM] = enabled }
     }
 
     override suspend fun setAppleMusicUseAppleFavorite(enabled: Boolean) {

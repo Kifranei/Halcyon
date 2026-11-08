@@ -77,6 +77,7 @@ import com.ella.music.data.model.albumIdentityId
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -90,7 +91,8 @@ fun FolderScreen(
     onNavigateToPlayer: () -> Unit,
     onNavigateToLibraryAnalysis: () -> Unit,
     onNavigateToScanSettings: () -> Unit,
-    onFolderClick: (String) -> Unit
+    onFolderClick: (String) -> Unit,
+    onClose: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -245,6 +247,14 @@ fun FolderScreen(
                             saveScope.launch { mainViewModel.settingsManager.setFolderListSortIndex(mode.ordinal) }
                         }
                     )
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = stringResource(R.string.common_close),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             )
         }

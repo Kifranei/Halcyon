@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class ArtistBiographyMatchRule(val search: String, val alias: String,
-    val enabled: Boolean = true, val sources: Set<String> = emptySet())
+    val enabled: Boolean = true, val sources: Set<String> = emptySet(), val updatedAt: Long = 0L)
 
 val artistBiographyProviderNames = linkedMapOf("qq" to "QQ音乐", "kugou" to "酷狗音乐",
     "kuwo" to "酷我音乐", "netease" to "网易云音乐", "lastfm" to "Last.fm", "wikipedia" to "Wikipedia")
@@ -17,10 +17,16 @@ fun normalizeArtistBiographyMatchRules(rules: List<ArtistBiographyMatchRule>): L
             sources = rule.sources.filter { it in artistBiographyProviderNames }.toSet())
     }.distinctBy { Triple(it.search.lowercase(Locale.ROOT), it.alias, it.sources) }
 
+/** Edited and newly added rules stay first. Untouched entries keep reverse stored order. */
+fun List<ArtistBiographyMatchRule>.recentEditOrder(): List<ArtistBiographyMatchRule> =
+    withIndex().sortedWith(
+        compareByDescending<IndexedValue<ArtistBiographyMatchRule>> { it.value.updatedAt }.thenByDescending { it.index }
+    ).map { it.value }
+
 fun encodeArtistBiographyMatchRules(rules: List<ArtistBiographyMatchRule>): String = JSONArray().apply {
     normalizeArtistBiographyMatchRules(rules).forEach { rule ->
         put(JSONObject().put("search", rule.search).put("alias", rule.alias).put("enabled", rule.enabled)
-            .put("sources", JSONArray(rule.sources.sorted())))
+            .put("sources", JSONArray(rule.sources.sorted())).put("updatedAt", rule.updatedAt))
     }
 }.toString()
 
@@ -30,7 +36,8 @@ fun decodeArtistBiographyMatchRules(json: String): List<ArtistBiographyMatchRule
         val entry = array.optJSONObject(index) ?: return@mapNotNull null
         val sources = entry.optJSONArray("sources")
         ArtistBiographyMatchRule(entry.optString("search"), entry.optString("alias"), entry.optBoolean("enabled", true),
-            if (sources == null) emptySet() else (0 until sources.length()).map { sources.optString(it) }.toSet())
+            if (sources == null) emptySet() else (0 until sources.length()).map { sources.optString(it) }.toSet(),
+            entry.optLong("updatedAt", 0L))
     })
 }.getOrDefault(emptyList())
 

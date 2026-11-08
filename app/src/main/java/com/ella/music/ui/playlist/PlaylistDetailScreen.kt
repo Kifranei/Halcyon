@@ -118,7 +118,7 @@ fun PlaylistDetailScreen(
     val songs = remember(playlist, librarySongs, fiveStarSongs, isFiveStarPlaylist) {
         if (isFiveStarPlaylist) fiveStarSongs else playlist?.let(mainViewModel::playlistSongs).orEmpty()
     }
-    val listState = rememberLazyListState()
+    val listState = com.ella.music.ui.components.rememberDetailListState(playlistId)
     val scope = rememberCoroutineScope()
     var actionSong by remember { mutableStateOf<com.ella.music.data.model.Song?>(null) }
     val sortIndex by mainViewModel.settingsManager.playlistDetailSongSortIndex.collectAsState(initial = 2)

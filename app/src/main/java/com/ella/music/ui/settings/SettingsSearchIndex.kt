@@ -42,6 +42,7 @@ internal data class SettingsSearchDefinition(
 private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.video_tools_title, R.string.video_tools_summary, "视频 m3u m3u8 mp4 播放 下载 video player", SettingsSearchTarget.Page("video_player")),
     SettingsSearchDefinition(R.string.settings_other, null, "其他 视频 other", SettingsSearchTarget.Page("other_settings")),
+    SettingsSearchDefinition(R.string.settings_experimental, R.string.settings_experimental_summary, "实验 测试 淡入淡出 experimental crossfade", SettingsSearchTarget.Page("experimental_settings")),
     SettingsSearchDefinition(R.string.settings_setup_wizard, R.string.settings_setup_wizard_summary, "向导 引导 初始设置 新手 setup", SettingsSearchTarget.SetupWizard),
     SettingsSearchDefinition(R.string.settings_appearance_home, R.string.settings_appearance_home_summary, "主题 深色 浅色 跟随系统 语言 图标 壁纸 启动画面 底栏 沉浸 播放页 背景 theme language appearance", SettingsSearchTarget.AppearanceHub),
     SettingsSearchDefinition(R.string.settings_bottom_dock_items, R.string.settings_bottom_dock_items_summary, "底栏 底部导航 导航栏 入口 顺序 预览 搜索 dock navigation", SettingsSearchTarget.BottomNavigation),
@@ -61,6 +62,7 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_search_click_playback_mode, R.string.settings_search_click_playback_mode_summary, "搜索 点击 下一首 队列 替换", SettingsSearchTarget.Appearance("search_click_playback_mode")),
     SettingsSearchDefinition(R.string.settings_theme_mode, null, "主题 深色 浅色 跟随系统 外观", SettingsSearchTarget.Appearance("theme_mode")),
     SettingsSearchDefinition(R.string.settings_progressive_top_bar_blur, R.string.settings_progressive_top_bar_blur_summary, "顶栏 渐进 模糊 blur", SettingsSearchTarget.Appearance("progressive_top_bar_blur")),
+    SettingsSearchDefinition(R.string.settings_top_bar_liquid_glass, R.string.settings_top_bar_liquid_glass_summary, "顶栏 液态玻璃 折射 色散 liquid glass refraction", SettingsSearchTarget.Appearance("top_bar_liquid_glass")),
     SettingsSearchDefinition(R.string.settings_language, null, "语言 language app language system 系统 英文 中文", SettingsSearchTarget.Appearance("language")),
     SettingsSearchDefinition(R.string.settings_app_icon, R.string.settings_app_icon_summary, "图标 启动器 传统 音符 海浪 icon anime loli traditional", SettingsSearchTarget.Appearance("app_icon")),
     SettingsSearchDefinition(R.string.settings_recents_icon_system_theme, R.string.settings_recents_icon_system_theme_summary, "最近任务 图标 系统主题 MIUI 方形 recents icon theme", SettingsSearchTarget.Appearance("app_icon")),
@@ -75,6 +77,7 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_player_show_song_annotation, R.string.settings_player_show_song_annotation_summary, "播放页 歌曲注释 annotation", SettingsSearchTarget.Appearance("player_show_song_annotation")),
     SettingsSearchDefinition(R.string.settings_player_tap_seek, R.string.settings_player_tap_seek_summary, "进度条 点击 跳转 拖动", SettingsSearchTarget.Appearance("player_tap_seek")),
     SettingsSearchDefinition(R.string.settings_transport_button_outlines, R.string.settings_transport_button_outlines_summary, "播放页 控制 按钮 轮廓 外框", SettingsSearchTarget.Appearance("transport_button_outlines")),
+    SettingsSearchDefinition(R.string.settings_player_quality_chip_outline, R.string.settings_player_quality_chip_outline_summary, "播放页 进度条 音质 标签 轮廓 外框", SettingsSearchTarget.Appearance("player_quality_chip_outline")),
     SettingsSearchDefinition(R.string.settings_player_landscape_style, null, "横屏播放 宽屏 歌词 CoverFlow MV 流光 经典分栏 铺满封面", SettingsSearchTarget.Appearance("player_landscape")),
     SettingsSearchDefinition(R.string.settings_player_clock_color, null, "时钟 横屏 封面取色 白色 浅灰色 clock color", SettingsSearchTarget.Appearance("player_landscape")),
     SettingsSearchDefinition(R.string.settings_beautiful_lyrics_background, R.string.settings_beautiful_lyrics_background_summary, "Apple Music 动态背景 歌词页 流光 取色", SettingsSearchTarget.Appearance("beautiful_lyrics")),
@@ -85,6 +88,8 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_dynamic_cover, R.string.settings_dynamic_cover_summary, "视频封面 动态封面 mp4 MV 文件夹", SettingsSearchTarget.CoverMedia("dynamic_cover")),
     SettingsSearchDefinition(R.string.settings_music_video_sync, R.string.settings_music_video_sync_summary, "MV 音乐视频 同步 静音", SettingsSearchTarget.CoverMedia("music_video")),
     SettingsSearchDefinition(R.string.settings_artist_cover_folder, R.string.settings_artist_cover_folder_summary, "艺术家 歌手 封面 动态封面 视频 图片目录", SettingsSearchTarget.CoverMedia("artist_cover_folder")),
+    SettingsSearchDefinition(R.string.settings_artist_wordmark_folder, R.string.settings_artist_wordmark_folder_summary, "艺术字 艺术家 名称 图片 logo wordmark", SettingsSearchTarget.CoverMedia("artist_wordmark_folder")),
+    SettingsSearchDefinition(R.string.settings_album_case_effect, R.string.settings_album_case_effect_summary, "专辑盒 CD盒 3D 介绍页 封面 打开", SettingsSearchTarget.CoverMedia("album_case_effect")),
     SettingsSearchDefinition(R.string.settings_artist_image_download, R.string.settings_artist_image_download_summary, "艺术家 图片 封面 自动下载 Last.fm Spotify 网易云", SettingsSearchTarget.CoverMedia("artist_image_download")),
     SettingsSearchDefinition(R.string.settings_artist_image_sources, R.string.settings_artist_image_sources_summary, "艺术家 图片 封面 来源 优先级 Last.fm Spotify 网易云 酷狗 QQ音乐", SettingsSearchTarget.CoverMedia("artist_image_sources")),
 
@@ -121,7 +126,7 @@ private val manualSettingsSearchCatalog = listOf(
     SettingsSearchDefinition(R.string.settings_enable_super_lyric, R.string.settings_enable_super_lyric_summary, "超级歌词 状态栏 通知 横幅 蓝牙", SettingsSearchTarget.Lyrics("lyric_output")),
     SettingsSearchDefinition(R.string.settings_enable_coloros_lock_screen_lyric, R.string.settings_enable_coloros_lock_screen_lyric_summary, "ColorOS 锁屏岛 歌词 OPPO 一加", SettingsSearchTarget.Lyrics("coloros_lock_screen_lyric")),
 
-    SettingsSearchDefinition(R.string.settings_audio, R.string.settings_audio_summary, "播放 无缝 gapless 淡入淡出 crossfade ReplayGain 随机 解码 焦点 蓝牙 伴奏", SettingsSearchTarget.Audio("audio_playback")),
+    SettingsSearchDefinition(R.string.settings_audio, R.string.settings_audio_summary, "播放 无缝 gapless ReplayGain 随机 解码 焦点 蓝牙 伴奏", SettingsSearchTarget.Audio("audio_playback")),
     SettingsSearchDefinition(R.string.settings_usb_dac_mode, R.string.settings_usb_dac_mode_summary, "USB DAC 独占 高解析 输出 位深 采样率", SettingsSearchTarget.Audio("audio_output")),
     SettingsSearchDefinition(R.string.settings_decoder, R.string.settings_audio_decoder_auto_summary, "解码 FFmpeg 系统 音频焦点", SettingsSearchTarget.Audio("audio_system")),
     SettingsSearchDefinition(R.string.equalizer_screen_title, R.string.settings_audio_equalizer_summary, "均衡器 EQ 低音 高音 音效", SettingsSearchTarget.Equalizer("equalizer")),

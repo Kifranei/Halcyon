@@ -34,6 +34,8 @@ import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import java.util.Locale
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Search
 
 @Composable
 internal fun LibrarySearchAuxiliarySurfaces(
@@ -69,6 +71,7 @@ internal fun LibrarySearchAuxiliarySurfaces(
     var folderToBlock by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val folderPlaylists by settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     var associateFolderPath by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var batchEditTarget by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<SearchActionTarget?>(null) }
 
     actionTarget?.let { target ->
         EllaMiuixBottomSheet(
@@ -150,6 +153,48 @@ internal fun LibrarySearchAuxiliarySurfaces(
                         icon = ActionMenuCommonIcons.block
                     )
                 }
+                // #725 §4: the same image-search / batch-edit / delete entries the category
+                // long-press menus expose, minus pinning.
+                val imageSearchName = when (target) {
+                    is SearchActionTarget.ArtistTarget -> target.artist.name
+                    is SearchActionTarget.CategoryTarget ->
+                        target.item.name.takeIf { target.type in com.ella.music.ui.category.ARTIST_IMAGE_CATEGORY_TYPES }
+                    else -> null
+                }
+                if (imageSearchName != null) {
+                    EllaMiuixMenuItem(
+                        text = stringResource(R.string.artist_image_search),
+                        icon = MiuixIcons.Regular.Search,
+                        onClick = {
+                            com.ella.music.ArtistImageSearchActivity.open(context, imageSearchName)
+                            onActionTargetChange(null)
+                        }
+                    )
+                }
+                val batchSpecs = when (target) {
+                    is SearchActionTarget.AlbumTarget -> com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS
+                    is SearchActionTarget.ArtistTarget -> com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS
+                    is SearchActionTarget.CategoryTarget -> com.ella.music.ui.category.batchFieldSpecs(target.type, target.item.name)
+                    else -> emptyList()
+                }
+                if (batchSpecs.isNotEmpty()) {
+                    EllaMiuixMenuItem(
+                        text = stringResource(R.string.category_batch_edit),
+                        icon = ActionMenuCommonIcons.edit,
+                        onClick = {
+                            batchEditTarget = target
+                            onActionTargetChange(null)
+                        }
+                    )
+                }
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.song_more_delete_permanently),
+                    onClick = {
+                        onPendingDeleteSongsChange(songsForActionTarget(target))
+                        onActionTargetChange(null)
+                    },
+                    danger = true
+                )
             }
         }
     }
@@ -205,6 +250,31 @@ internal fun LibrarySearchAuxiliarySurfaces(
                 folderToBlock = null
             }
         )
+    }
+
+    batchEditTarget?.let { batchTarget ->
+        val specs = when (batchTarget) {
+            is SearchActionTarget.AlbumTarget -> com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS
+            is SearchActionTarget.ArtistTarget -> com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS
+            is SearchActionTarget.CategoryTarget -> com.ella.music.ui.category.batchFieldSpecs(batchTarget.type, batchTarget.item.name)
+            else -> emptyList()
+        }
+        val batchType = when (batchTarget) {
+            is SearchActionTarget.AlbumTarget -> "album"
+            is SearchActionTarget.ArtistTarget -> "artist"
+            is SearchActionTarget.CategoryTarget -> batchTarget.type
+            else -> "search"
+        }
+        if (specs.isNotEmpty()) {
+            com.ella.music.ui.category.BatchTagEditSheet(
+                type = batchType,
+                category = batchTarget.title,
+                songs = songsForActionTarget(batchTarget),
+                specs = specs,
+                mainViewModel = mainViewModel,
+                onDismiss = { batchEditTarget = null }
+            )
+        }
     }
 
     playlistPickerSongs?.let { songsToAdd ->

@@ -101,6 +101,24 @@ class ActionMenuLayoutTest {
     }
 
     @Test
+    fun songInfoCreditsLandAfterLyricistOnAnOlderLayout() {
+        val added = setOf(
+            ActionMenuIds.SONG_INFO_PRODUCER,
+            ActionMenuIds.SONG_INFO_COPYRIGHT,
+            ActionMenuIds.SONG_INFO_LANGUAGE,
+            ActionMenuIds.SONG_INFO_CUSTOM
+        )
+        val saved = ActionMenuIds.songInfoDefaults.filterNot { it in added }
+        val layout = ActionMenuLayout.parse(saved.joinToString(",") + ";", ActionMenuIds.songInfoDefaults)
+        val order = layout.order
+        assertEquals(order.indexOf(ActionMenuIds.SONG_INFO_LYRICIST) + 1, order.indexOf(ActionMenuIds.SONG_INFO_PRODUCER))
+        assertEquals(order.indexOf(ActionMenuIds.SONG_INFO_PRODUCER) + 1, order.indexOf(ActionMenuIds.SONG_INFO_COPYRIGHT))
+        assertEquals(order.indexOf(ActionMenuIds.SONG_INFO_COPYRIGHT) + 1, order.indexOf(ActionMenuIds.SONG_INFO_LANGUAGE))
+        assertEquals(order.indexOf(ActionMenuIds.SONG_INFO_LANGUAGE) + 1, order.indexOf(ActionMenuIds.SONG_INFO_CUSTOM))
+        assertTrue(added.all { it in layout.visibleIds(ActionMenuIds.songInfoDefaults) })
+    }
+
+    @Test
     fun songModifiedTimeParsesTheDisplayedFormat() {
         val parsed = parseSongDateTime("2026-08-26 06:30:15")
         assertTrue(parsed != null && parsed > 0L)

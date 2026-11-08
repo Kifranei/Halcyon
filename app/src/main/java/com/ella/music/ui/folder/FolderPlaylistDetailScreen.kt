@@ -149,19 +149,47 @@ fun FolderPlaylistDetailScreen(
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
     }
-    val allPlaylistSongs = remember(playlist, songs) {
-        playlist?.let { songs.songsForFolderPlaylist(it.folders) }.orEmpty()
-    }
-    val playlistSongs = remember(allPlaylistSongs, playlist?.hiddenFolders) {
-        val hiddenFolders = playlist?.hiddenFolders.orEmpty().map { it.normalizeFolderPath() }
-        allPlaylistSongs.filterNot { song ->
-            val songFolder = song.folderPath().normalizeFolderPath()
-            hiddenFolders.any { hidden ->
-                songFolder.equals(hidden, ignoreCase = true) ||
-                    songFolder.startsWith("${hidden.trimEnd('/')}/", ignoreCase = true)
+    // Library-size × folder-count derivations ran inside composition; on a large library each
+    // `songs` emission used to freeze a whole frame. Compute them off the main thread.
+    val folderPlaylistDerived by produceState(
+        initialValue = FolderPlaylistDerived.Empty,
+        playlist,
+        songs
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val allSongs = playlist?.let { songs.songsForFolderPlaylist(it.folders) }.orEmpty()
+            val hiddenFolders = playlist?.hiddenFolders.orEmpty().map { it.normalizeFolderPath() }
+            val plSongs = if (hiddenFolders.isEmpty()) allSongs else allSongs.filterNot { song ->
+                val songFolder = song.folderPath().normalizeFolderPath()
+                hiddenFolders.any { hidden ->
+                    songFolder.equals(hidden, ignoreCase = true) ||
+                        songFolder.startsWith("${hidden.trimEnd('/')}/", ignoreCase = true)
+                }
             }
+            val fEntries = playlist?.folders.orEmpty().mapNotNull { folderPath ->
+                val normalized = folderPath.normalizeFolderPath()
+                val folderSongs = songs.filter {
+                    val songFolder = it.folderPath().normalizeFolderPath()
+                    songFolder.equals(normalized, ignoreCase = true) ||
+                        songFolder.startsWith("${normalized.trimEnd('/')}/", ignoreCase = true)
+                }
+                if (folderSongs.isEmpty()) return@mapNotNull null
+                FolderPlaylistFolderEntry(
+                    path = folderPath,
+                    displayName = folderPath.folderDisplayName(""),
+                    songCount = folderSongs.size,
+                    albumCount = folderSongs.map { it.album }.distinct().size,
+                    duration = folderSongs.sumOf { it.duration },
+                    dateModified = folderSongs.maxOfOrNull { it.dateModified } ?: 0L,
+                    coverModel = folderSongs.firstOrNull().folderPlaylistCoverModel()
+                )
+            }
+            FolderPlaylistDerived(allSongs, plSongs, fEntries)
         }
     }
+    val allPlaylistSongs = folderPlaylistDerived.allSongs
+    val playlistSongs = folderPlaylistDerived.playlistSongs
+    val folderEntries = folderPlaylistDerived.folderEntries
     var selectedTab by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistTab.Songs) }
     var searchExpanded by rememberSaveable(playlistId) { mutableStateOf(false) }
     var searchQuery by rememberSaveable(playlistId) { mutableStateOf("") }
@@ -198,26 +226,6 @@ fun FolderPlaylistDetailScreen(
     val songSortMode = FolderPlaylistSongSortMode.entries.getOrElse(songSortIndex) { FolderPlaylistSongSortMode.Custom }
     val folderSortMode = FolderPlaylistFolderSortMode.entries.getOrElse(folderSortIndex) { FolderPlaylistFolderSortMode.Custom }
     val detailQuery = searchQuery.trim()
-    val folderEntries = remember(playlist, songs) {
-        playlist?.folders.orEmpty().mapNotNull { folderPath ->
-            val normalized = folderPath.normalizeFolderPath()
-            val folderSongs = songs.filter {
-                val songFolder = it.folderPath().normalizeFolderPath()
-                songFolder.equals(normalized, ignoreCase = true) ||
-                    songFolder.startsWith("${normalized.trimEnd('/')}/", ignoreCase = true)
-            }
-            if (folderSongs.isEmpty()) return@mapNotNull null
-            FolderPlaylistFolderEntry(
-                path = folderPath,
-                displayName = folderPath.folderDisplayName(""),
-                songCount = folderSongs.size,
-                albumCount = folderSongs.map { it.album }.distinct().size,
-                duration = folderSongs.sumOf { it.duration },
-                dateModified = folderSongs.maxOfOrNull { it.dateModified } ?: 0L,
-                coverModel = folderSongs.firstOrNull().folderPlaylistCoverModel()
-            )
-        }
-    }
     val activeFavoriteSongKeys = if (ratingFilter.requiresFavoriteKeys()) favoriteSongKeys else emptySet()
     val activeRatingRevision = if (ratingFilter.hasRatingConstraint()) ratingRevision else 0
     val ratingFilteredPlaylistSongs by produceState(
@@ -305,17 +313,23 @@ fun FolderPlaylistDetailScreen(
             }
         }
     }
-    val randomFolderEntrySongs = remember(displayedFolderEntries, allPlaylistSongs) {
-        val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
+    val randomFolderEntrySongs by produceState(
+        initialValue = emptyList(),
+        displayedFolderEntries,
         allPlaylistSongs
-            .filter { song ->
-                val songFolder = song.folderPath().normalizeFolderPath()
-                normalizedFolders.any { folder -> songFolder.startsWith(folder) }
-            }
-            .distinctBy { it.id }
+    ) {
+        value = withContext(Dispatchers.Default) {
+            val normalizedFolders = displayedFolderEntries.map { it.path.normalizeFolderPath() }
+            allPlaylistSongs
+                .filter { song ->
+                    val songFolder = song.folderPath().normalizeFolderPath()
+                    normalizedFolders.any { folder -> songFolder.startsWith(folder) }
+                }
+                .distinctBy { it.id }
+        }
     }
-    val songsListState = rememberLazyListState()
-    val foldersListState = rememberLazyListState()
+    val songsListState = com.ella.music.ui.components.rememberDetailListState(playlistId, storageKey = "detail_scroll_songs")
+    val foldersListState = com.ella.music.ui.components.rememberDetailListState(playlistId, storageKey = "detail_scroll_folders")
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
@@ -1421,3 +1435,13 @@ internal fun folderPlaylistSongListIndex(
     songIndex: Int,
     headerCount: Int = FolderPlaylistSongsHeaderCount
 ): Int = if (songIndex < 0) -1 else songIndex + headerCount
+
+private data class FolderPlaylistDerived(
+    val allSongs: List<Song>,
+    val playlistSongs: List<Song>,
+    val folderEntries: List<FolderPlaylistFolderEntry>
+) {
+    companion object {
+        val Empty = FolderPlaylistDerived(emptyList(), emptyList(), emptyList())
+    }
+}

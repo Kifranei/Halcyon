@@ -28,6 +28,7 @@ internal fun SettingsSpotifyCanvasSection() {
     val credentials = remember(context) { SpotifyCanvasCredentialsStore.getInstance(context) }
     val repository = remember(context) { SpotifyCanvasRepository.getInstance(context) }
     val enabled by settings.spotifyCanvasEnabled.collectAsState(initial = false)
+    val autoHide by settings.spotifyCanvasAutoHideControls.collectAsState(initial = false)
     val cookie by credentials.cookie.collectAsState()
     val connection by repository.connection.collectAsState()
     SettingsCardGroup {
@@ -39,6 +40,15 @@ internal fun SettingsSpotifyCanvasSection() {
                     summary = stringResource(R.string.settings_spotify_canvas_summary),
                     checked = enabled,
                     onCheckedChange = { scope.launch { settings.setSpotifyCanvasEnabled(it) } }
+                )
+                } // search-anchor:end
+                // search-anchor:start
+                SettingsSearchAnchor(R.string.settings_spotify_canvas_auto_hide) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_spotify_canvas_auto_hide),
+                    summary = stringResource(R.string.settings_spotify_canvas_auto_hide_summary),
+                    checked = autoHide,
+                    onCheckedChange = { scope.launch { settings.setSpotifyCanvasAutoHideControls(it) } }
                 )
                 } // search-anchor:end
                 // search-anchor:start

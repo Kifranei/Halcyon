@@ -926,9 +926,37 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    suspend fun writeCategoryTagForBatch(song: Song, key: String, value: String): Result<Song> = withContext(Dispatchers.IO) {
+    suspend fun writeCategoryTagForBatch(song: Song, values: Map<String, String>): Result<Song> = withContext(Dispatchers.IO) {
+        fun value(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
+            values.entries.firstOrNull { it.key.equals(key, ignoreCase = true) }?.value
+        }
+        val builtIns = setOf(
+            "TITLE", "ARTIST", "ALBUM", "ALBUMARTIST", "ALBUM ARTIST", "GENRE", "DATE", "YEAR",
+            "COMPOSER", "ARRANGER", "LYRICIST", "PRODUCER", "LYRICS",
+            "DISC", "DISCNUMBER", "DISC NUMBER", "TRACK", "TRACKNUMBER", "TRACK NUMBER"
+        )
         val result = try {
-            tagWriter.writeSongTags(song, AudioTagInfo(customTags = mapOf(key to listOf(value))))
+            tagWriter.writeSongTags(
+                song,
+                AudioTagInfo(
+                    title = value("TITLE"),
+                    artist = value("ARTIST"),
+                    album = value("ALBUM"),
+                    albumArtist = value("ALBUMARTIST", "ALBUM ARTIST"),
+                    genre = value("GENRE"),
+                    year = value("DATE", "YEAR"),
+                    composer = value("COMPOSER"),
+                    arranger = value("ARRANGER"),
+                    lyricist = value("LYRICIST"),
+                    producer = value("PRODUCER"),
+                    discNumber = value("DISC", "DISCNUMBER", "DISC NUMBER")?.let { it.toIntOrNull() ?: 0 },
+                    trackNumber = value("TRACK", "TRACKNUMBER", "TRACK NUMBER")?.let { it.toIntOrNull() ?: 0 },
+                    lyrics = value("LYRICS"),
+                    customTags = values
+                        .filterKeys { it.uppercase(java.util.Locale.ROOT) !in builtIns }
+                        .mapValues { listOf(it.value) }
+                )
+            )
         } catch (error: SecurityException) { Result.failure(error) }
         tagWriter.writePermissionRequestIfNeeded(result, song)?.exceptionOrNull()?.let {
             return@withContext Result.failure(it)
@@ -1508,6 +1536,7 @@ class MusicRepository(private val context: Context) {
             composer = tagInfo?.composer.takeIf { it.isUsableTagText() } ?: wavMetadata?.composer.takeIf { it.isUsableTagText() } ?: composer,
             arranger = tagInfo?.arranger.takeIf { it.isUsableTagText() } ?: wavMetadata?.arranger.takeIf { it.isUsableTagText() } ?: arranger,
             lyricist = tagInfo?.lyricist.takeIf { it.isUsableTagText() } ?: wavMetadata?.lyricist.takeIf { it.isUsableTagText() } ?: lyricist,
+            producer = tagInfo?.producer.takeIf { it.isUsableTagText() } ?: wavMetadata?.producer.takeIf { it.isUsableTagText() } ?: producer,
             trackNumber = tagInfo?.trackNumber ?: wavMetadata?.trackNumber ?: trackNumber,
             discNumber = tagInfo?.discNumber ?: wavMetadata?.discNumber ?: discNumber,
             customTags = tagInfo?.customTags?.libraryCustomTags() ?: customTags,
@@ -1672,6 +1701,7 @@ class MusicRepository(private val context: Context) {
                 composer = tagInfo.composer.ifBlank { wavInfo?.composer.orEmpty().ifBlank { song.composer } },
                 arranger = tagInfo.arranger.ifBlank { wavInfo?.arranger.orEmpty().ifBlank { song.arranger } },
                 lyricist = tagInfo.lyricist.ifBlank { wavInfo?.lyricist.orEmpty().ifBlank { song.lyricist } },
+                producer = tagInfo.producer.ifBlank { wavInfo?.producer.orEmpty().ifBlank { song.producer } },
                 customTags = tagInfo.customTags.libraryCustomTags(),
                 customTagsLoaded = true,
                 coverUrl = song.coverUrl,

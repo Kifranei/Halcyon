@@ -78,7 +78,10 @@ fun LibrarySearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val settingsManager = mainViewModel.settingsManager
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
-    val searchActive = LocalMainPageActive.current && lifecycleState == Lifecycle.State.RESUMED
+    // A programmatic jump commits to this page the moment the spring starts — the IME
+    // does not need to wait for the full settle (#756). User swipes still require it.
+    val searchActive = (LocalMainPageActive.current || com.ella.music.LocalMainPageEntryTarget.current) &&
+        lifecycleState == Lifecycle.State.RESUMED
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = false)
     val currentSongs by mainViewModel.songs.collectAsState()
     val currentAlbums by mainViewModel.albums.collectAsState()
@@ -149,10 +152,23 @@ fun LibrarySearchScreen(
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     val selection = rememberLibrarySelectionState<String>()
 
+    // Completion flags for the asynchronous result producers. The "all results loaded"
+    // footer must stay hidden while any of them is still emitting incremental results.
+    var duplicatesPending by remember { mutableStateOf(false) }
+    var contentIndexPending by remember { mutableStateOf(false) }
+    var songSearchPending by remember { mutableStateOf(false) }
+    var facetPending by remember { mutableStateOf(false) }
+
     val trimmedQuery = query.trim()
     val songSelectionAvailable = filter in listOf(SearchFilter.Songs, SearchFilter.MusicVideos, SearchFilter.Lyrics)
-    val duplicateSongs by produceState(initialValue = emptyList<Song>(), songs) {
-        value = withContext(Dispatchers.Default) { songs.duplicateTitleAlbumSongs() }
+    val duplicateSongs by produceState(initialValue = emptyList<Song>(), songs, duplicatesOnly) {
+        duplicatesPending = duplicatesOnly
+        value = if (duplicatesOnly) {
+            withContext(Dispatchers.Default) { songs.duplicateTitleAlbumSongs() }
+        } else {
+            emptyList()
+        }
+        duplicatesPending = false
     }
     val duplicatesOnlyActive = duplicatesOnly && filter.supportsDuplicateFilter
     val songSearchSource = remember(songs, duplicateSongs, duplicatesOnlyActive) {
@@ -187,6 +203,7 @@ fun LibrarySearchScreen(
         musicVideoCustomFolders,
         context
     ) {
+        contentIndexPending = false
         val cached = LibrarySearchContentIndexCache.get(contentIndexFingerprint)
         if (cached != null) {
             value = cached
@@ -197,6 +214,7 @@ fun LibrarySearchScreen(
             return@produceState
         }
         value = null
+        contentIndexPending = true
         val flags = linkedMapOf<String, LibrarySearchContentFlags>()
         withContext(Dispatchers.IO) {
             val dynamicCoverTokens = buildDynamicCoverNameIndex(context, dynamicCoverCustomFolders)
@@ -225,6 +243,7 @@ fun LibrarySearchScreen(
         }
         LibrarySearchContentIndexCache.put(contentIndexFingerprint, flags)
         value = flags
+        contentIndexPending = false
     }
     val contentFilteredSongKeys = remember(contentIndex, contentFilters, songSearchSource) {
         if (!contentFilters.hasActiveFilter) {
@@ -279,6 +298,8 @@ fun LibrarySearchScreen(
         fullTagSearchEnabled,
         contentFilters
     ) {
+        songSearchPending = true
+        try {
         val initialResults = cachedSongResults
         value = initialResults
         if (!filter.acceptsSongResults) {
@@ -373,18 +394,22 @@ fun LibrarySearchScreen(
         if (!contentFilters.hasActiveFilter) {
             saveCachedSongSearchResults(context, trimmedQuery, filter, current)
         }
+        } finally {
+            songSearchPending = false
+        }
     }
 
     val requestedCategoryTypes = remember(filter, searchAllCategoryTypes) {
         when (filter) {
             SearchFilter.All -> {
-                listOf("folder", "composer", "arranger", "lyricist", "genre", "year")
+                listOf("folder", "composer", "arranger", "lyricist", "producer", "genre", "year")
                     .filter { it in searchAllCategoryTypes }
             }
             SearchFilter.Folders -> listOf("folder")
             SearchFilter.Composers -> listOf("composer")
             SearchFilter.Arrangers -> listOf("arranger")
             SearchFilter.Lyricists -> listOf("lyricist")
+            SearchFilter.Producers -> listOf("producer")
             SearchFilter.Genres -> listOf("genre")
             SearchFilter.Years -> listOf("year")
             else -> emptyList()
@@ -427,6 +452,8 @@ fun LibrarySearchScreen(
         albums,
         playlists
     ) {
+        facetPending = true
+        try {
         if (duplicatesOnlyActive || contentFilters.hasActiveFilter || trimmedQuery.isBlank()) {
             value = LibrarySearchFacetResults()
             return@produceState
@@ -508,6 +535,9 @@ fun LibrarySearchScreen(
         }
         saveCachedLibrarySearchFacetResults(facetCacheKey, result)
         value = result
+        } finally {
+            facetPending = false
+        }
     }
     val visibleFacetResults = if (duplicatesOnlyActive || contentFilters.hasActiveFilter) {
         LibrarySearchFacetResults()
@@ -544,6 +574,11 @@ fun LibrarySearchScreen(
             .distinctBy { it.song.searchIdentityKey() }
     }
     val visibleResultCount = displayedSongResults.size + visibleAlbumCount + visibleArtistCount + visiblePlaylistCount + categoryResultsCount + folderPlaylistResults.size
+
+    // Any producer still walking the library keeps the pane in its loading state so the
+    // "all results loaded" footer only appears once every section has finished.
+    val resultsStillLoading = contentFilterPending || contentIndexPending || duplicatesPending ||
+        songSearchPending || facetPending || (useLocalSnapshot && localSnapshot == null)
 
     LaunchedEffect(filter, trimmedQuery) {
         selection.finishSelectionMode()
@@ -811,7 +846,7 @@ fun LibrarySearchScreen(
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
             hasActiveContentFilter = contentFilters.hasActiveFilter,
-            contentFilterPending = contentFilterPending,
+            contentFilterPending = resultsStillLoading,
             history = history,
             selectionMode = selection.selectionMode,
             selectedSongKeys = selection.selectedIds,

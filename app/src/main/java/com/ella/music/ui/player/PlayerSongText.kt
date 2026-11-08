@@ -3,7 +3,6 @@ package com.ella.music.ui.player
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,21 +62,18 @@ internal fun PlayerSongMetaText(
     artistMarqueeEnabled: Boolean = true,
     onArtistClick: (() -> Unit)? = null,
     onAlbumClick: (() -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
     onTitleLongClick: (() -> Unit)? = null
 ) {
     val artist = song?.artist.orEmpty()
     val displayArtist = artistOverride?.takeIf { it.isNotBlank() } ?: artist
     val artistClickEnabled = artistOverride.isNullOrBlank() && artist.isNotBlank()
-    fun clickableMetaModifier(enabled: Boolean, onClick: (() -> Unit)?): Modifier {
-        return if (enabled && onClick != null) {
-            Modifier.clickable(onClick = onClick)
-        } else {
-            Modifier
-        }
-    }
-    val titleGestureModifier = if (onTitleLongClick != null) {
+    val gestures = LocalPlayerQuickGestures.current
+    val artistLongPress = gestures.artistLongPress
+    val resolvedTitleClick = (onTitleClick ?: gestures.titleClick)?.takeIf { song != null }
+    val titleGestureModifier = if (onTitleLongClick != null || resolvedTitleClick != null) {
         Modifier.combinedClickable(
-            onClick = {},
+            onClick = { resolvedTitleClick?.invoke() },
             onLongClick = onTitleLongClick
         )
     } else {
@@ -93,7 +89,7 @@ internal fun PlayerSongMetaText(
             color = contentColor.copy(alpha = 0.96f),
             textAlign = textAlign,
             fontFamily = fontFamily,
-            marqueeEnabled = titleMarqueeEnabled,
+            marqueeEnabled = titleMarqueeEnabled && gestures.titleMarquee,
             modifier = Modifier
                 .fillMaxWidth()
                 .then(titleGestureModifier)
@@ -106,14 +102,23 @@ internal fun PlayerSongMetaText(
                 color = contentColor.copy(alpha = (artistAlpha + 0.16f).coerceAtMost(0.82f)),
                 textAlign = textAlign,
                 fontFamily = fontFamily,
-                enabled = artistMarqueeEnabled,
+                enabled = artistMarqueeEnabled && gestures.subtitleMarquee,
                 modifier = Modifier.fillMaxWidth()
             )
         }
         if (displayArtist.isNotBlank() && (annotation.isBlank() || showArtistWithAnnotation)) {
             val artistModifier = Modifier
                 .fillMaxWidth()
-                .then(clickableMetaModifier(artistClickEnabled, onArtistClick))
+                .then(
+                    if ((artistClickEnabled && onArtistClick != null) || artistLongPress != null) {
+                        Modifier.combinedClickable(
+                            onClick = { if (artistClickEnabled) onArtistClick?.invoke() },
+                            onLongClick = artistLongPress
+                        )
+                    } else {
+                        Modifier
+                    }
+                )
             if (artistIconRes != null) {
                 Row(
                     modifier = artistModifier,
@@ -133,7 +138,7 @@ internal fun PlayerSongMetaText(
                         color = contentColor.copy(alpha = artistAlpha),
                         textAlign = textAlign,
                         fontFamily = fontFamily,
-                        enabled = artistMarqueeEnabled,
+                        enabled = artistMarqueeEnabled && gestures.subtitleMarquee,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -145,7 +150,7 @@ internal fun PlayerSongMetaText(
                     color = contentColor.copy(alpha = artistAlpha),
                     textAlign = textAlign,
                     fontFamily = fontFamily,
-                    enabled = artistMarqueeEnabled,
+                    enabled = artistMarqueeEnabled && gestures.subtitleMarquee,
                     modifier = artistModifier
                 )
             }

@@ -1,6 +1,7 @@
 package com.ella.music.data.model
 
 import androidx.compose.runtime.Immutable
+import com.ella.music.data.CustomMetadataCategory
 import com.ella.music.data.LibraryNormalizer
 import com.ella.music.data.NameSplitConfigStore
 
@@ -26,6 +27,7 @@ data class Song(
     val composer: String = "",
     val arranger: String = "",
     val lyricist: String = "",
+    val producer: String = "",
     val coverUrl: String = "",
     val onlineSource: String = "",
     val onlineId: String = "",
@@ -64,8 +66,24 @@ fun Song.isNeteaseStream(): Boolean {
 
 fun Song.albumIdentityId(): Long {
     val albumName = LibraryNormalizer.cleanedAlbumText(album).ifBlank { "Unknown Album" }
-    val albumOwner = LibraryNormalizer.cleanedArtistText(albumArtist)
-    val key = "${albumName.normalizedAlbumIdentityPart()}|${albumOwner.normalizedAlbumIdentityPart()}"
+    // Every selected merge field must match for two songs to share an album (#752). The
+    // album name is mandatory; the other fields follow the configured strategy.
+    val key = buildString {
+        append(albumName.normalizedAlbumIdentityPart())
+        CustomMetadataCategory.ALBUM_MERGE_FIELD_ORDER
+            .filter { it in NameSplitConfigStore.albumMergeFields && it != CustomMetadataCategory.MERGE_ALBUM }
+            .forEach { field ->
+                append('|')
+                append(
+                    when (field) {
+                        CustomMetadataCategory.MERGE_ARTIST -> LibraryNormalizer.cleanedArtistText(artist)
+                        CustomMetadataCategory.MERGE_COMPOSER -> composer
+                        CustomMetadataCategory.MERGE_DATE -> year
+                        else -> LibraryNormalizer.cleanedArtistText(albumArtist)
+                    }.normalizedAlbumIdentityPart()
+                )
+            }
+    }
     var hash = -0x340d631b7bdddcdbL
     key.forEach { char ->
         hash = hash xor char.code.toLong()

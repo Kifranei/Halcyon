@@ -154,6 +154,9 @@ internal fun PlayerProgressBlock(
     )
     val longPressCyclesInfo by settingsManager.playerProgressLongPressCycle.collectAsState(initial = false)
     val separateGainChip by settingsManager.playerProgressInfoSeparated.collectAsState(initial = false)
+    val qualityChipOutline by settingsManager.playerQualityChipOutline.collectAsState(
+        initial = SettingsManager.DEFAULT_PLAYER_QUALITY_CHIP_OUTLINE
+    )
     var infoMode by remember { mutableIntStateOf(0) }
     var showAudioOutputSheet by remember { mutableStateOf(false) }
     var showOnlineQualitySheet by remember { mutableStateOf(false) }
@@ -321,6 +324,7 @@ internal fun PlayerProgressBlock(
                             qualitySummary?.showWaveform == true,
                         showDolbyLogo = infoItem?.kind == PlayerProgressInfoKind.Quality &&
                             qualitySummary?.showDolbyLogo == true,
+                        showOutline = qualityChipOutline,
                         isAppleMusic = isAppleMusic,
                         palette = palette,
                         fontFamily = fontFamily,
@@ -429,6 +433,7 @@ private fun PlayerQualityInfoChip(
     text: String,
     showWaveform: Boolean,
     showDolbyLogo: Boolean = false,
+    showOutline: Boolean = false,
     isAppleMusic: Boolean = false,
     palette: PlayerPalette,
     onTap: () -> Unit,
@@ -436,10 +441,16 @@ private fun PlayerQualityInfoChip(
     fontFamily: FontFamily? = null
 ) {
     val shape = if (isAppleMusic) RoundedCornerShape(5.dp) else RoundedCornerShape(12.dp)
-    Row(
-        modifier = Modifier
+    val outline = if (showOutline) {
+        Modifier
             .clip(shape)
             .background(palette.onBackground.copy(alpha = if (isAppleMusic) 0.12f else 0.10f))
+    } else {
+        Modifier
+    }
+    Row(
+        modifier = Modifier
+            .then(outline)
             .pointerInput(onTap, onLongPress) {
                 detectTapGestures(
                     onTap = { onTap() },
@@ -515,19 +526,20 @@ internal fun PlayerTransportControls(
     val showOutlines by settingsManager.transportButtonOutlines.collectAsState(
         initial = SettingsManager.DEFAULT_TRANSPORT_BUTTON_OUTLINES
     )
+    val gestures = LocalPlayerQuickGestures.current
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        PlayerTransportIconButton(onClick = onCyclePlaybackMode) {
+        PlayerTransportIconButton(onClick = onCyclePlaybackMode, onLongClick = gestures.playbackMode) {
             PlaybackModeIcon(
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
                 color = palette.onBackground.copy(alpha = 0.92f)
             )
         }
-        PlayerTransportIconButton(onClick = onPrevious) {
+        PlayerTransportIconButton(onClick = onPrevious, onLongClick = gestures.previous) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_skip_previous),
                 contentDescription = stringResource(R.string.common_previous),
@@ -540,7 +552,7 @@ internal fun PlayerTransportControls(
                 .size(64.dp)
                 .clip(CircleShape)
                 .then(if (showOutlines) Modifier.background(palette.onBackground.copy(alpha = 0.18f)) else Modifier)
-                .playerNoIndicationClick(onPlayPause),
+                .playerNoIndicationClick(onPlayPause, gestures.playPause),
             contentAlignment = Alignment.Center
         ) {
             CenteredPlayPauseGlyph(

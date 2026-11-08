@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.TextField
-import com.ella.music.ui.components.EllaMiuixBottomSheet
-import com.ella.music.ui.components.EllaMiuixSheetActions
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -27,7 +27,7 @@ internal fun CreatePlaylistAndAddSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    EllaMiuixBottomSheet(
+    EllaMiuixDialog(
         show = true,
         title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -50,7 +50,7 @@ internal fun CreatePlaylistAndAddSheet(
                 modifier = Modifier
                     .fillMaxWidth()
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = stringResource(R.string.common_create),
                 onCancel = onDismiss,

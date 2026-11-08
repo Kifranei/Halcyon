@@ -99,6 +99,11 @@ internal fun bottomDockTabCatalog(): Map<String, BottomDockTab> = linkedMapOf(
         label = stringResource(R.string.category_lyricist),
         icon = MiuixIcons.Regular.ContactsCircle
     ),
+    SettingsManager.BOTTOM_DOCK_ITEM_PRODUCER to BottomDockTab(
+        route = Screen.MetadataCategory.createRoute("producer", fromDock = true),
+        label = stringResource(R.string.category_producer),
+        icon = MiuixIcons.Regular.ContactsCircle
+    ),
     SettingsManager.BOTTOM_DOCK_ITEM_ANALYTICS to BottomDockTab(
         route = Screen.Analytics.route,
         label = stringResource(R.string.analytics_title),

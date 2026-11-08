@@ -233,6 +233,7 @@ fun ArtistListScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var artistMenuTarget by remember { mutableStateOf<Artist?>(null) }
+    var batchArtistTarget by remember { mutableStateOf<Artist?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val sortIndex by mainViewModel.settingsManager.artistListSortIndex.collectAsState(initial = LibrarySortUiState.artistListSortIndex)
     val detailSongSortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
@@ -830,11 +831,31 @@ fun ArtistListScreen(
                     ).show()
                     artistMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityActions.searchImage {
+                    com.ella.music.ArtistImageSearchActivity.open(context, artist.name)
+                    artistMenuTarget = null
+                },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchArtistTarget = artist; artistMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForArtist(artist.name)
                     artistMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchArtistTarget?.let { batchArtist ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "artist",
+            category = batchArtist.name,
+            songs = remember(batchArtist.name) { mainViewModel.getSongsForArtist(batchArtist.name) },
+            specs = com.ella.music.ui.category.ARTIST_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchArtistTarget = null }
         )
     }
 

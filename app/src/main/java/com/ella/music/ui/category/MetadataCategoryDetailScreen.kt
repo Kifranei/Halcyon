@@ -164,7 +164,9 @@ fun MetadataCategoryDetailScreen(
             filteredSongs.sortedForMetadataDetail(sortMode)
         }
     }
-    val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES
+    val customCategories by mainViewModel.settingsManager.customMetadataCategories.collectAsState(initial = emptyList())
+    val showAlbumTab = type == "genre" || type == "year" || type in PERSON_METADATA_CATEGORY_TYPES ||
+        customCategories.any { it.type == type && it.albumTab }
     val shouldBuildAlbumTabContent = showAlbumTab && selectedTab == MetadataDetailTab.Albums
     val detailAlbums = remember(songs, libraryAlbums, shouldBuildAlbumTabContent) {
         if (shouldBuildAlbumTabContent) {
@@ -223,13 +225,18 @@ fun MetadataCategoryDetailScreen(
             type != "lyricist" &&
             mainViewModel.getSongsForMetadataCategory("lyricist", name).isNotEmpty()
     }
+    val hasSameNameProducer = remember(type, name, librarySongs) {
+        type in PERSON_METADATA_CATEGORY_TYPES &&
+            type != "producer" &&
+            mainViewModel.getSongsForMetadataCategory("producer", name).isNotEmpty()
+    }
     val pageBackground = ellaPageBackground()
     val folderRootName = stringResource(R.string.folder_root)
     val defaultCategoryTitle = type.categoryTitle()
     val pageTitle = remember(type, name, folderRootName, defaultCategoryTitle) {
         if (type == "folder") name.folderDisplayName(folderRootName) else name.ifBlank { defaultCategoryTitle }
     }
-    val listState = rememberLazyListState()
+    val listState = com.ella.music.ui.components.rememberDetailListState(type, name)
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
@@ -686,6 +693,12 @@ fun MetadataCategoryDetailScreen(
                                     MetadataDetailLinkChip(
                                         text = stringResource(R.string.category_lyricist_page),
                                         onClick = { onMetadataCategoryClick("lyricist", name) }
+                                    )
+                                }
+                                if (hasSameNameProducer) {
+                                    MetadataDetailLinkChip(
+                                        text = stringResource(R.string.category_producer_page),
+                                        onClick = { onMetadataCategoryClick("producer", name) }
                                     )
                                 }
                             }

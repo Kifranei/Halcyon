@@ -226,6 +226,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            settingsManager.customMetadataCategories.distinctUntilChanged().collect { categories ->
+                metadataCategoryItemsCache.clear()
+                com.ella.music.data.CustomCategoryConfigStore.update(categories)
+            }
+        }
+        viewModelScope.launch {
             combine(settingsManager.customMetadataCategories, songs) { categories, library ->
                 categories.isNotEmpty() && library.any { !it.customTagsLoaded &&
                     (it.path.startsWith("/") || it.path.startsWith("content://") || it.path.startsWith("file://")) }

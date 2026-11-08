@@ -950,6 +950,7 @@ fun PlayerScreen(
                             { }
                         },
                         navigateToArtistOrChoose = ::navigateToArtistOrChoose,
+                        onNavigateToAlbum = onNavigateToAlbum,
                         onDismissLyrics = onDismissLyrics,
                         enableSwipeDismiss = enableSwipeDismiss,
                         backEnabled = backEnabled,

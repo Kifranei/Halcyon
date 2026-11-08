@@ -95,6 +95,7 @@ internal fun AlbumCopyrightFooter(
     composers: List<AlbumMetadataDisplayItem>,
     arrangers: List<AlbumMetadataDisplayItem>,
     lyricists: List<AlbumMetadataDisplayItem>,
+    producers: List<AlbumMetadataDisplayItem>,
     mainViewModel: MainViewModel,
     artistCoverFolderUri: String,
     onGenreClick: (String) -> Unit,
@@ -102,6 +103,7 @@ internal fun AlbumCopyrightFooter(
     onComposerClick: (String) -> Unit,
     onArrangerClick: (String) -> Unit,
     onLyricistClick: (String) -> Unit,
+    onProducerClick: (String) -> Unit,
     onYearClick: (String) -> Unit,
     showReleaseDateSection: Boolean = true
 ) {
@@ -182,6 +184,14 @@ internal fun AlbumCopyrightFooter(
             mainViewModel = mainViewModel,
             artistCoverFolderUri = artistCoverFolderUri,
             onItemClick = onLyricistClick
+        )
+        AlbumMetadataSection(
+            title = stringResource(R.string.player_detail_producer),
+            items = producers,
+            circularCover = true,
+            mainViewModel = mainViewModel,
+            artistCoverFolderUri = artistCoverFolderUri,
+            onItemClick = onProducerClick
         )
     }
 }

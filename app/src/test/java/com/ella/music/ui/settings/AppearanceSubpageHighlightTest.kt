@@ -31,7 +31,8 @@ class AppearanceSubpageHighlightTest {
             "player_immersive",
             "player_apple_music_immersive_cover",
             "hi_res_logo",
-            "transport_button_outlines"
+            "transport_button_outlines",
+            "player_quality_chip_outline"
         ).forEach { key ->
             assertEquals(key, APPEARANCE_PAGE_PLAYER, appearanceSubpageForHighlight(key))
         }

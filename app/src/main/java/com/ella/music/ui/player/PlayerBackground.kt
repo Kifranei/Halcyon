@@ -5,10 +5,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+
+/**
+ * Presentation state blanks artwork while the next song's cover loads so a stale cover can never
+ * sit beside the new title. Backgrounds are abstract, so they instead keep the last resolved
+ * bitmap — switching tracks then crossfades inside the same flow surface instead of unmounting
+ * it and cold-starting on a blank frame.
+ */
+@Composable
+internal fun rememberRetainedFlowCover(incomingCover: Bitmap?): Bitmap? {
+    val retained by produceState<Bitmap?>(initialValue = incomingCover, incomingCover) {
+        if (incomingCover != null) value = incomingCover
+    }
+    return retained
+}
 
 @Composable
 internal fun ImmersiveCoverBackground(
@@ -66,6 +82,7 @@ internal fun SharedPlayerPageBackground(
     modifier: Modifier = Modifier
 ) {
     val useCustomPlayerBackground = playerBackgroundEnabled && playerBackgroundUri.isNotBlank() && !useBlurBackground
+    val flowCover = rememberRetainedFlowCover(embeddedCover ?: paletteBitmap)
     when {
         useCustomPlayerBackground -> PlayerCustomBackground(
             uri = playerBackgroundUri,
@@ -75,21 +92,21 @@ internal fun SharedPlayerPageBackground(
         )
         beautifulLyricsBackground -> BeautifulLyricsDynamicBackground(
             palette = palette,
-            coverBitmap = embeddedCover ?: paletteBitmap,
+            coverBitmap = flowCover,
             positionMs = currentPositionMs,
             isPlaying = isPlaying,
             modifier = modifier
         )
         useBlurBackground -> PlayerBlurBackground(
             song = song,
-            embeddedCover = embeddedCover,
+            embeddedCover = flowCover,
             palette = palette,
             motion = 0.42f,
             isPlaying = isPlaying,
             modifier = modifier
         )
-        (embeddedCover ?: paletteBitmap) != null -> AppleCoverFlowBackground(
-            coverBitmap = embeddedCover ?: paletteBitmap,
+        flowCover != null -> AppleCoverFlowBackground(
+            coverBitmap = flowCover,
             backgroundColor = palette.middle,
             isDark = !palette.isLight,
             isPlaying = isPlaying,

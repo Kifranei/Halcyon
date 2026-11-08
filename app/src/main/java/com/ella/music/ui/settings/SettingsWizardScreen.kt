@@ -53,7 +53,7 @@ import top.yukonga.miuix.kmp.icon.extended.Ok
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -115,7 +115,8 @@ fun SettingsWizardScreen(
     val bottomBarStyleOptions = listOf(
         com.ella.music.data.BottomBarStyle.Normal to stringResource(R.string.bottom_bar_style_normal),
         com.ella.music.data.BottomBarStyle.Floating to stringResource(R.string.bottom_bar_style_floating),
-        com.ella.music.data.BottomBarStyle.LiquidGlass to stringResource(R.string.bottom_bar_style_liquid)
+        com.ella.music.data.BottomBarStyle.LiquidGlass to stringResource(R.string.bottom_bar_style_liquid),
+        com.ella.music.data.BottomBarStyle.FloatingPill to stringResource(R.string.bottom_bar_style_floating_pill)
     )
     val playerPageStyleOptions = listOf(
         SettingsManager.PLAYER_PAGE_STYLE_HALCYON to stringResource(R.string.settings_player_page_style_halcyon),
@@ -214,7 +215,7 @@ fun SettingsWizardScreen(
                     SmallTitle(text = stringResource(R.string.settings_library_scan))
                     SettingsCardGroup {
                         Column {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.settings_library_source),
                                 summary = stringResource(R.string.settings_library_source_summary),
                                 items = librarySourceOptions.map { DropdownItem(title = it.second) },
@@ -254,7 +255,7 @@ fun SettingsWizardScreen(
                     SmallTitle(text = stringResource(R.string.settings_player_page_style))
                     SettingsCardGroup {
                         Column {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.settings_player_page_style),
                                 summary = stringResource(R.string.settings_player_page_style_summary),
                                 items = playerPageStyleOptions.map { DropdownItem(title = it.second) },
@@ -265,7 +266,7 @@ fun SettingsWizardScreen(
                                     }
                                 }
                             )
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.settings_player_bg_theme),
                                 summary = stringResource(R.string.settings_player_bg_theme_summary),
                                 items = playerBackgroundThemeLabels.map { DropdownItem(title = it) },
@@ -291,12 +292,13 @@ fun SettingsWizardScreen(
                     SmallTitle(text = stringResource(R.string.settings_wizard_interface))
                     SettingsCardGroup {
                         Column {
-                            WindowSpinnerPreference(
+                            EllaSpinnerPreference(
                                 title = stringResource(R.string.settings_bottom_bar_style),
                                 summary = when (bottomBarStyle) {
                                     com.ella.music.data.BottomBarStyle.Normal -> stringResource(R.string.settings_bottom_bar_style_summary_normal)
                                     com.ella.music.data.BottomBarStyle.Floating -> stringResource(R.string.settings_bottom_bar_style_summary_floating)
                                     com.ella.music.data.BottomBarStyle.LiquidGlass -> stringResource(R.string.settings_bottom_bar_style_summary_liquid)
+                                    com.ella.music.data.BottomBarStyle.FloatingPill -> stringResource(R.string.settings_bottom_bar_style_summary_floating_pill)
                                 },
                                 items = bottomBarStyleOptions.map { DropdownItem(title = it.second) },
                                 selectedIndex = bottomBarStyleOptions.indexOfFirst { it.first == bottomBarStyle }.coerceAtLeast(0),

@@ -58,6 +58,9 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Ok
+import top.yukonga.miuix.kmp.glass.GlassMaterials
+import top.yukonga.miuix.kmp.glass.GlassShape
+import top.yukonga.miuix.kmp.glass.glassPanel
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import top.yukonga.miuix.kmp.window.WindowDialog
@@ -129,6 +132,7 @@ fun EllaMiuixBottomSheet(
     // MIUIX window surfaces create a separate composition. Re-provide the caller's adjusted
     // density so global interface/font scaling also reaches player and lyric action sheets.
     val inheritedDensity = LocalDensity.current
+    val sheetShape = GlassShape(28.dp, 28.dp, 0.dp, 0.dp)
     WindowBottomSheet(
         show = show,
         title = title,
@@ -139,8 +143,14 @@ fun EllaMiuixBottomSheet(
         enableNestedScroll = enableNestedScroll,
         cornerRadius = 28.dp,
         insideMargin = insideMargin,
-        backgroundColor = ellaBottomSheetCanvasColor(),
-        modifier = modifier,
+        backgroundColor = Color.Transparent,
+        modifier = modifier.glassPanel(
+            backdrop = LocalBackdrop.current,
+            shape = sheetShape,
+            material = GlassMaterials.popupViewGlass(ellaSchemeIsDark()),
+            shading = false,
+            fallback = Modifier.clip(sheetShape).background(ellaBottomSheetCanvasColor()),
+        ),
         content = {
             CompositionLocalProvider(
                 LocalDensity provides inheritedDensity,
@@ -184,14 +194,21 @@ fun EllaMiuixDialog(
     content: @Composable () -> Unit
 ) {
     val inheritedDensity = LocalDensity.current
+    val dialogShape = GlassShape(32.dp)
     WindowDialog(
         show = show,
         title = title,
         summary = summary,
         onDismissRequest = onDismissRequest,
-        backgroundColor = ellaDialogCanvasColor(),
+        backgroundColor = Color.Transparent,
         insideMargin = DpSize(22.dp, 20.dp),
-        modifier = modifier,
+        modifier = modifier.glassPanel(
+            backdrop = LocalBackdrop.current,
+            shape = dialogShape,
+            material = GlassMaterials.dialogGlass(ellaSchemeIsDark()),
+            shading = false,
+            fallback = Modifier.clip(dialogShape).background(ellaDialogCanvasColor()),
+        ),
         content = {
             CompositionLocalProvider(
                 LocalSettingsCardFrosting provides null,

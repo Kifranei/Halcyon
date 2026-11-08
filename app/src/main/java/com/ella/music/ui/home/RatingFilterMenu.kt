@@ -17,18 +17,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopupColumn
-import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Filter
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowListPopup
-import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
-import com.ella.music.ui.components.SafeDropdownPositionProvider
+import com.ella.music.ui.components.EllaGlassListPopup
 
 @Composable
 internal fun RatingFilterMenu(
@@ -105,37 +101,24 @@ internal fun RatingFilterMenu(
             )
         }
         if (entries.any { it.items.isNotEmpty() }) {
-            WindowListPopup(
+            EllaGlassListPopup(
                 show = menuVisible,
-                popupPositionProvider = SafeDropdownPositionProvider,
-                alignment = PopupPositionProvider.Align.Start,
                 maxHeight = maxDropdownHeight,
                 onDismissRequest = { menuVisible = false },
                 onDismissFinished = { isHoldDown = false }
             ) {
-                ApplyHalcyonSystemBarsToCurrentWindow()
-                ListPopupColumn {
-                    val lastEntryIdx = entries.lastIndex
-                    entries.forEachIndexed { entryIdx, entry ->
-                        val lastItemIdx = entry.items.lastIndex
-                        val isFirstEntry = entryIdx == 0
-                        val isLastEntry = entryIdx == lastEntryIdx
-                        entry.items.forEachIndexed { itemIdx, option ->
-                            key(entryIdx, itemIdx) {
-                                DropdownImpl(
-                                    item = option,
-                                    optionSize = entry.items.size,
-                                    isSelected = option.selected,
-                                    index = itemIdx,
-                                    enabled = entry.enabled && option.enabled,
-                                    isFirst = isFirstEntry && itemIdx == 0,
-                                    isLast = isLastEntry && itemIdx == lastItemIdx,
-                                    onSelectedIndexChange = {
-                                        currentHapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
-                                        option.onClick?.invoke()
-                                    }
-                                )
-                            }
+                entries.forEachIndexed { entryIdx, entry ->
+                    entry.items.forEachIndexed { itemIdx, option ->
+                        key(entryIdx, itemIdx) {
+                            GlassPopupItem(
+                                text = option.text,
+                                selected = option.selected,
+                                enabled = entry.enabled && option.enabled,
+                                onClick = {
+                                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    option.onClick?.invoke()
+                                }
+                            )
                         }
                     }
                 }

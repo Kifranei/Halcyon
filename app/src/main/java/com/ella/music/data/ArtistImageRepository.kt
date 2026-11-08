@@ -250,6 +250,45 @@ internal object ArtistImageRepository {
         }
     }
 
+    internal fun searchSpotifyArtistImages(
+        artistName: String,
+        clientId: String,
+        clientSecret: String,
+        marketCode: String
+    ): List<ArtistImageCandidate> {
+        if (clientId.isBlank() || clientSecret.isBlank()) return emptyList()
+        val token = spotifyToken(clientId, clientSecret) ?: return emptyList()
+        val searchUrl = "https://api.spotify.com/v1/search".toHttpUrl().newBuilder()
+            .addQueryParameter("q", artistName)
+            .addQueryParameter("type", "artist")
+            .addQueryParameter("limit", "12")
+            .addQueryParameter("market", marketCode)
+            .build()
+        val request = Request.Builder()
+            .url(searchUrl)
+            .header("Authorization", "Bearer $token")
+            .header("User-Agent", "Halcyon/1.2 (artist image search)")
+            .build()
+        val items = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return emptyList()
+            JSONObject(response.body?.string().orEmpty()).optJSONObject("artists")?.optJSONArray("items")
+        } ?: return emptyList()
+        return (0 until items.length()).mapNotNull { items.optJSONObject(it) }.mapNotNull { artist ->
+            val images = artist.optJSONArray("images") ?: return@mapNotNull null
+            val best = (0 until images.length()).mapNotNull { images.optJSONObject(it) }
+                .maxByOrNull { it.optLong("width") * it.optLong("height") } ?: return@mapNotNull null
+            val url = best.optString("url").trim().takeIf(::isUsableArtistImageUrl) ?: return@mapNotNull null
+            val width = best.optInt("width")
+            val height = best.optInt("height")
+            ArtistImageCandidate(
+                source = SettingsManager.ARTIST_IMAGE_SOURCE_SPOTIFY,
+                name = artist.optString("name"),
+                url = url,
+                resolution = if (width > 0 && height > 0) "${width}×${height}" else null
+            )
+        }
+    }
+
     private fun ensureNoMedia(folder: DocumentFile) {
         runCatching {
             if (folder.findFile(".nomedia") == null) {

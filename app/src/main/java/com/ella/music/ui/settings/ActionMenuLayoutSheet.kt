@@ -61,6 +61,10 @@ internal fun actionMenuStringRes(id: String): Int = when (id) {
     ActionMenuIds.SONG_INFO_COMPOSER -> R.string.player_detail_composer
     ActionMenuIds.SONG_INFO_ARRANGER -> R.string.player_detail_arranger
     ActionMenuIds.SONG_INFO_LYRICIST -> R.string.player_detail_lyricist
+    ActionMenuIds.SONG_INFO_PRODUCER -> R.string.player_detail_producer
+    ActionMenuIds.SONG_INFO_COPYRIGHT -> R.string.song_more_metadata_copyright
+    ActionMenuIds.SONG_INFO_LANGUAGE -> R.string.player_detail_language
+    ActionMenuIds.SONG_INFO_CUSTOM -> R.string.song_info_custom_fields
     ActionMenuIds.SONG_INFO_COMMENT -> R.string.player_detail_comment
     ActionMenuIds.SONG_INFO_NETEASE -> R.string.song_more_netease_key
     ActionMenuIds.SONG_INFO_FORMAT -> R.string.song_more_detail_format

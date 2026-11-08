@@ -123,6 +123,7 @@ fun AlbumScreen(
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var albumMenuTarget by remember { mutableStateOf<Album?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var batchAlbumTarget by remember { mutableStateOf<com.ella.music.data.model.Album?>(null) }
     val storedPinnedAlbumKeys by mainViewModel.settingsManager.pinnedKeysFlow("album").collectAsState(initial = null)
     val pinnedAlbumKeys = storedPinnedAlbumKeys.orEmpty()
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
@@ -703,11 +704,27 @@ fun AlbumScreen(
                     ).show()
                     albumMenuTarget = null
                 },
+                com.ella.music.ui.components.LibraryEntityAction(
+                    title = stringResource(R.string.category_batch_edit),
+                    icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                    onClick = { batchAlbumTarget = album; albumMenuTarget = null }
+                ),
                 com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                     pendingDeleteSongs = mainViewModel.getSongsForAlbum(album.id)
                     albumMenuTarget = null
                 }
             )
+        )
+    }
+
+    batchAlbumTarget?.let { batchAlbum ->
+        com.ella.music.ui.category.BatchTagEditSheet(
+            type = "album",
+            category = batchAlbum.name,
+            songs = remember(batchAlbum.id) { mainViewModel.getSongsForAlbum(batchAlbum.id) },
+            specs = com.ella.music.ui.category.ALBUM_BATCH_FIELD_SPECS,
+            mainViewModel = mainViewModel,
+            onDismiss = { batchAlbumTarget = null }
         )
     }
 

@@ -137,7 +137,8 @@ fun SettingsDetailScreen(
         HomePreferenceItem("year", stringResource(R.string.settings_library_tile_year), stringResource(R.string.settings_library_tile_year_summary)),
         HomePreferenceItem("composer", stringResource(R.string.settings_library_tile_composer), stringResource(R.string.settings_library_tile_composer_summary)),
         HomePreferenceItem("arranger", stringResource(R.string.settings_library_tile_arranger), stringResource(R.string.settings_library_tile_arranger_summary)),
-        HomePreferenceItem("lyricist", stringResource(R.string.settings_library_tile_lyricist), stringResource(R.string.settings_library_tile_lyricist_summary))
+        HomePreferenceItem("lyricist", stringResource(R.string.settings_library_tile_lyricist), stringResource(R.string.settings_library_tile_lyricist_summary)),
+        HomePreferenceItem("producer", stringResource(R.string.settings_library_tile_producer), stringResource(R.string.settings_library_tile_producer_summary))
     )
     val homeOnlineTileItems = listOf(
         HomePreferenceItem("musicfree", "MusicFree", stringResource(R.string.home_import_api_source)),

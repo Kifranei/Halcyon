@@ -23,6 +23,13 @@ internal const val MAIN_PAGES_ROUTE = "main_pages"
 /** A composed neighbour is not yet an input destination. */
 internal val LocalMainPageActive = compositionLocalOf { true }
 
+/**
+ * This page is the committed destination of a programmatic tab jump. Unlike
+ * [LocalMainPageActive] it turns true as soon as the spring starts instead of after it
+ * settles, so entry gestures like the search IME can fire during the animation (#756).
+ */
+internal val LocalMainPageEntryTarget = compositionLocalOf { false }
+
 internal fun mainPageIdentity(route: String) = route.substringBefore('?').trimEnd('/')
 
 @Stable
@@ -110,13 +117,17 @@ internal fun MainPagePager(
     routes: List<String>,
     swipeEnabled: Boolean,
     modifier: Modifier = Modifier,
+    saveableStateHolder: androidx.compose.runtime.saveable.SaveableStateHolder = rememberSaveableStateHolder(),
     onBackToHome: () -> Unit = { if (!state.exitSearch()) state.select(Screen.Home.route) },
     content: @Composable (String) -> Unit
 ) {
     if (routes.isEmpty()) return
     val selected = routes.indexOfFirst { mainPageIdentity(it) == mainPageIdentity(state.selectedRoute) }.coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = selected) { routes.size }
-    val holder = rememberSaveableStateHolder()
+    // The holder is normally hoisted above the NavHost so a destination stacked by a
+    // deeplink does not destroy every tab's saved scroll state when this page leaves
+    // composition (#750).
+    val holder = saveableStateHolder
     val latestRoutes by rememberUpdatedState(routes)
     var navigating by remember { mutableStateOf(false) }
     var settledRequestVersion by remember { mutableIntStateOf(-1) }
@@ -124,7 +135,15 @@ internal fun MainPagePager(
     LaunchedEffect(requestedVersion, routes) {
         val destination = latestRoutes.indexOfFirst { mainPageIdentity(it) == mainPageIdentity(state.selectedRoute) }.coerceAtLeast(0)
         navigating = true
-        try { pager.springAnimateToPage(destination) } finally {
+        try {
+            // A far tab jump would sweep every intermediate page (#720). Pre-position next to
+            // the target so the spring only crosses a single page edge.
+            val distance = destination - pager.currentPage
+            if (kotlin.math.abs(distance) > 1) {
+                pager.scrollToPage(destination - distance / kotlin.math.abs(distance))
+            }
+            pager.springAnimateToPage(destination)
+        } finally {
             settledRequestVersion = requestedVersion
             navigating = false
         }
@@ -146,7 +165,10 @@ internal fun MainPagePager(
         holder.SaveableStateProvider(mainPageIdentity(route)) {
             val active = mainPageIdentity(route) == mainPageIdentity(state.selectedRoute)
             val readyForInput = active && index == pager.settledPage && !pager.isScrollInProgress && !navigating
-            CompositionLocalProvider(LocalMainPageActive provides readyForInput) {
+            CompositionLocalProvider(
+                LocalMainPageActive provides readyForInput,
+                LocalMainPageEntryTarget provides (active && navigating && index == pager.targetPage)
+            ) {
                 MainPageBackScope(active) { content(if (active) state.selectedRoute else route) }
             }
         }

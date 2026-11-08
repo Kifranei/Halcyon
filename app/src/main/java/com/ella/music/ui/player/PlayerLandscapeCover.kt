@@ -184,7 +184,8 @@ internal fun LandscapeCoverPlayerPage(
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
     val titleAboveCover = playerTitlePosition ==
         com.ella.music.data.SettingsManager.PLAYER_TITLE_POSITION_ABOVE_COVER
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
 
     if (compactPhoneLandscape) {
         CompactPhoneLandscapeCoverPlayerPage(
@@ -250,8 +251,8 @@ internal fun LandscapeCoverPlayerPage(
         return
     }
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -365,7 +366,7 @@ internal fun LandscapeCoverPlayerPage(
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 14f
                             )
-                        } else {
+                        } else if (!canvasFillsPlayer) {
                             AlbumArtView(
                                 song = song,
                                 embeddedCover = embeddedCover,
@@ -557,7 +558,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     modifier: Modifier = Modifier
 ) {
     var previewProgress by remember(song?.id, song?.path) { mutableStateOf<Float?>(null) }
-    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
+    val canvasFillsPlayer = dynamicCoverSource?.fillsPlayer() == true
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground || canvasFillsPlayer }
     val coverGestureModifier = Modifier.playerCoverGestures(
         swipeEnabled = coverSwipeEnabled,
         onSwipePrevious = onSwipePrevious,
@@ -568,8 +570,8 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         nextSongTitle = nextSongTitle
     )
 
-    Box(modifier = modifier.then(if (drawBackground) Modifier.background(palette.middle) else Modifier)) {
-        if (drawBackground) {
+    Box(modifier = modifier.then(if (drawBackground && !canvasFillsPlayer) Modifier.background(palette.middle) else Modifier)) {
+        if (drawBackground && !canvasFillsPlayer) {
             LandscapeCoverModeBackground(
                 palette = palette,
                 dynamicCoverSource = dynamicCoverSource,
@@ -625,7 +627,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                             modifier = Modifier.fillMaxSize(),
                             cornerRadiusDp = 22f
                         )
-                    } else {
+                    } else if (!canvasFillsPlayer) {
                         PhoneLandscapeCoverImage(
                             song = song,
                             embeddedCover = embeddedCover,

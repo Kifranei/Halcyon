@@ -13,13 +13,13 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
-import com.ella.music.ui.components.ApplyHalcyonSystemBarsToCurrentWindow
+import com.ella.music.ui.components.EllaGlassListPopup
+import top.yukonga.miuix.kmp.glass.GlassPopupItem
 import com.ella.music.ui.components.isAppWallpaperVisible
 import com.ella.music.ui.components.wallpaperAwareCardColor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowListPopup
 
 @Composable
 internal fun onlineSourceCardColor(): Color = when {
@@ -52,30 +52,20 @@ internal fun OnlineSearchControls(
                     menuVisible = !menuVisible
                     if (menuVisible) haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                 }) { Text(providers.getOrElse(selectedIndex) { providers.first() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                WindowListPopup(
+                EllaGlassListPopup(
                     show = menuVisible,
-                    alignment = PopupPositionProvider.Align.Start,
                     onDismissRequest = { menuVisible = false }
                 ) {
-                    ApplyHalcyonSystemBarsToCurrentWindow()
-                    ListPopupColumn {
-                        providers.forEachIndexed { index, label ->
-                            val select = {
+                    providers.forEachIndexed { index, label ->
+                        GlassPopupItem(
+                            text = label,
+                            selected = index == selectedIndex,
+                            onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                 onProviderSelected(index)
                                 menuVisible = false
                             }
-                            DropdownImpl(
-                                item = DropdownItem(text = label, selected = index == selectedIndex, onClick = select),
-                                optionSize = providers.size,
-                                isSelected = index == selectedIndex,
-                                index = index,
-                                enabled = true,
-                                isFirst = index == 0,
-                                isLast = index == providers.lastIndex,
-                                onSelectedIndexChange = { select() }
-                            )
-                        }
+                        )
                     }
                 }
             }

@@ -171,9 +171,11 @@ fun MetadataCategoryScreen(
         }
     }
     val gridColumns by mainViewModel.settingsManager.categoryGridColumns.collectAsState(initial = 2)
+    val customCategories by mainViewModel.settingsManager.customMetadataCategories.collectAsState(initial = emptyList())
+    val customCategory = remember(customCategories, type) { customCategories.firstOrNull { it.type == type } }
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val configuration = LocalConfiguration.current
-    val safeGridColumns = if (type.usesSingleColumnCategory()) {
+    val safeGridColumns = if (type.usesSingleColumnCategory() || customCategory?.listStyle == true) {
         1
     } else if (configuration.smallestScreenWidthDp >= 600) {
         gridColumns.coerceIn(5, 8)
@@ -534,6 +536,9 @@ fun MetadataCategoryScreen(
                             selectionMode = selection.selectionMode,
                             selected = item.name in selection.selectedIds,
                             isPinned = item.name in pinnedCategoryKeys,
+                            customList = customCategory?.listStyle == true,
+                            customCard = customCategory != null && customCategory.listStyle == false,
+                            customCardColumns = safeGridColumns,
                             onClick = {
                                 if (selection.selectionMode) selection.toggleSelection(item.name) else onCategoryClick(item.name)
                             },
@@ -722,17 +727,25 @@ fun MetadataCategoryScreen(
                         ).show()
                         categoryMenuItem = null
                     },
+                    // #725 §3: search-image and batch-edit sit above permanent delete.
+                    * (if (type in ARTIST_IMAGE_CATEGORY_TYPES) listOf(
+                        com.ella.music.ui.components.LibraryEntityActions.searchImage {
+                            com.ella.music.ArtistImageSearchActivity.open(context, item.name)
+                            categoryMenuItem = null
+                        }
+                    ) else emptyList()).toTypedArray(),
+                    * if (batchFieldSpecs(type).isNotEmpty()) listOf(
+                        com.ella.music.ui.components.LibraryEntityAction(
+                            title = stringResource(R.string.category_batch_edit),
+                            icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
+                            onClick = { batchCategory = item.name; categoryMenuItem = null }
+                        )
+                    ).toTypedArray() else emptyArray(),
                     com.ella.music.ui.components.LibraryEntityActions.deletePermanently {
                         pendingDeleteSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
                         categoryMenuItem = null
                     }
-                ) + if (com.ella.music.data.metadataCategoryEditKey(type) != null) listOf(
-                    com.ella.music.ui.components.LibraryEntityAction(
-                        title = stringResource(R.string.category_batch_edit),
-                        icon = com.ella.music.ui.components.ActionMenuCommonIcons.edit,
-                        onClick = { batchCategory = item.name; categoryMenuItem = null }
-                    )
-                ) else emptyList()
+                )
             )
         }
     }
@@ -873,3 +886,5 @@ private suspend fun MainViewModel.detailSortedSongsForMetadataCategory(
         }
     return getSongsForMetadataCategory(type, name).sortedForMetadataDetail(mode)
 }
+
+internal val ARTIST_IMAGE_CATEGORY_TYPES = setOf("composer", "arranger", "lyricist", "producer")

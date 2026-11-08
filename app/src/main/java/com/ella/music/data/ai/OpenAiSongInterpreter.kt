@@ -67,6 +67,7 @@ class OpenAiSongInterpreter(
             .put("作曲", tag.composer.ifBlank { song.composer })
             .put("编曲", tag.arranger.ifBlank { song.arranger })
             .put("作词", tag.lyricist.ifBlank { song.lyricist })
+            .put("制作人", tag.producer.ifBlank { song.producer })
             .put("注释", tag.displayComment)
             .put("时长", song.durationText)
             .put("音频信息", input.audioInfoText)

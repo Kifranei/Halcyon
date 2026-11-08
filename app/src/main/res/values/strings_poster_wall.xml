@@ -9,6 +9,7 @@
     <string name="poster_lyric_clock">时计</string>
     <string name="poster_lyric_color">凝彩</string>
     <string name="poster_lyric_glow">绘光</string>
+    <string name="poster_lyric_flow">流岚</string>
     <string name="poster_wall_title">海报墙</string>
     <string name="poster_wall_summary">用封面浏览音乐，自由拖动与缩放</string>
     <string name="poster_wall_count">%1$d 张音乐海报</string>

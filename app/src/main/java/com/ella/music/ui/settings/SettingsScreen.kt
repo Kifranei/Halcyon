@@ -91,6 +91,7 @@ fun SettingsScreen(
     onNavigateToSetupWizard: () -> Unit = {},
     onNavigateToMaintenance: () -> Unit = {},
     onNavigateToOther: () -> Unit = {},
+    onNavigateToExperimental: () -> Unit = {},
     onBack: () -> Unit = {},
     showBackButton: Boolean = true,
     mainViewModel: MainViewModel? = null,
@@ -374,8 +375,15 @@ fun SettingsScreen(
                 }
 
                 SettingsCardGroup {
-                    ArrowPreference(title = stringResource(R.string.settings_other),
-                        summary = stringResource(R.string.video_tools_summary), onClick = onNavigateToOther)
+                    Column {
+                        ArrowPreference(
+                            title = stringResource(R.string.settings_experimental),
+                            summary = stringResource(R.string.settings_experimental_summary),
+                            onClick = onNavigateToExperimental
+                        )
+                        ArrowPreference(title = stringResource(R.string.settings_other),
+                            summary = stringResource(R.string.video_tools_summary), onClick = onNavigateToOther)
+                    }
                 }
 
                 SmallTitle(text = stringResource(R.string.settings_maintenance), insideMargin = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, bottom = 8.dp))

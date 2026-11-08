@@ -12,6 +12,7 @@ import com.ella.music.R
 import com.ella.music.data.ActionMenuIds
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Search
 
 data class LibraryEntityAction(
     val title: String,
@@ -26,6 +27,13 @@ object LibraryEntityActions {
     fun pin(isPinned: Boolean, onClick: () -> Unit) = LibraryEntityAction(
         title = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
         icon = if (isPinned) ActionMenuCommonIcons.unpin else ActionMenuCommonIcons.pin,
+        onClick = onClick
+    )
+
+    @Composable
+    fun searchImage(onClick: () -> Unit) = LibraryEntityAction(
+        title = stringResource(R.string.artist_image_search),
+        icon = MiuixIcons.Regular.Search,
         onClick = onClick
     )
 

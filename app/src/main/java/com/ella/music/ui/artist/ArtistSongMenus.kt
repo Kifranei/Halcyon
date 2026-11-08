@@ -23,10 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
-import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.EllaMiuixDialog
+import com.ella.music.ui.components.EllaMiuixDialogActions
 import com.ella.music.ui.components.ExplicitSongTitle
 import com.ella.music.ui.components.EllaMiuixMenuItem
-import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixSheetColumn
 import com.ella.music.ui.components.EllaMiuixSheetHandle
 import top.yukonga.miuix.kmp.basic.TextField
@@ -45,7 +45,7 @@ internal fun ArtistCreatePlaylistSheet(
     onCreate: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    EllaMiuixBottomSheet(
+    EllaMiuixDialog(
         show = true,
         title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
@@ -62,7 +62,7 @@ internal fun ArtistCreatePlaylistSheet(
                 modifier = Modifier
                     .fillMaxWidth()
             )
-            EllaMiuixSheetActions(
+            EllaMiuixDialogActions(
                 cancelText = stringResource(R.string.common_cancel),
                 confirmText = stringResource(R.string.common_create),
                 onCancel = onDismiss,

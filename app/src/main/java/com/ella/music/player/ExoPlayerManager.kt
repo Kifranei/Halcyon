@@ -129,6 +129,10 @@ class ExoPlayerManager(private val context: Context) {
     private var playWhenConnected = false
     private var pendingPlaylist: PendingPlaylist? = null
     private var reorderingPlaylistForShuffle = false
+    // moveMediaItem drains asynchronously: after the issuance loop returns, one timeline
+    // event per move still arrives on the main thread. Keep timeline callbacks quiet for a
+    // short window so hundreds of trailing events do not each trigger a full state refresh.
+    private var reorderTimelineQuietUntilMs = 0L
     private var suppressSongIdentityUntilElapsedRealtime = 0L
     private var playlistBeforeShuffle: List<Song>? = null
     // Keep the last materialized pseudo-random order independently from the temporary source
@@ -177,6 +181,7 @@ class ExoPlayerManager(private val context: Context) {
     private var presentationMetadataPatchSongKey: String? = null
     private var presentationMetadataPatchUntilMs = 0L
     private var startupMediaTransitionGuardUntilMs = 0L
+    private var startupExpectedSongKey: String? = null
 
     private val queuePersistenceLock = Any()
     private val queueFile by lazy {
@@ -629,7 +634,9 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (!isCurrentController()) return
-                if (reorderingPlaylistForShuffle) return
+                if (reorderingPlaylistForShuffle ||
+                    SystemClock.elapsedRealtime() < reorderTimelineQuietUntilMs
+                ) return
                 // Moving queue items can change the current index without an item transition.
                 if (lastTransitionMediaId == controller.currentMediaItem?.mediaId) {
                     lastTransitionIndex = controller.currentMediaItemIndex
@@ -2172,6 +2179,25 @@ class ExoPlayerManager(private val context: Context) {
             itemSong = itemSong,
             playlistSong = playlistSong
         )
+        val expectedKey = startupExpectedSongKey
+        if (expectedKey != null) {
+            if (restoredSong?.playbackStackKey() == expectedKey) {
+                startupExpectedSongKey = null
+            } else if (SystemClock.elapsedRealtime() < startupMediaTransitionGuardUntilMs) {
+                // The deferred seek during saved-queue restore makes the controller
+                // transiently report index 0; publishing it would flash (and load lyrics
+                // for) the queue's first song. Re-read once the guard window expires.
+                _duration.value = controller.duration.coerceAtLeast(0)
+                commandScope.launch {
+                    val remaining = startupMediaTransitionGuardUntilMs - SystemClock.elapsedRealtime()
+                    delay(remaining.coerceAtLeast(50L) + 100L)
+                    if (mediaController != null) updateCurrentSong()
+                }
+                return
+            } else {
+                startupExpectedSongKey = null
+            }
+        }
         val previousSong = _currentSong.value
         val pendingKey = pendingOptimisticSongKey
         var acceptedOptimisticTransition = false
@@ -2190,8 +2216,19 @@ class ExoPlayerManager(private val context: Context) {
                 return
             }
         }
-        if (!acceptedOptimisticTransition && shouldIgnoreStaleTransition(restoredSong)) {
+        // The stale-transition guard exists for lagging external *snapshots* that can still
+        // describe the outgoing item after the incoming one was accepted. This path reads
+        // controller.currentMediaItem — the live ground truth — but a fast back-skip can
+        // still land on the stale key inside the guard window. When that happens, re-read
+        // the controller once the guard expires so the UI cannot stay pinned to the old song.
+        if (!acceptedOptimisticTransition && shouldIgnoreStaleTransition(restoredSong) &&
+            restoredSong?.playbackStackKey() != pendingOptimisticSongKey
+        ) {
             _duration.value = controller.duration.coerceAtLeast(0)
+            commandScope.launch {
+                delay(STALE_TRANSITION_GUARD_MS + 100L)
+                if (mediaController != null) updateCurrentSong()
+            }
             return
         }
         if (currentItem?.isMetadataOnlyPatch() == true &&
@@ -2480,12 +2517,19 @@ class ExoPlayerManager(private val context: Context) {
         try {
             // Disabling shuffle is a mode change, not a request to reload the current media. Move
             // the existing queue entries in place so the audio renderer keeps its decoder and
-            // playWhenReady state. setMediaItems here was the short pause reported when users
-            // switched away from random playback.
-            val reorderedInPlace = moveControllerPlaylistOrderWithoutReset(
-                controller = controller,
-                targetOrder = original
-            )
+            // playWhenReady state. Above MOVE_MEDIA_ITEM_RESTORE_LIMIT entries each queued move
+            // rebuilds the session timeline (O(n) per move) and posts a timeline event per item,
+            // which grows into the progressive lag/freeze reported for ~1000-song queues — fall
+            // back to the single-IPC setMediaItems path there (#735).
+            val reorderedInPlace = original.size <= MOVE_MEDIA_ITEM_RESTORE_LIMIT &&
+                moveControllerPlaylistOrderWithoutReset(
+                    controller = controller,
+                    targetOrder = original
+                )
+            if (reorderedInPlace) {
+                reorderTimelineQuietUntilMs =
+                    SystemClock.elapsedRealtime() + (original.size * 2L).coerceIn(150L, REORDER_TIMELINE_QUIET_MAX_MS)
+            }
             if (!reorderedInPlace) {
                 // A controller window can differ from the local queue after a reconnect. Keep a
                 // correct fallback for that case; ordinary mode toggles use the in-place path.
@@ -2912,6 +2956,7 @@ class ExoPlayerManager(private val context: Context) {
             controller.prepare()
 
             _currentSong.value = playlist.getOrNull(safeIndex)
+            startupExpectedSongKey = _currentSong.value?.playbackStackKey()
             _currentQueueIndex.value = safeIndex
             _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
             _repeatMode.value = restoredRepeatMode
@@ -2937,6 +2982,7 @@ class ExoPlayerManager(private val context: Context) {
         playlist.addAll(saved.songs)
         _playlist.value = playlist.toList()
         _currentSong.value = current
+        startupExpectedSongKey = current.playbackStackKey()
         _currentQueueIndex.value = index
         _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
         _duration.value = current.duration.coerceAtLeast(0L)
@@ -3195,6 +3241,8 @@ class ExoPlayerManager(private val context: Context) {
         const val SEEK_STATE_SAVE_DEBOUNCE_MS = 220L
         // Collapse rapid lyric-page taps before they reach the MediaController command queue.
         const val SEEK_COMMAND_COALESCE_MS = 48L
+        const val MOVE_MEDIA_ITEM_RESTORE_LIMIT = 240
+        const val REORDER_TIMELINE_QUIET_MAX_MS = 800L
         const val RESUME_POSITION_MIN_MS = 5_000L
         const val RESUME_POSITION_END_GUARD_MS = 8_000L
         const val MAX_RESUME_POSITION_ENTRIES = 256

@@ -1,3 +1,225 @@
+# 1.3.1
+
+From `1.3.0` to `1.3.1` — 列表、自定义分类与文件夹 / lists, custom categories, and folders.
+
+中文更新日志
+
+- #733：音乐库筛选面板可以筛出重复歌曲，并可一键去重删除多余条目。
+- #735：切换随机/顺序播放改为一次性应用目标队列，千级歌曲列表下不再逐渐卡顿或卡死，当前歌曲与播放进度保持不变。
+- #737：全局搜索底部的「已加载全部结果」改为所有结果源都加载完成后才显示。
+- #738：各页面列表条目的置顶标记移到标题最后一行文字末尾。
+- #739：自定义分类卡片高度比例恢复 x:257，右侧图片改为 183:232，按专辑数排序时副标题显示「n 张」，减小标题左边距。
+- #740：自定义分类列表样式副标题由「n 张参与专辑」改为「n 张专辑」。
+- #741：首页含大量功能块时，从分类页返回首页恢复此前的滚动位置。
+- 新增 2 种播放页样式：黑胶唱机、卡片扇形（设置 → 外观与主页 → 播放页）。
+- #722：专辑、艺术家、分类和文件夹的列表条目把置顶标记放到最后一行文字末尾。
+- #723：自定义分类卡片标题最多四行，标题和歌曲数作为一组垂直居中，歌曲数显示为「n 首」。
+- #724：每个自定义分类可以单独选择列表或卡片，并决定详情页是否显示专辑标签。列表封面为圆角方形。
+- #726：自定义分类和艺术家传记匹配规则的添加按钮移到列表顶部，新增或编辑后的条目排在最前。
+- #729：文件夹层次结构每一级右上角增加关闭，回到首页并清空该层导航；下次从首页进入时打开文件夹根目录。
+- #730：全局搜索或筛选加载完成后，结果列表底部显示「已加载全部结果」。
+- #721：Spotify Canvas 铺满整个播放页。Canvas 设置和播放页右上角可以在数秒后自动收起标题与控制，点按画面恢复。
+- 检查更新在 64 位设备上优先下载 arm64 包。部分系统把 32 位 ABI 列在前面时，不再自动下载 armeabi-v7a。
+- 歌曲信息增加制作人、版权、语言，以及文件里的其他标签。这些字段和原有字段都可以在「外观与主页 - 歌曲信息」里显示、隐藏和排序。空字段仍然不显示。
+- 播放页进度条下方的音质标签默认去掉和播放按钮一样的半透明轮廓，只留文字。设置 → 外观与主页 → 播放页里可以重新打开「音质标签轮廓」。列表里的音质标记不变。
+- 竖屏播放页的 MV 点全屏后继续显示视频。歌词改由麦克风按钮打开，不再盖住画面。
+- 长按首页「听音乐」打开音乐来源菜单，选项与音乐库星级筛选同一类弹出列表。
+- #229：当前播放列表的拖拽排序按钮改为长按后才可拖动，误触滑动不再误排序（其他列表不受影响）。
+- #742：全局搜索输入框持有光标时，上下滑动结果列表会先收起键盘，不再反复弹出输入法。
+- #743：各页面右上角搜索按钮唤起的输入框遵循「进入搜索页自动弹出输入法」开关。
+- #720：底栏跨多页切换直接平滑过渡到目标页，不再依次闪现中间页面。
+- #728：读取 PRODUCER 标签新增「制作人」分类，与作曲家全链路一致：首页磁贴、底栏、桌面快捷方式（新图标）、搜索与最近播放标签页、专辑/艺人/分类/歌曲信息跳转、详情页区块、内置元数据编辑器，以及艺术家分隔符与「不拆分」名单；制作人图片沿用艺人图优先、再按专辑封面回退的规则。
+- 分类批量修改扩展：作曲家、编曲家、作词家、制作人分类也支持批量写入，并可附加作曲与歌词字段；输入框支持 <TAG> 占位符按歌曲替换，例如 <ARTIST> 写入每首歌的艺术家、[00:00.000]作曲：<COMPOSER> 写入歌词前缀加作曲家。
+- 海报墙全屏歌词新增「流岚」样式：歌词纵向层叠，当前句居中逐字点亮，上下句随距离模糊、淡出、缩小，整列以弹性动画跟随播放进度（自研实现）。
+- 新增 3 种播放页样式：胶卷（电影胶片队列 + 时间码 + 字幕式歌词）、电波（示波器网格 + 合成波形 + 进度环唱片盘）、杂志（浅色纸面排版 + 衬线标题 + 页码进度）（设置 → 外观与主页 → 播放页）。
+- #741：首页返回恢复滚动改为持续重试到目标位置；此前滚动值被未长够的内容钳制在中间时不再写入，恢复会停在半路。
+- #742：搜索页滚动期间持续收起键盘并强制清焦点，输入法不再因焦点残留或弹层抢占而反复弹回。
+- 桌面小部件的歌词/进度/封面更新改到后台串行线程执行，不再在主线程做 AppWidget binder 同步调用（此前实测单次阻塞可达数秒，极端情况超一分钟）。
+- 文件夹歌单详情页的歌曲/文件夹聚合改到后台线程计算，不再在每一帧重组里做全库 × 文件夹的过滤，大曲库下进入与刷新页面不再卡帧。
+- 黑胶唱机页唱片高光改为柔和扫掠渐变，盘面不再被亮块分成几节；标题行重复的播放/暂停键换成播放模式与队列图标，按钮大小统一。
+- 黑胶唱机与卡片扇形页补上歌词区（当前句 + 下一句淡显），不再只有一句或空着。
+- 主题播放页（黑胶/扇形/胶卷/电波/杂志）进度条填充色改用高对比前景色，封面取色与底色相近时不再看不到已播进度。
+- 主题播放页补齐 MV 能力：主封面位可显示 MV 画面、MV 切换钮与全屏按钮，进入全屏 MV 与默认页一致。
+- 屏蔽文件夹列表顶部新增「手动添加屏蔽文件夹」，点击弹出与设置一致的编辑面板（左上 × 右上 √），手动输入文件夹路径即可加入屏蔽。
+- 液态玻璃底栏上滑进入播放页时，胶囊先向上拉伸、横向边缘滞后收拢，再铺成整个播放页，形变过程与参考录屏一致。
+- 默认应用图标换回蓝色渐变底的音符图标；二次元图标保留为可选样式（设置 → 外观与主页 → 应用图标）。「传统」选项与原版为同一音符资源，已并入原版，存量选择自动迁移。
+- 主题播放页（黑胶/扇形/胶卷/电波/杂志）进度条加 24dp 横向边距，不再贴到屏幕两侧。
+- 隐藏状态栏且保留占位时，沉浸封面向上覆盖状态栏区域、画面顶到屏幕边缘，下方控件仍保留内缩。
+- #742 修复：搜索页的自动聚焦只在进入或显式恢复查询时触发一次；页内横向翻页手势令页面激活态短暂翻转时，输入法不再在滑动结束后弹回（上下左右滑动均不再弹出输入法）。
+- 修复快速连续切歌或切回上一首时，播放页和进度条停在上一首的问题。
+- #745：从 Deeplink、桌面快捷方式、ShortCut 跳转后按返回，回到跳转前所在的页面，不再回到底栏主页；从快捷方式打开搜索页时，悬浮底栏左侧的圆形按钮同样返回跳转前页面。
+- #748：列表条目的置顶标识不再占用标题宽度，无论标题多长都不压缩；末行文字放不下时文字末尾淡出、标识停在行尾，不与文字重叠，仍在最后一行末尾。
+- #750：从 Deeplink、桌面快捷方式、ShortCut 跳转后按返回，回到跳转前页面时记住之前的滚动位置，不再回到顶部。
+- #751：自定义分类允许添加重复的标签键，同名同键的多个分类可以并存，各自独立设置列表样式、分类合集与专辑合并策略。
+- #752：设置 → 音乐库新增「专辑合并策略」：专辑名必选，可再勾选专辑艺术家、艺术家、作曲家、发行时间，所选字段全部相同才算同一张专辑；默认专辑名加专辑艺术家，只影响默认「专辑」分类，改动即时生效、不重新扫描。
+- #753：「自动下载艺术家图片」改为「自动缓存艺术家图片」，设置为「从不」时不再自动下载；搜索图片页点「保存图片」改为跟随「艺术家图片保存路径」，不再写入缓存路径；「艺术家图片缓存路径」默认改为应用内部存储（/storage/emulated/0/Android/data/com.ella.music/files/artist_images/）。
+- #754：艺术家图片搜索结果显示图片分辨率；「所有」标签页按搜索词匹配程度加来源优先级综合排序；支持 deeplink：`halcyon://artist-image-search?source=%s&keyword=%s`，source 可取 qq、netease、kugou、kuwo、spotify、last.fm。
+- #755：关闭「播放页显示收藏按钮」后歌词页收藏按钮同步隐藏，标题副标题右端补上空出的位置；新增「副标题滚动」开关，同时控制播放页与歌词页过长的歌手名；「标题滚动」开关同样作用于歌词页歌名。
+- #756：音乐库页长按迷你播放条定位当前歌曲不再有明显延迟；进入全局搜索页自动弹出输入法不再有明显延迟。
+- #744：自定义分类新增「分类合集」模式：填写「合并分类项名称」和「合并分类项」，两栏按行一一对应，成员之间用顿号或逗号分隔（如 `国语流行、华语流行、Pop`）。开启后分类页只显示合并项，点进去显示其中所有成员的歌曲。
+- #749：标签为艺术家、专辑艺术家、作词、作曲、编曲、制作人、流派的自定义分类，可以关闭「应用自定义分隔符」，关闭后该分类不再使用「不拆分」名单和自定义分隔符。标签为 ALBUM 时可以选专辑合并策略：专辑名、专辑艺术家、艺术家、作曲家、发行时间，默认是专辑名加专辑艺术家，所选字段全部相同才算同一张专辑。以上都不影响默认分类。
+- #746：新增「搜索图片」，入口在艺术家、作词家、作曲家、编曲家、制作人分类长按「更多操作」，以及艺术家详情页查看大图时「保存图片」左边的按钮。打开后是独立的艺术家图片搜索页，「所有」和各来源标签按「艺术家图片来源优先级」排序；点结果可以查看大图，保存路径跟随「艺术家图片保存路径」。
+- #747：播放页快捷操作：长按「播放模式」选列表循环、单曲循环、随机或顺序（顺序是否出现跟随「取消顺序播放模式」开关）；长按「收藏」添加到歌单；长按「更多操作」打开播放页竖向操作菜单设置；长按「上一首」设置上一曲是切歌还是重放；长按「暂停」设置暂停时的切歌行为；非沉浸模式下长按进度条上方的「歌曲信息 / 查看频谱 / 编辑元数据 / 歌词打轴」打开对应设置。设置新增「播放页显示收藏按钮」「标题滚动」「点击歌曲名跳转专辑」三个开关。
+- 新增「艺术家艺术字目录」（设置 → 封面媒体）：目录中若存在与艺术家同名的图片（如 `艺术家名.png`），艺术家页的名称文字会替换为该艺术字图片显示，效果类似 Apple Music 的艺术家艺术字，可配合 AM++ 下载的艺术字使用。
+- 新增「专辑盒效果」开关（设置 → 封面媒体，默认开启）：专辑详情页的封面显示为立体的实体 CD 盒，带书脊、厚度与投影，点击翻开盒盖露出碟片，再次点击合上，长按仍可查看大图（自研实现，不含 Salt Player 代码）。
+- #758：「自动缓存艺术家图片」设置为「从不」后，冷启动首帧仍可能触发一次自动缓存——收集设置的初始值被放宽为「仅 Wi-Fi」造成的竞态已修复，「从不」现在从第一帧就生效。
+- #757：艺术家图片搜索的网易云源结果显示分辨率（URL 没有尺寸参数时自动升级为 1000y1000 大图）；配置 Last.fm API Key 后，Last.fm 标签返回多个尺寸的图片候选，不再只有最大一张，网页抓取仍是兜底。
+- #759：播放页关闭「显示收藏按钮」后，标题与副标题右端与封面右端对齐——补齐非居中标题行遗留的 230dp 宽度上限。
+- #544：歌单与文件夹歌单详情页顶栏，标题文字到右侧按钮的间距改为按实际按钮宽度预留，不再按写死值留出大块空白，间距与文件夹详情页一致。
+- #750（重做）：分类详情页、文件夹详情页被 Deeplink/快捷方式打开的页面覆盖后返回，滚动位置经返回栈 savedStateHandle 兜底恢复；分类详情页列表状态同步改为可保存。
+- 新增「在线歌曲下载路径」（设置 → 封面媒体）：默认各在线源写入各自内置目录（网易云 Music/Halcyon/NcmOfflineSongs、LX Music/Halcyon、MusicFree Music/MF）；选自定义存储目录（SAF 授权）后，网易云、MusicFree、LX 的歌曲下载统一写入所选文件夹，文件名冲突自动改名不覆盖。
+- 修复顶栏按钮重叠：#544 的标题间距改动误把右上角操作按钮叠成一层，已还原为横向排布，同时保留按实际按钮宽度预留标题间距。
+- 新增「播放模式加入播完停止」开关（设置 → 播放，默认关闭）：开启后播放模式选项里多出「播完停止」，选中后当前歌曲播完自动暂停（单次生效，单曲循环模式下也能在播完时停下，不再多放一遍）。
+- 底栏新增「悬浮胶囊」样式：移植 Miuix Glass 导航胶囊，图标+文字项均分排布、滑动玻璃指示器随手指移动，毛玻璃折射质感并保留右侧独立搜索圆钮（设置 → 外观与主页 → 底栏样式）。
+- 新增「顶栏液态玻璃」开关（设置 → 外观与主页 → 主题，默认关闭）：顶栏背景为强渐进模糊带，返回与操作按钮各自落在带折射透镜和泛光描边的玻璃圆片上，边缘沿渐进曲线淡出（需开启渐进模糊）。
+- 淡入淡出增加智能过渡：默认淡入点落在唱词中间时，自动顺延到该句结束边界再起淡；同专辑同碟的连续曲目（N → N+1）直接走无缝衔接不再交叉淡化；无歌词时仍由波形包络兜底快速交接。
+- 水波纹播放页样式移除（竖屏页面与横屏流动效果一并下线，相关设置项同步删除）。
+- 播放页歌词区改为多行居中：横屏封面流显示上/当前/下三行，黑胶唱机页歌词区在顶部留白带内垂直居中、最多显示上下共四句。
+- 海报墙堆叠卡片修复：左右滑动换牌不再触发切歌，非正在播放的卡片不再闪出歌词与播放控制界面，只有真正在播的卡才进入播放态。
+- 海报墙全屏歌词效果按公开参考整体重写（自研实现，未使用 Folia 代码）：「回环」改为整句沿倾斜椭圆轨道环绕推进、当前句居中放大；「时计」为齿轮钟盘 + 弧线排布歌词；「凝彩」把当前句切成 2~4 词分镜，逐镜切换双色/灰阶色块并带反色双通道；「商籁」为印刷版框 + 超大描边首字母 + 胶片颗粒/半调 + RGB 偏移；「绘光」保留光场词回声与逐字点亮。
+- 专辑盒效果从专辑详情页移到「介绍」页：专辑页封面恢复普通圆角封面；介绍页封面在开关开启时显示为可开合的实体 CD 盒，点击翻开盒盖查看碟片，长按仍可查看大图。
+- 修复关闭收藏按钮后播放页标题/副标题右端与封面右端差 18dp 不对齐的问题：无尾随操作按钮时不再预留按钮空隙（#759）。
+- 修复从播放页跳转到当前路由同名的页面（如专辑→同路由专辑）时播放覆盖层不收起、看似无法跳转的问题：导航效果改按路由与返回栈条目双键触发（#761）。
+- 迷你播放条左右滑切歌时，副标题预览目标歌曲名并以主题色高亮（#762）。
+- 艺术家图片源不再人为压低分辨率：网易云图片去掉 param= 尺寸参数直取原图，Last.fm 各尺寸候选不再统一改写为 770x0 而互相去重；Last.fm 在 API 无图或未填 key 时回退抓取艺术家公开页的 og:image 与内联图片（#764）。
+- 详情页返回恢复滚动位置扩大到专辑页、艺术家页、歌单页、文件夹歌单页（歌曲/文件夹两个列表分别记忆），不再只有元数据分类页生效（#750）。
+- 底栏默认样式改为「HyperOS 4 悬浮」；开启悬浮底栏进入搜索页时，底部搜索条与返回按钮改用与 OS4 胶囊一致的 54dp 尺寸。
+- 专辑盒改为双轴全向 3D 倾斜跟手：手指任意方向拖动整盒实时旋转（过界橡皮筋），松手弹性回正；点按开合盒盖不变。
+- 首页顶栏不再整体下沉到状态栏下方：模糊带直接延伸到屏幕顶端，消除与状态栏区域的割裂与采样错位重影。
+- 切歌不再闪默认封面：封面模型解析期间继续沿用上一张已解析封面，新图解码期间保留上一张成功绘制的画面（播放页封面、黑胶碟心、封面大图等全部生效）。
+- 应用图标恢复 1.3.0 样式；「传统样式」选项重新使用独立图标。
+- #750 分类详情页滚动恢复补全：流派/年份/作词家/作曲家/编曲家/文件夹/自定义分类详情页与文件夹歌单页经 Deeplink/快捷方式跳转返回后回到原滚动位置（此前列表异步加载未就绪时恢复请求被钳到顶部）。
+- #760 专辑合并策略改为冷启动生效：修改后展示「需重启应用生效」提示，进程内策略冻结于启动时读取的值，全程一致合并，避免新旧分组混用。
+- 海报墙堆叠滑动换牌不再闪出旧卡：换牌后新卡在隐身状态下归位再淡入，替代原来的偏移量瞬移归零；播放页流光背景切歌不再闪——流动时钟改为真正进程级连续、容器底色 400ms 过渡、新旧渲染帧 220ms 交叉淡化。
+- 专辑盒支持跟手拖动：介绍页的实体 CD 盒可横向拖动实时翻转盒盖，松手按开合角度弹簧吸附到开/关，点按开合与长按大图保持不变；「流光效果」选项 OS1 更名「禁用」（该项本就关闭流光动效）。
+- 悬浮胶囊底栏与迷你播放条统一 16dp 水平内边距，上下边缘对齐；首页「听音乐」顶栏接入渐进模糊与液态玻璃圆片按钮管道（随滚动模糊，开启顶栏液态玻璃后四个操作按钮各自落在玻璃圆片上）；系统「打开方式」中的 M3U8 下载器改名「视频播放器」；底栏样式更名：高斯模糊悬浮→iOS 悬浮（高斯模糊）、液态玻璃悬浮→iOS 悬浮（液态玻璃）、悬浮胶囊→HyperOS 4 悬浮。
+- 批量修改重做（#725）：新增「保持修改时间」（写回后恢复文件 lastModified，不打乱按修改时间排序）与「部分替换模式」（字段拆为「匹配/替换」双栏，只在命中片段内替换）；字段支持清空保存、混合值显示 <keep> 占位不动则不改、预填共同交集，并可从该分类歌曲的既有值中选择；专辑页与艺术家页长按菜单新增批量修改入口（专辑 11 项字段、艺术家 3 项），作曲家限改作曲/艺术家/专辑艺术家、编曲家/作词家/制作人限改自身字段，自定义标签追加标准字段集；「搜索图片」「批量修改」移至「永久删除」上方，并同步移植到全局搜索分类结果的长按菜单。
+- 修复「专辑」分类块始终按默认字段（专辑名+专辑艺术家）分组的问题：未自定义合并字段的分类块跟随全局「专辑合并策略」，张数、封面与详情页歌曲恢复一致（#760）。
+- 交叉淡入淡出（开关、时长、曲线）从「音频」移到新增的「设置 → 实验性功能」页，设置搜索索引同步指向新位置。
+- #763：冷启动恢复播放时先等歌曲身份稳定再提交歌词与通知封面，不再短暂显示曲库第一首的歌词；歌词页可能永久停在「正在加载」的边界路径已清理。
+- #732：MusicFree JS 适配层整体重写——补齐 CryptoJS（AES/DES/3DES/RC4、HMAC、PBKDF2、EvpKDF、OpenSSL 格式）、fetch/XMLHttpRequest、Buffer/btoa/atob、URL/FormData、node crypto/path/util/events 等 shim；Promise.race+setTimeout 的插件写法可正常超时；AsyncStorage/localStorage 落到应用内持久化，插件 token 不再每次调用丢失。
+- 下拉/筛选菜单控件全部替换为 Miuix Glass 实现：排序菜单、来源菜单、评分筛选、库分析筛选、批量修改面板、在线源选择与全部设置下拉项改用 OS4 玻璃弹层（保留多选不自动收起等原交互）。
+- #765：播放页长按歌手名直接打开「自定义艺人及创作人员分隔符」设置面板；「点击歌曲名跳转专辑」开关同步作用于歌词页歌名。
+- 修复专辑盒点按无法翻开：双轴倾斜改造后点按仍走「就近吸附」逻辑，盒盖永远停在原状——点按改为直接开合取反，碟片内页恢复点击翻开。
+- #760 还原：专辑合并策略恢复修改后即时生效（经 distinctUntilChanged 全链路刷新分组），「需重启应用生效」提示移除。
+- 新建歌单改为对话框：全部六处「新建歌单」入口（艺术家页、分类详情、文件夹详情、歌曲更多菜单、首页选择面板、歌单页）由底部面板改为居中弹窗。
+- 检查更新页「稳定版 / 预发布」渠道选择由底部面板改为顶栏 OS4 玻璃下拉菜单，两项直选。
+- OS4 玻璃下拉菜单恢复系统预测性返回：弹层窗口内重新解析自己的返回事件分发器，侧滑全程显示面板进度，不再丢回宿主页面。
+- 对话框与底部面板换用 Miuix Glass 材质：透明窗口底 + glassPanel 折射泛光面板，无模糊录制管道时回退原实色面板。
+- 修复首页渐进模糊回滑重影：录制背景从滚动节点移到固定容器，快捷按钮与功能块不再被印在顶部模糊带里。
+- 播放页切歌流光不再闪：切歌间隙封面短暂为空的空窗期继续沿用上一张封面，流光组件不再卸载重建（横屏布局同步修复）。
+
+English
+
+- #733: The library filter panel can surface duplicate songs and remove the extras in one action.
+- #735: Switching shuffle/sequential order now applies the target queue in one shot; thousand-track queues stay smooth and the current song and position are kept.
+- #737: “All results loaded” in global search now appears only after every result source has finished loading.
+- #738: Pin marks on list rows move to the end of the title’s last line.
+- #739: Custom category cards restore the x:257 height ratio and 183:232 artwork, show “n” when sorted by album count, and use tighter title padding.
+- #740: Custom category lists show “n albums” instead of “n participating albums”.
+- #741: Returning home from a category restores the previous scroll position even with many feature blocks.
+- Added two player page styles: vinyl turntable and fanned cards (Appearance → Player page).
+- #722: Pin marks on album, artist, category, and folder list rows sit at the end of the last text line.
+- #723: Custom category cards allow four title lines, keep the title and count centered together, and show the count as a short “n”.
+- #724: Each custom category can use a list or a card, and can show an album tab on its detail page. List artwork is a rounded square.
+- #726: Add buttons for custom categories and biography match rules move to the top. New and edited entries sort first.
+- #729: Every folder-hierarchy page has a close button that returns home and clears that navigation. The next visit opens the folder root.
+- #730: Global search shows “All results loaded” at the bottom after a search or filter finishes.
+- #721: Spotify Canvas fills the player. Canvas settings and the player shortcut can hide the title and controls after a few seconds; tap the video to bring them back.
+- Update checks on 64-bit devices download the arm64 package first. A ROM that lists the 32-bit ABI first no longer auto-downloads armeabi-v7a.
+- Song info adds producer, copyright, language, and the file’s other tags. These fields, with the existing ones, can be shown, hidden, and reordered under Appearance → Song info. Empty fields stay hidden.
+- The quality label under the player progress bar no longer uses the play button’s translucent outline. Turn it back on under Appearance → Player → Quality label outline. List quality marks are unchanged.
+- Full screen from a portrait music video keeps the video. Lyrics open from the microphone button instead of covering the picture.
+- Long-pressing the home title opens the library-source menu, using the same popup as the library rating filter.
+- #229: The now-playing queue's drag handle now requires a long press; a stray swipe no longer reorders (other lists are unchanged).
+- #742: Scrolling search results while the field is focused hides the keyboard instead of letting the IME pop back up.
+- #743: Search boxes opened from page-top search buttons honor the “auto show keyboard on search” setting.
+- #720: Bottom-bar jumps across several tabs transition straight to the target page without flashing intermediate pages.
+- #728: A Producer category reads the PRODUCER tag and mirrors the composer pipeline end to end: home tile, bottom dock, home-screen shortcut (new icon), search and recent-playback tabs, jumps from album/artist/category/song-info pages, detail sections, the built-in metadata editor, and the artist separators and no-split list. Producer artwork resolves artist images first, then falls back to album covers.
+- Category batch edit extended: composer, arranger, lyricist, and producer categories support batch writing with optional composer and lyrics fields, and every input accepts <TAG> placeholders resolved per song — e.g. <ARTIST> writes each song's artist, and “[00:00.000]作曲：<COMPOSER>” writes a lyrics prefix plus the composer.
+- Poster-wall fullscreen lyrics gain a “Flowing” style: lines stack vertically, the active line stays sharp and word-lit at center while neighbours blur, fade and shrink with distance, and the column springs along with playback (original implementation).
+- Three new player page styles: Cinemascope (film-strip queue with sprocket holes, timecode, subtitle lyrics), Signal (oscilloscope grid, synthetic waveform, progress-ring disc), and Editorial (light paper layout, serif headline, page-number progress) — Settings → Appearance & Home → Player page.
+- #741: Home scroll restore now keeps retrying until it reaches the saved offset; previously a position clamped mid-way by still-growing content was never rewritten and restore stalled part-way.
+- #742: While the search list is scrolling the keyboard is kept hidden and focus is forcibly cleared, so the IME can no longer pop back from a stuck focus or a popup stealing it.
+- Widget lyric/progress/artwork updates now run on a serial background lane instead of issuing AppWidget binder calls on the main thread (measured stalls of several seconds, once over a minute).
+- Folder-playlist detail aggregation now runs on a background thread instead of re-filtering the whole library per folder inside every recomposition, removing multi-second frame freezes on large libraries.
+- Vinyl turntable: the record's highlight is now a soft sweep gradient so the disc no longer looks split into segments; the duplicate play/pause button in the meta row is replaced by playback-mode and queue icons with consistent sizing.
+- Vinyl and fanned-cards pages gain a lyric area (active line plus a dimmed next line) instead of a single line or empty space.
+- Themed player pages (vinyl/fan/cinemascope/signal/editorial) draw the progress fill in a high-contrast foreground color, so played progress stays visible when the cover-derived accent blends into the background.
+- Themed player pages now support MV like the stock page: the main artwork slot can show the MV surface plus the MV toggle and fullscreen buttons.
+- Blocked folders list gains a manual “Add blocked folder” entry that opens the settings-style edit sheet (× top-left, ✓ top-right) so a folder path can be typed and blocked directly.
+- Swiping up on the liquid-glass bottom bar now stretches the pill upward first while its horizontal edges lag behind, morphing into the player like the reference recording.
+- The default launcher icon is the note on a blue gradient again; the anime icon stays available as an option (Settings → Appearance → App icon). The “Traditional” entry rendered the same note, so it is folded into Default and existing selections migrate automatically.
+- Themed player pages (vinyl/fan/cinemascope/signal/editorial) inset the progress bar by 24dp so it no longer touches the screen edges.
+- With the status bar hidden but its space reserved, the immersive cover now lifts over the reserved band and reaches the window edge while controls below keep the inset.
+- #742 follow-up: search autofocus now fires only once per entry or explicit query restore; the in-place page swipe briefly flips page-active state during any drag, and the IME no longer pops back when the gesture settles — swipes in every direction leave the keyboard down.
+- Stuck-skip fix: a real track change during rapid skipping or skipping back is no longer discarded by the stale-transition guard, so the player page and progress bar no longer stay on the previous song.
+- #745: Pages opened from deeplinks, launcher shortcuts, and app shortcuts stack on top of the current page, so Back returns to where you were. A search opened that way sends the floating dock's round button back to the same page (showing a back icon when the source is not a dock tab).
+- #748: The pin mark no longer reserves any title width, so titles of any length keep their full layout; when the last line has no room, the text tail fades out and the icon still sits at the end of that line without overlapping glyphs.
+- #750: Returning from a page opened by a deeplink, launcher shortcut, or app shortcut restores the previous scroll position instead of jumping to the top.
+- #751: Custom categories now accept duplicate tag keys; same-key categories coexist with independent list styles, collections, and album merge rules.
+- #752: New “Album merge rule” setting under Library: album name is mandatory and album artist, artist, composer, and release date can be added — songs count as one album only when every selected field matches. Defaults to name + album artist, affects only the built-in Album category, and applies instantly without a rescan.
+- #753: “Auto download artist images” is renamed “Auto cache artist images” and the Never option now truly skips downloads; Save image on the search page follows the artist image save location instead of the cache path; the cache path defaults to app internal storage (/storage/emulated/0/Android/data/com.ella.music/files/artist_images/).
+- #754: Artist image results show their resolution; the All tab sorts by keyword match quality then source priority; deeplinks `halcyon://artist-image-search?source=%s&keyword=%s` accept source values qq, netease, kugou, kuwo, spotify, and last.fm.
+- #755: Turning off the player favorite button also hides it on the lyrics page and lets the title/subtitle fill the freed edge; a new “Subtitle scrolling” switch controls long artist names on both pages, and “Title scrolling” now applies to the lyrics page too.
+- #756: Locating the current song after long-pressing the mini player on the library page is no longer visibly delayed, and the global search page's automatic keyboard pop-up is no longer delayed.
+- #744: Custom categories gain a “Category collection” mode: list merged item names and their members line by line (members separated by 、 or commas). When on, the category lists only the merged items and each opens with all of its members’ songs.
+- #749: Custom categories keyed on artist, album artist, lyricist, composer, arranger, producer, or genre can turn off “Apply custom separators”; ALBUM categories can choose the album merge rule (album name, album artist, artist, composer, release date; default name + album artist). Built-in categories are unaffected.
+- #746: “Search images” is added to the long-press menu of artist, lyricist, composer, arranger, and producer categories and to the artist page image viewer. It opens a standalone artist image search page (also callable by other apps); the “All” tab and source tabs follow the artist image source priority, and results open full screen and save to the artist image folder.
+- #747: Player shortcuts: long-press playback mode to pick repeat all / repeat one / shuffle / in order; favorite to add to a playlist; more for the vertical action menu; previous and pause for their behaviour settings; song info / spectrum / edit metadata / lyric timing for their app settings. New settings: show favorite button, scrolling title, and tap title to open album.
+- Added an "Artist wordmark folder" setting (Settings → Cover & media): when the folder contains an image named like the artist (e.g. `Artist.png`), the artist name on the artist page is rendered as that wordmark image, similar to Apple Music artist wordmarks (works with wordmarks downloaded via AM++).
+- Added an "Album case effect" switch (Settings → Cover & media, on by default): the album page cover is shown as a physical 3D CD jewel case with spine, thickness and drop shadow — tap to flip the lid open and reveal the disc, tap again to close, long-press still opens the large preview (original implementation, no Salt Player code).
+- #758: With "Auto-cache artist images" set to "Never", a cold-start frame could still trigger one cache write — the collected setting's initial value was permissive. Fixed so "Never" applies from the first frame.
+- #757: NetEase results in artist image search now show a resolution (URLs without a size parameter are upgraded to a 1000x1000 variant); with a Last.fm API key configured, the Last.fm tab returns multiple size candidates instead of only the largest image, with page scraping kept as fallback.
+- #759: When the player favorite button is hidden, title and subtitle right edges now align with the cover's right edge — the leftover 230dp cap on the non-centered title row is removed.
+- #544: Playlist and folder-playlist top bars reserve the title's trailing space by the measured width of the actual action buttons instead of a hardcoded estimate, removing the dead gap so spacing matches the folder detail page.
+- #750 (redo): When a category or folder detail page is covered by a deeplink/shortcut destination, the scroll position is restored through the back-stack entry's savedStateHandle; the category detail list state is now saveable as well.
+- Added "Online song download location" (Settings → Cover & media): online sources keep writing to their built-in folders by default (NetEase Music/Halcyon/NcmOfflineSongs, LX Music/Halcyon, MusicFree Music/MF); picking a custom storage folder (SAF) redirects NetEase, MusicFree and LX song downloads there, auto-renaming on filename conflicts.
+- Fixed overlapping top-bar action buttons: the #544 title-spacing change stacked the action icons into one layer; they are laid out horizontally again while the title spacing still follows the measured button width.
+- Added an "Add 'Stop after current' to playback modes" switch (Settings → Playback, off by default): the playback-mode options gain "Stop after current" — playback pauses when the current song finishes (one-shot, and repeat-one stops at the end of the current pass instead of playing once more).
+- New "Floating capsule" bottom bar style: a Miuix Glass navigation capsule with evenly spaced icon + label items and a sliding glass indicator that follows your finger, plus the separate circular search button on the right (Settings → Appearance & Home → Bottom bar style).
+- New "Liquid glass top bar" switch (Settings → Appearance & Home → Theme, off by default): the bar gains a strong progressive blur band while back and action buttons each sit on their own glass circle with edge refraction and a bloom stroke, fading out on the progressive ramp (requires progressive blur).
+- Smarter crossfade: when the fixed fade window would open mid-lyric, the start slides to the line boundary so the vocal finishes first; consecutive album sides (same disc, track N → N+1) stay gapless instead of crossfading; the waveform-envelope fast-commit remains the fallback when no lyrics exist.
+- Removed the water-ripple player page style (portrait page and the landscape flow effect, along with their settings entries).
+- Player lyric areas are now centered multi-line stacks: landscape cover-flow shows previous/current/next lines, and the vinyl page centers up to four neighbouring lines inside its leftover top band.
+- Poster wall fix: swiping within a stacked card no longer triggers playback, and non-playing cards no longer flash the lyric/playback state — only the actually playing card enters that presentation.
+- Poster-wall fullscreen lyric effects rewritten from scratch against public references (native implementations, no Folia code): Orbit now rides whole lines along a tilted elliptical track with the current line enlarged at the front; Clock is a geared dial with lyrics on arcs; ColorField cuts the active line into 2–4-word shots over two-tone/grayscale blocks with an inverted pass; Sonnet gains a print frame, oversized outlined initial, film grain/halftone and RGB split; Glow keeps the light-field word echoes.
+- Album case effect moved from the album page to the "Introduction" page: the album header cover is a plain rounded cover again; the intro page cover renders the openable CD jewel case when the setting is on — tap to flip the lid, long-press still opens the large preview.
+- Fixed the player title/subtitle sitting 18dp short of the cover's right edge when the favorite action is hidden: no trailing button space is reserved without a button (#759).
+- Fixed the player overlay staying open when navigating to another entry of the same route (e.g. album → same-route album), which looked like the jump silently failed: the route effect now keys on both route and back-stack entry identity (#761).
+- Mini-player swipe-to-skip now previews the target song title in the subtitle and highlights it with the theme accent (#762).
+- Artist image sources no longer cap resolution: NetEase URLs drop the param= sizing parameter to fetch the original, and Last.fm size variants are no longer all rewritten to 770x0 (which deduplicated them into one); when the API returns no usable image or no key is configured, Last.fm falls back to scraping the public artist page's og:image and inline images (#764).
+- Scroll-position restore on return now covers the album, artist, playlist and folder-playlist detail pages (songs/folders lists remembered separately), not just metadata category pages (#750).
+- The bottom bar now defaults to the HyperOS 4 floating capsule; in the search page the dock search field and back button adopt the same 54dp metrics as the OS4 capsule.
+- The album case now tilts in full 3D following the finger: drags in any direction rotate the whole case with rubber-band overflow, springing back on release; tap-to-open is unchanged.
+- The home top bar no longer sits below the status bar: the blur band now extends to the top screen edge, removing the visible seam and the sampling-offset ghosting.
+- Track changes no longer flash the default cover: while the next artwork model resolves, the previous resolved model keeps serving, and while it decodes, the last successfully drawn frame stays on every player cover surface.
+- The app icon is restored to the 1.3.0 artwork; the “traditional” option uses its own icon again.
+- #750 Scroll restoration completed for genre/year/lyricist/composer/arranger/folder/custom-category detail pages and the folder-playlist page: returning from a deeplink/shortcut destination now restores the reading position (previously the restore request was clamped to the top while the asynchronously-loaded list was still empty).
+- #760 The album merge strategy now applies on cold start: editing it shows a “takes effect after restart” hint and the in-process strategy stays frozen at the value read on launch, keeping grouping consistent end to end.
+- Poster-wall stack swipes no longer flash the previous card: the incoming card returns home while invisible and fades in over the promoted rear card, replacing the instant offset snap; the player flow background no longer flickers on track change — the flow clock is now truly continuous, the container color eases over 400ms, and consecutive rendered frames crossfade for 220ms.
+- The album case is now finger-tracked: drag horizontally on the intro page's CD jewel case to flip the lid in real time, releasing snaps it open or shut; tap-toggle and long-press preview are unchanged; the "流光效果" option OS1 is renamed to "Disabled" (it already turns the flow effect off).
+- Floating capsule bottom bar and mini player now share the same 16dp horizontal inset so their edges align; the home "听音乐" top bar opts into the progressive-blur + liquid-glass pipeline (blurs on scroll, and with the liquid-glass switch the four actions sit on individual glass circles); the "M3U8 下载器" label in the system open-with sheet is renamed to "Video Player"; bottom bar styles renamed: 高斯模糊悬浮→iOS Floating (Gaussian blur), 液态玻璃悬浮→iOS Floating (Liquid glass), 悬浮胶囊→HyperOS 4 Floating.
+- Batch edit rework (#725): new "Keep modified time" toggle (restores file lastModified so date-sorted lists stay put) and "Partial replace mode" (per-field match/replace columns that only rewrite the matched fragment); fields can be cleared, mixed values show a <keep> placeholder that leaves the tag untouched until edited, prefills pick the shared segment intersection, and every field can pick from values already present in the category; album and artist long-press menus gain batch edit (11 fields for albums, 3 for artists), composer is limited to composer/artist/album-artist, arranger/lyricist/producer to their own tag, and custom tags gain the standard field set; "Search image" and "Batch edit" move above "Delete permanently" and are ported to the global search category long-press menu.
+- Fixed the "Album" category block always grouping by the default fields (name+artist): blocks without a customized field list now inherit the global album merge strategy, so counts, covers and detail songs agree again (#760).
+- Crossfade (toggle, duration, curve) moves from Audio settings into a new Settings → Experimental page; the settings search index points to the new destination.
+- #763: Cold-start restored playback now waits for a stable song identity before committing lyrics and notification artwork — the first library song's lyrics no longer flash; removed the edge paths that could pin the lyric page on "Loading" forever.
+- #732: The MusicFree JS adapter layer is rewritten — full CryptoJS (AES/DES/3DES/RC4, HMAC, PBKDF2, EvpKDF, OpenSSL format), fetch/XMLHttpRequest, Buffer/btoa/atob, URL/FormData, and node crypto/path/util/events shims; Promise.race+setTimeout plugin patterns now time out correctly; AsyncStorage/localStorage are backed by persistent app storage so plugin tokens survive between calls.
+- Every dropdown/filter menu now uses the Miuix Glass popup: sort menus, the source menu, rating filter, library-analysis filter, batch-edit sheet, online provider selector, and all settings spinners render as OS4 glass popups (multi-select keeps its stay-open behavior).
+- #765: Long-pressing the artist name on the player page opens the custom artist/genre separator sheet directly; the "tap title to open album" switch now also applies to the song title on the lyrics page.
+- Fixed the album case ignoring taps: after the dual-axis tilt rework a tap still ran the old "snap to nearest" logic so the lid could never flip — a tap now toggles open/closed directly and the disc inside is reachable again.
+- #760 reverted: the album merge strategy applies live again (changes propagate through a distinctUntilChanged flow) and the "takes effect after restart" hint is removed.
+- Create-playlist is now a dialog: all six "new playlist" entries (artist page, category detail, folder detail, song menu, home selection sheet, playlist page) open a centered dialog instead of a bottom sheet.
+- The update page's stable / pre-release channel picker moves from a bottom sheet to an OS4 glass dropdown under the top-bar action.
+- OS4 glass dropdowns restore predictive back: the popup re-resolves its own navigation-event dispatcher, so the system swipe gesture drives live panel progress instead of falling through to the host page.
+- Dialogs and bottom sheets switch to the Miuix Glass material: transparent window base plus a glassPanel with refraction and bloom, falling back to the previous solid surfaces when no recorded backdrop is available.
+- Fixed home progressive-blur ghosting: the recorded backdrop moved from the scrolling node to a fixed container, so shortcut buttons and feature blocks no longer imprint into the top blur band after scrolling back up.
+- The player flow background no longer flashes on track change: the previous artwork keeps rendering through the brief null-cover window so the flow composable is never torn down and recreated (landscape layout fixed the same way).
+
+Version
+- Version name: `1.3.1`
+- Version code: `41`
+
 # 1.3.0
 
 From `1.2.9` to `1.3.0` — 播放、歌词与曲库更新 / playback, lyrics, and library updates.
@@ -65,6 +287,7 @@ From `1.2.9` to `1.3.0` — 播放、歌词与曲库更新 / playback, lyrics, a
 
 ### 远程曲库
 
+- 网易云登录后同步内容新增：每日推荐歌单（含每日推荐单曲榜）和心动模式歌单——每日推荐歌单最多同步 20 个，心动模式以最近播放/喜欢的歌曲为种子生成，随「同步」一起刷新。
 - 自建的 Navidrome / OpenSubsonic / Emby / WebDAV 服务器可以直接填写 `http://` 明文地址（含公网 IPv6），不再强制 HTTPS；只有在地址里内嵌账号密码时才会拒绝，并且 HTTPS 请求不会被允许跳转到 HTTP。使用 HTTP 时服务器编辑页会提示数据可能在网络中被窃听。
 
 English Changelog
@@ -103,6 +326,7 @@ English Changelog
 
 ### Remote libraries
 
+- Signed-in NetEase sync now also brings the daily-recommended playlists (including the daily recommended songs list, capped at 20 playlists) and a Heartbeat Mode playlist seeded by a recent/favorite song; all refresh with the same sync action.
 - Self-hosted Navidrome / OpenSubsonic / Emby / WebDAV servers may use a plain `http://` address (including a public IPv6 one) instead of requiring HTTPS. Credentials embedded in the address stay rejected and an HTTPS origin is never allowed to redirect down to HTTP; the server editor warns that HTTP traffic can be intercepted.
 
 Version

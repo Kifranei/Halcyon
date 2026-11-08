@@ -26,9 +26,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,11 +114,13 @@ internal fun ArtistJumpActions(
     hasComposerCategory: Boolean,
     hasArrangerCategory: Boolean,
     hasLyricistCategory: Boolean,
+    hasProducerCategory: Boolean,
     hasNeteaseArtist: Boolean,
     onNeteaseWikiClick: (() -> Unit)? = null,
     onComposerClick: () -> Unit,
     onArrangerClick: () -> Unit,
     onLyricistClick: () -> Unit,
+    onProducerClick: () -> Unit,
     onNeteaseClick: () -> Unit
 ) {
     Row(
@@ -133,6 +137,9 @@ internal fun ArtistJumpActions(
         }
         if (hasLyricistCategory) {
             ArtistJumpChip(stringResource(R.string.artist_lyricist_page), onLyricistClick)
+        }
+        if (hasProducerCategory) {
+            ArtistJumpChip(stringResource(R.string.artist_producer_page), onProducerClick)
         }
         if (hasNeteaseArtist) {
             ArtistJumpChip(stringResource(R.string.artist_netease_artist_page), onNeteaseClick)
@@ -564,6 +571,7 @@ internal fun ArtistTabRow(
 @Composable
 internal fun ArtistHeader(
     artistName: String,
+    wordmarkModel: Any? = null,
     fallbackCoverModel: Any?,
     customCoverAssets: List<ArtistCoverAsset>,
     dynamicCoverEnabled: Boolean,
@@ -703,14 +711,31 @@ internal fun ArtistHeader(
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = artistName.ifBlank { stringResource(R.string.player_unknown_artist) },
-                fontSize = 36.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = headerTextColor,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (wordmarkModel != null) {
+                // Wordmark art replaces the name text (AM artist-page wordmarks). Intrinsic
+                // sizing keeps it hugging the left edge regardless of aspect ratio.
+                coil3.compose.AsyncImage(
+                    model = coil3.request.ImageRequest.Builder(LocalContext.current)
+                        .data(wordmarkModel)
+                        .size(coil3.size.Size.ORIGINAL)
+                        .build(),
+                    contentDescription = artistName.ifBlank { stringResource(R.string.player_unknown_artist) },
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .heightIn(max = 64.dp),
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart
+                )
+            } else {
+                Text(
+                    text = artistName.ifBlank { stringResource(R.string.player_unknown_artist) },
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = headerTextColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             Text(
                 text = stringResource(R.string.artist_album_song_summary, albumCount, songCount),

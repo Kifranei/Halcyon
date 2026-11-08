@@ -9,6 +9,7 @@
     <string name="poster_lyric_clock">Clockwork</string>
     <string name="poster_lyric_color">Color fields</string>
     <string name="poster_lyric_glow">Luminous</string>
+    <string name="poster_lyric_flow">Flowing</string>
     <string name="poster_wall_title">Poster wall</string>
     <string name="poster_wall_summary">Explore music through a movable, zoomable cover wall</string>
     <string name="poster_wall_count">%1$d music posters</string>

@@ -28,6 +28,7 @@ import com.ella.music.data.model.Artist
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.TextWithEndPin
 import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.ui.folder.musicSortKey
@@ -36,7 +37,6 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Music
-import top.yukonga.miuix.kmp.icon.extended.Pin
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal fun Artist.indexLetter(): String {
@@ -114,26 +114,14 @@ internal fun ArtistRow(
         }
         Spacer(modifier = Modifier.size(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = artist.name.ifBlank { stringResource(R.string.player_unknown_artist) },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isPinned) {
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Pin,
-                        contentDescription = null,
-                        tint = MiuixTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            TextWithEndPin(
+                text = artist.name.ifBlank { stringResource(R.string.player_unknown_artist) },
+                pinned = isPinned,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
             Text(
                 text = summary,
                 fontSize = 12.sp,

@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.ella.music.R
-import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
+import sh.calvin.reorderable.DragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.CoverUsage
@@ -408,7 +408,7 @@ internal fun PlayerQueueMenu(
                             Modifier
                         } else {
                             Modifier.draggableHandle(
-                                dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
+                                dragGestureDetector = DragGestureDetector.LongPress,
                                 onDragStopped = {
                                     val move = resolveQueueMoveCommit(
                                         fromIndex = pendingMoveStart,

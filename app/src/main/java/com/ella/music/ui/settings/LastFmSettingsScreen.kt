@@ -45,7 +45,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -131,7 +131,7 @@ fun LastFmSettingsScreen(onBack: () -> Unit) {
             SettingsCardGroup {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.lastfm_history_source) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.lastfm_history_source),
                     summary = stringResource(R.string.lastfm_history_source_summary),
                     items = sourceOptions.map { DropdownItem(title = it.second) },

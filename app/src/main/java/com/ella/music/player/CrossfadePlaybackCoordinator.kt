@@ -50,7 +50,13 @@ internal class CrossfadePlaybackCoordinator(
     private val onIncomingFinished: () -> Unit,
     private val scope: CoroutineScope,
     private val mediaSourceFactory: MediaSource.Factory = DefaultMediaSourceFactory(dataSourceFactory),
-    private val onPlayerCreated: (ExoPlayer, CrossfadeGainAudioProcessor) -> Unit = { _, _ -> }
+    private val onPlayerCreated: (ExoPlayer, CrossfadeGainAudioProcessor) -> Unit = { _, _ -> },
+    /**
+     * Smart-fade recipe provider (lyric boundaries, album-side continuity). Invoked on [scope]
+     * as soon as the source item enters the prefetch window; null or a slow result falls back
+     * to the configured fixed fade window. Suspend so the loader may hit the lyric cache/DB.
+     */
+    private val transitionHintLoader: (suspend (source: MediaItem, target: MediaItem, sourceDurationMs: Long, fadeMs: Long) -> TransitionHints?)? = null
 ) {
     private var audioAttributes: AudioAttributes = audioAttributes
     private data class ActiveTransition(
@@ -77,6 +83,10 @@ internal class CrossfadePlaybackCoordinator(
     private var preparedTargetMediaId: String? = null
     private var transition: ActiveTransition? = null
     private var handoffStarted = false
+    private var transitionHint: TransitionHints? = null
+    private var transitionHintSourceMediaId: String? = null
+    private var transitionHintTargetMediaId: String? = null
+    private var transitionHintJob: kotlinx.coroutines.Job? = null
 
     private var monitorJob: kotlinx.coroutines.Job? = null
     private var standbyDrainJob: kotlinx.coroutines.Job? = null
@@ -279,12 +289,30 @@ internal class CrossfadePlaybackCoordinator(
         val target = primary.getMediaItemAt(nextIndex)
         val remainingMs = (primary.duration - primary.currentPosition).coerceAtLeast(0L)
 
-        if (remainingMs <= fadeMs + PREPARE_LEAD_MS) {
+        // Resolve the smart-fade recipe a beat before the prebuffer window so a cheap lyric
+        // lookup can move the start, and a seamless recipe can still skip the whole prebuffer.
+        if (remainingMs <= fadeMs + PREPARE_LEAD_MS + HINT_PREFETCH_LEAD_MS) {
+            ensureTransitionHint(current, target)
+        }
+        val resolvedHint = transitionHint.takeIf {
+            transitionHintSourceMediaId == current.mediaId &&
+                transitionHintTargetMediaId == target.mediaId
+        }
+        if (resolvedHint?.keepSeamless != true && remainingMs <= fadeMs + PREPARE_LEAD_MS) {
             prepareSecondary(current, target, nextIndex)
         }
         val candidate = secondary
+        // The hint can only move the start later than the configured window. If the loader is
+        // still running when the tail is nearly over, take the fixed window rather than skip.
+        val fadeStartMs = resolvedHint?.fadeStartMs ?: (primary.duration - fadeMs)
+        val hintPending = resolvedHint == null &&
+            transitionHintJob?.isActive == true &&
+            transitionHintSourceMediaId == current.mediaId &&
+            transitionHintTargetMediaId == target.mediaId
         if (
-            remainingMs <= fadeMs &&
+            resolvedHint?.keepSeamless != true &&
+            primary.currentPosition >= fadeStartMs &&
+            (!hintPending || remainingMs <= MIN_SMART_FADE_MS) &&
             candidate?.playbackState == Player.STATE_READY &&
             candidate.currentMediaItem?.mediaId == target.mediaId &&
             preparedSourceMediaId == current.mediaId &&
@@ -308,6 +336,30 @@ internal class CrossfadePlaybackCoordinator(
             // waveform threshold or the final ownership swap. This keeps cover/title/lyrics in
             // lock-step with the incoming transport throughout the complete crossfade window.
             presentIncoming(startedTransition, candidate)
+        }
+    }
+
+    private fun ensureTransitionHint(source: MediaItem, target: MediaItem) {
+        if (transitionHintSourceMediaId == source.mediaId &&
+            transitionHintTargetMediaId == target.mediaId
+        ) {
+            return
+        }
+        transitionHintSourceMediaId = source.mediaId
+        transitionHintTargetMediaId = target.mediaId
+        transitionHint = null
+        transitionHintJob?.cancel()
+        val loader = transitionHintLoader ?: return
+        val sourceDurationMs = primary.duration.coerceAtLeast(0L)
+        transitionHintJob = scope.launch {
+            val hint = runCatching {
+                loader(source, target, sourceDurationMs, crossfadeDurationMs)
+            }.onFailure { Log.w(TAG, "transition hint lookup failed", it) }.getOrNull()
+            if (transitionHintSourceMediaId == source.mediaId &&
+                transitionHintTargetMediaId == target.mediaId
+            ) {
+                transitionHint = hint
+            }
         }
     }
 
@@ -396,6 +448,11 @@ internal class CrossfadePlaybackCoordinator(
         val active = transition
         transition = null
         handoffStarted = false
+        transitionHintJob?.cancel()
+        transitionHintJob = null
+        transitionHint = null
+        transitionHintSourceMediaId = null
+        transitionHintTargetMediaId = null
         // Restore the PCM envelope before touching the silent standby transport.
         restorePrimaryGain()
         clearSecondary()
@@ -444,19 +501,33 @@ internal class CrossfadePlaybackCoordinator(
     private companion object {
         const val MAX_CROSSFADE_MS = 12_000L
         const val PREPARE_LEAD_MS = 1_500L
+        const val HINT_PREFETCH_LEAD_MS = 700L
         const val IDLE_TICK_MS = 250L
         const val ACTIVE_TICK_MS = 16L
-        const val MIN_SMART_FADE_MS = 450L
+        const val MIN_SMART_FADE_MS = CrossfadeTransitionMath.MIN_SMART_FADE_MS
         const val PROMOTED_STANDBY_DRAIN_MS = 750L
         const val TAG = "CrossfadeCoordinator"
     }
 }
+
+/**
+ * Fade recipe resolved ahead of a transition. [fadeStartMs] is an absolute position on the
+ * source timeline; null keeps the configured window. [keepSeamless] suppresses the crossfade
+ * entirely so the natural gapless auto-transition wins (contiguous album sides).
+ */
+internal data class TransitionHints(
+    val fadeStartMs: Long? = null,
+    val keepSeamless: Boolean = false
+)
 
 internal object CrossfadeTransitionMath {
     const val CURVE_EQUAL_POWER = 0
     const val CURVE_LINEAR = 1
     const val CURVE_SMOOTH = 2
     const val CURVE_FLAT = 3
+
+    /** Shortest usable smart-fade window; below this the fade would feel like a cut. */
+    const val MIN_SMART_FADE_MS = 450L
 
     private const val AUDIBLE_LEVEL = 0.0035f
     private const val QUIET_LEVEL = 0.0015f

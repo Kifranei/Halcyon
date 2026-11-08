@@ -78,7 +78,7 @@ fun NeteaseAccountScreen(onDismiss: () -> Unit, mainViewModel: MainViewModel?) {
                     Text(stringResource(R.string.netease_summary))
                     com.ella.music.ui.components.EllaSheetCardGroup {
                     com.ella.music.ui.settings.SettingsSearchAnchor(R.string.netease_playback_provider_title) {
-                    top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
+                    com.ella.music.ui.components.EllaSpinnerPreference(
                         title = stringResource(R.string.netease_playback_provider_title),
                         summary = stringResource(R.string.netease_playback_provider_summary),
                         items = com.ella.music.data.netease.NeteasePlaybackProvider.entries.map {
@@ -99,7 +99,7 @@ fun NeteaseAccountScreen(onDismiss: () -> Unit, mainViewModel: MainViewModel?) {
                             "flac" to stringResource(R.string.netease_quality_lossless),
                             "flac24bit" to stringResource(R.string.netease_quality_hires)
                         )
-                    top.yukonga.miuix.kmp.preference.WindowSpinnerPreference(
+                    com.ella.music.ui.components.EllaSpinnerPreference(
                         title = stringResource(if (useOfficialQuality) R.string.netease_quality_title else R.string.netease_playback_plugin_quality_title),
                         summary = stringResource(if (useOfficialQuality) R.string.netease_quality_summary else R.string.netease_playback_provider_summary),
                         items = qualityOptions.map {

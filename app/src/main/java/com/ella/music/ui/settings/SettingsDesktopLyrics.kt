@@ -38,7 +38,7 @@ import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
+import com.ella.music.ui.components.EllaSpinnerPreference
 
 @Composable
 internal fun SettingsDesktopLyricControls(
@@ -264,7 +264,7 @@ internal fun SettingsDesktopLyricControls(
 
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_status_bar_lyric_position) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_status_bar_lyric_position),
                         summary = stringResource(R.string.settings_status_bar_lyric_position_summary),
                         items = statusLyricPositionEntries,
@@ -314,7 +314,7 @@ internal fun SettingsDesktopLyricControls(
 
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_status_bar_lyric_text_align) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_status_bar_lyric_text_align),
                         summary = stringResource(R.string.settings_status_bar_lyric_text_align_summary),
                         items = statusLyricTextAlignEntries,
@@ -330,7 +330,7 @@ internal fun SettingsDesktopLyricControls(
 
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_status_bar_lyric_vertical_align) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_status_bar_lyric_vertical_align),
                         summary = stringResource(R.string.settings_status_bar_lyric_vertical_align_summary),
                         items = statusLyricVerticalAlignEntries,
@@ -346,7 +346,7 @@ internal fun SettingsDesktopLyricControls(
 
                     // search-anchor:start
                     SettingsSearchAnchor(R.string.settings_status_bar_lyric_secondary) {
-                    WindowSpinnerPreference(
+                    EllaSpinnerPreference(
                         title = stringResource(R.string.settings_status_bar_lyric_secondary),
                         summary = stringResource(R.string.settings_status_bar_lyric_secondary_summary),
                         items = statusLyricSecondaryEntries,
@@ -625,7 +625,7 @@ internal fun SettingsDesktopLyricControls(
 
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_desktop_lyric_background) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_desktop_lyric_background),
                     summary = desktopLyricBackgroundLabels.getOrElse(desktopLyricBackgroundMode) {
                         desktopLyricBackgroundLabels.first()
@@ -669,7 +669,7 @@ internal fun SettingsDesktopLyricControls(
             if (!desktopLyricSyncCoverContentColor /* search-reveal */ || SettingsSearchFocus.reveals(R.string.settings_desktop_lyric_color, R.string.common_custom)) {
                 // search-anchor:start
                 SettingsSearchAnchor(R.string.settings_desktop_lyric_color) {
-                WindowSpinnerPreference(
+                EllaSpinnerPreference(
                     title = stringResource(R.string.settings_desktop_lyric_color),
                     summary = stringResource(R.string.settings_desktop_lyric_color_summary),
                     items = desktopLyricColorEntries,

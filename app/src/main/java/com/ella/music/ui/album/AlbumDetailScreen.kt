@@ -383,6 +383,11 @@ fun AlbumDetailScreen(
             .flatMap { splitArtistNames(it.lyricist) }
             .distinctBy { it.lowercase(Locale.ROOT) }
     }
+    val participatingProducers = remember(albumSongs, nameSplitRevision) {
+        albumSongs
+            .flatMap { splitArtistNames(it.producer) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+    }
     val yearDisplayItem = remember(albumRecordedYear, albumSongs) {
         albumRecordedYear?.let { year ->
             buildAlbumMetadataDisplayItem(
@@ -473,7 +478,21 @@ fun AlbumDetailScreen(
             )
         }
     }
-    val listState = rememberLazyListState()
+    val producerDisplayItems = remember(participatingProducers, albumSongs, librarySongs) {
+        participatingProducers.map { producer ->
+            buildAlbumMetadataDisplayItem(
+                name = producer,
+                songs = mainViewModel.getSongsForMetadataCategory("producer", producer),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull(),
+                categoryType = "producer",
+                coverCandidates = librarySongs,
+                artistCoverName = producer,
+                artistCoverSong = selectMetadataCategoryCoverSong(librarySongs, "producer", producer) ?: selectArtistCoverSong(librarySongs, producer)
+            )
+        }
+    }
+    val listState = com.ella.music.ui.components.rememberDetailListState(albumId)
     RestoreListScrollAfterSearch(
         searchExpanded = searchExpanded,
         query = searchQuery,
@@ -794,6 +813,7 @@ fun AlbumDetailScreen(
                 participatingComposers.isNotEmpty() ||
                 participatingArrangers.isNotEmpty() ||
                 participatingLyricists.isNotEmpty() ||
+                participatingProducers.isNotEmpty() ||
                 (showFooterReleaseDate && albumRecordedYear != null)
             ) {
                 item(key = "album-extra-info") {
@@ -806,6 +826,7 @@ fun AlbumDetailScreen(
                         composers = composerDisplayItems,
                         arrangers = arrangerDisplayItems,
                         lyricists = lyricistDisplayItems,
+                        producers = producerDisplayItems,
                         year = yearDisplayItem,
                         mainViewModel = mainViewModel,
                         artistCoverFolderUri = artistCoverFolderUri,
@@ -814,6 +835,7 @@ fun AlbumDetailScreen(
                         onComposerClick = { composer -> onNavigateToMetadataCategory("composer", composer) },
                         onArrangerClick = { arranger -> onNavigateToMetadataCategory("arranger", arranger) },
                         onLyricistClick = { lyricist -> onNavigateToMetadataCategory("lyricist", lyricist) },
+                        onProducerClick = { producer -> onNavigateToMetadataCategory("producer", producer) },
                         onYearClick = { year -> onNavigateToMetadataCategory("year", year) },
                         showReleaseDateSection = showFooterReleaseDate
                     )

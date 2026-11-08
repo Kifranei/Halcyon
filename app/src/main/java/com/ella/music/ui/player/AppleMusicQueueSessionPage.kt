@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import com.ella.music.R
-import com.ella.music.ui.playlist.ImmediateOrLongPressDragGestureDetector
+import sh.calvin.reorderable.DragGestureDetector
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import sh.calvin.reorderable.ReorderableItem
@@ -244,7 +244,7 @@ internal fun AppleMusicQueueSessionPage(
                     val queueSong = item.song
                     val isCurrentSong = index == currentIndex
                     val dragHandleModifier = Modifier.draggableHandle(
-                        dragGestureDetector = ImmediateOrLongPressDragGestureDetector,
+                        dragGestureDetector = DragGestureDetector.LongPress,
                         onDragStopped = {
                             val move = resolveQueueMoveCommit(
                                 fromIndex = pendingMoveStart,

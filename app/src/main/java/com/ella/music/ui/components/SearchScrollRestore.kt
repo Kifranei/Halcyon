@@ -3,12 +3,16 @@ package com.ella.music.ui.components
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.navigation.NavBackStackEntry
 
 /**
  * Restores the place a user was reading after an inline search is dismissed.
@@ -111,3 +115,44 @@ private data class ScrollAnchor(
     val index: Int,
     val offset: Int
 )
+
+private const val DetailScrollStateKey = "detail_list_scroll_state"
+
+/**
+ * List state for detail pages a shortcut/deeplink destination can cover. `rememberSaveable`
+ * alone does not always survive that dispose/recompose cycle, so the position is also parked
+ * in the back-stack entry's `savedStateHandle` and scrolled back when the page composes again
+ * (#750). `scrollToItem` defers itself until the lazy list has laid out, so it is safe before
+ * the content finishes loading.
+ */
+@Composable
+internal fun rememberDetailListState(vararg keys: Any?, storageKey: String = DetailScrollStateKey): LazyListState {
+    val listState = rememberSaveable(*keys, saver = LazyListState.Saver) { LazyListState() }
+    val entry = LocalViewModelStoreOwner.current as? NavBackStackEntry
+    DisposableEffect(entry, listState) {
+        onDispose {
+            entry?.savedStateHandle?.set(
+                storageKey,
+                intArrayOf(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            )
+        }
+    }
+    LaunchedEffect(entry, listState) {
+        val saved = entry?.savedStateHandle?.get<IntArray>(storageKey) ?: return@LaunchedEffect
+        // Category/folder detail pages feed the list through produceState chains, so the
+        // content is still empty when the restored position is applied and LazyList would
+        // clamp the request to zero (#750). Wait for real items first.
+        var waitedFrames = 0
+        while (listState.layoutInfo.totalItemsCount == 0 && waitedFrames++ < 300) {
+            withFrameNanos { }
+        }
+        val lastIndex = listState.layoutInfo.totalItemsCount - 1
+        if (lastIndex >= 0) {
+            listState.scrollToItem(
+                saved.getOrElse(0) { 0 }.coerceIn(0, lastIndex),
+                saved.getOrElse(1) { 0 }
+            )
+        }
+    }
+    return listState
+}
